@@ -1,22 +1,19 @@
-"""[WORKFLOW STATE] — synthesized current state of the operator's workflow automation.
+"""[WORKFLOW STATE] — current state of the operator's workflow automation.
 
-Phi has access to raw flow run history via MCP, but reasoning about
-temporal currency from a 30-row table was inconsistent — sometimes she
-correctly identified resolved chains, sometimes she pattern-matched on
-"long failure history = persistent problem" and re-flagged things that
-had self-resolved hours ago.
+Deterministic per-deployment health, computed in Python from raw flow run
+data. No LLM in the classification path.
 
-This pre-fetches recent flow runs + deployments, runs them through a
-small synth agent anchored by [NOW], and returns one line per
-deployment: its current health, grounded in timestamps relative to now.
-The synth does the temporal aggregation so phi doesn't have to.
+History: an earlier version handed the run history to a haiku synth agent
+and asked it to label each deployment healthy/broken/stuck/degraded. That
+synth hallucinated — given a clear run-history with three successes after
+a failure cluster, it still labeled the deployment "broken" and cited the
+end-time of a successful run as "no successful run since X". Phi did the
+right thing by trusting the block; the block was wrong. Now the
+classification is pure Python (most-recent terminal-state per deployment)
+so it cannot lie. Phi can still call the prefect_* tools for detail.
 
-Mirrors the [RELEVANT MEMORIES] pattern: raw retrieval → small synth →
-coherent block. Phi can still call the prefect_* tools for detail; this
-gives her a correct starting picture.
-
-The naming is deliberately abstract — the workflow tool happens to be
-prefect today; tomorrow it could be anything else with the same surface.
+Naming is deliberately abstract — workflow tooling is prefect today;
+tomorrow it could be anything else with the same surface.
 """
 
 import logging
@@ -25,54 +22,24 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
-from pydantic_ai import Agent
 
 from bot.config import settings
+from bot.utils.time import relative_when
 
 logger = logging.getLogger("bot.workflow_state")
 
 _TTL_SECONDS = 300  # 5min
 _cache: dict[str, Any] = {"text": "", "fetched_at": 0.0}
 
-_synth_agent: Agent | None = None
+# Per-deployment "recent fail rate" gate for the degraded label. Looking at
+# at most the last 5 terminal runs; if at least 2 of them failed AND the
+# most recent run still completed, the deployment is "degraded" (flapping)
+# rather than "healthy". Conservative on purpose — too sensitive and
+# normal transient failures get surfaced as ongoing.
+_DEGRADED_WINDOW = 5
+_DEGRADED_FAIL_THRESHOLD = 2
 
-
-def _get_synth_agent() -> Agent:
-    global _synth_agent
-    if _synth_agent is None:
-        _synth_agent = Agent[None, str](
-            name="phi-workflow-synth",
-            model=settings.extraction_model,
-            system_prompt=(
-                "You're synthesizing the current state of the operator's "
-                "workflow automation for phi to read. You'll see [NOW] and "
-                "the recent flow runs grouped by deployment.\n\n"
-                "For each deployment with activity in the data, output one "
-                "line:\n"
-                "  - <deployment-name>: <healthy|broken|stuck|degraded>. "
-                "<one short clause grounding it in actual timestamps vs NOW>\n\n"
-                "Definitions, anchored by NOW:\n"
-                "- healthy: the most recent run for this deployment "
-                "completed successfully. earlier failures, if any, are "
-                "historical.\n"
-                "- broken: the most recent run failed AND no later run has "
-                "succeeded. currently unresolved.\n"
-                "- stuck: a run has been Pending/Submitting/Running far "
-                "longer than the deployment's typical duration.\n"
-                "- degraded: a meaningful fraction of recent runs are "
-                "failing while others succeed.\n\n"
-                "Resolved incidents are not current state. Don't surface "
-                "them unless they happened in the last hour. When you cite "
-                'time, cite it relative to NOW ("resolved 30h ago", '
-                '"failing for 5d") rather than absolute dates.\n\n'
-                "Plain ASCII, lowercase, terse. No headers, no preamble — "
-                "just the per-deployment lines."
-            ),
-            output_type=str,
-        )
-    agent = _synth_agent
-    assert agent is not None
-    return agent
+_TERMINAL_STATES = {"COMPLETED", "FAILED", "CRASHED", "CANCELLED"}
 
 
 def _basic_auth() -> tuple[str, str] | None:
@@ -109,7 +76,7 @@ async def _fetch_raw() -> dict[str, Any] | None:
             runs_resp = await client.post(
                 f"{base}/flow_runs/filter",
                 json={
-                    "limit": 100,
+                    "limit": 200,
                     "sort": "START_TIME_DESC",
                     "flow_runs": {
                         "state": {
@@ -164,6 +131,150 @@ async def _fetch_raw() -> dict[str, Any] | None:
     return {"runs": runs, "stuck": stuck, "deployments": deployments}
 
 
+def _state_type(run: dict) -> str:
+    """Normalize the state-type out of a flow run row.
+
+    The prefect REST API returns it as either a top-level `state_type`
+    or nested under `state.type` depending on the endpoint. Take whichever
+    is present.
+    """
+    return run.get("state_type") or (run.get("state") or {}).get("type", "") or ""
+
+
+def _classify(runs: list[dict], stuck_ids: set[str]) -> tuple[str, str]:
+    """Classify a single deployment from its runs (most-recent first).
+
+    Returns (status, evidence) where status is one of healthy/broken/
+    stuck/degraded and evidence is a short clause grounded in actual
+    timestamps relative to now (e.g. "most recent run completed 2h ago").
+    """
+    if not runs:
+        return "", ""
+
+    # If a stuck PENDING/RUNNING row exists for this deployment, that
+    # outranks the terminal-state classification — the work isn't getting
+    # picked up, regardless of past completions.
+    for r in runs:
+        if r["id"] in stuck_ids:
+            start = r.get("start_time") or r.get("expected_start_time", "")
+            when = relative_when(start) if start else ""
+            tail = f" since {when}" if when else ""
+            return "stuck", f"a {_state_type(r).lower()} run has been waiting{tail}"
+
+    # Most recent terminal-state run = ground truth for healthy vs broken.
+    terminal = [r for r in runs if _state_type(r) in _TERMINAL_STATES]
+    if not terminal:
+        # Only running / pending runs in the window. Treat as healthy until
+        # we have terminal evidence otherwise.
+        return "healthy", "no terminal runs in window; nothing failed"
+
+    most_recent = terminal[0]
+    most_recent_state = _state_type(most_recent)
+    most_recent_when = relative_when(most_recent.get("end_time", "")) or relative_when(
+        most_recent.get("start_time", "")
+    )
+
+    if most_recent_state == "COMPLETED":
+        # Healthy unless the recent fail rate is high enough to flag
+        # flapping. Look at the last N terminal runs.
+        window = terminal[:_DEGRADED_WINDOW]
+        fails = sum(1 for r in window if _state_type(r) in {"FAILED", "CRASHED"})
+        if fails >= _DEGRADED_FAIL_THRESHOLD:
+            return (
+                "degraded",
+                f"most recent run completed {most_recent_when}, "
+                f"but {fails}/{len(window)} of recent runs failed",
+            )
+        return "healthy", f"most recent run completed {most_recent_when}"
+
+    if most_recent_state in {"FAILED", "CRASHED"}:
+        msg = (most_recent.get("state_message") or "").strip().splitlines()
+        first_line = msg[0] if msg else ""
+        first_line = first_line[:140] + "…" if len(first_line) > 140 else first_line
+        suffix = f" — {first_line}" if first_line else ""
+        return (
+            "broken",
+            f"most recent run failed {most_recent_when}{suffix}",
+        )
+
+    if most_recent_state == "CANCELLED":
+        return "healthy", f"most recent run was cancelled {most_recent_when}"
+
+    # unknown terminal state — fall back to a neutral line
+    return (
+        "healthy",
+        f"most recent run was {most_recent_state.lower()} {most_recent_when}",
+    )
+
+
+def _compose(raw: dict) -> str:
+    """Compose the [WORKFLOW STATE] block from raw run / deployment data."""
+    runs = raw.get("runs") or []
+    stuck = raw.get("stuck") or []
+    deployments = raw.get("deployments") or []
+    if not runs and not stuck:
+        return ""
+
+    dep_names: dict[str, str] = {
+        d["id"]: d.get("name", "?") for d in deployments if d.get("id")
+    }
+    stuck_ids: set[str] = {r["id"] for r in stuck if r.get("id")}
+
+    # Group runs by deployment_id (preserving most-recent-first order).
+    by_dep: dict[str, list[dict]] = {}
+    for r in runs:
+        dep_id = r.get("deployment_id")
+        if not dep_id:
+            continue  # ad-hoc / orphan runs — skip the per-deployment table
+        by_dep.setdefault(dep_id, []).append(r)
+
+    # Make sure every stuck deployment is represented even if no terminal
+    # runs landed in the recent-activity window for it.
+    for r in stuck:
+        dep_id = r.get("deployment_id")
+        if not dep_id:
+            continue
+        by_dep.setdefault(dep_id, []).append(r)
+
+    if not by_dep:
+        return ""
+
+    now_iso = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
+
+    lines: list[tuple[str, str]] = []
+    for dep_id, dep_runs in by_dep.items():
+        status, evidence = _classify(dep_runs, stuck_ids)
+        if not status:
+            continue
+        name = dep_names.get(dep_id, dep_id[:8])
+        lines.append((name, f"- {name}: {status}. {evidence}"))
+
+    if not lines:
+        return ""
+
+    # Sort: broken → stuck → degraded → healthy, then by name within each.
+    priority = {"broken": 0, "stuck": 1, "degraded": 2, "healthy": 3}
+
+    def _sort_key(item: tuple[str, str]) -> tuple[int, str]:
+        name, line = item
+        # second token in the line is the status (after "name: ")
+        try:
+            status = line.split(": ", 1)[1].split(".", 1)[0].strip()
+        except IndexError:
+            status = "healthy"
+        return (priority.get(status, 99), name)
+
+    lines.sort(key=_sort_key)
+
+    body = "\n".join(line for _, line in lines)
+    return (
+        f"[WORKFLOW STATE — current health of the operator's workflow "
+        f"automation, refreshed every {_TTL_SECONDS // 60}min, anchored by "
+        f"[NOW]={now_iso}. computed deterministically from flow run "
+        f"history; for detail call the prefect_* tools.]\n{body}"
+    )
+
+
 async def get_workflow_state_block() -> str:
     """Compose [WORKFLOW STATE] — per-deployment health, anchored by NOW."""
     now = time.time()
@@ -174,53 +285,10 @@ async def get_workflow_state_block() -> str:
     if not raw:
         return ""
 
-    runs = raw.get("runs") or []
-    stuck = raw.get("stuck") or []
-    deployments = raw.get("deployments") or []
-    if not runs and not stuck:
+    block = _compose(raw)
+    if not block:
         return ""
 
-    dep_names = {d["id"]: d.get("name", "?") for d in deployments}
-    now_iso = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
-
-    def _line(r: dict) -> str:
-        dep = dep_names.get(r.get("deployment_id"), "<no-deployment>")
-        state_type = r.get("state_type") or r.get("state", {}).get("type", "?")
-        state_name = r.get("state_name") or r.get("state", {}).get("name", "")
-        state = f"{state_type}/{state_name}" if state_name else state_type
-        name = r.get("name", "?")
-        start = r.get("start_time") or r.get("expected_start_time", "")
-        end = r.get("end_time", "")
-        return f"- {dep} | run={name} | state={state} | start={start} | end={end}"
-
-    sections = [f"[NOW]: {now_iso}"]
-    if runs:
-        sections.append(
-            "recent flow runs (most recent first, max 100):\n"
-            + "\n".join(_line(r) for r in runs)
-        )
-    if stuck:
-        sections.append(
-            "stuck candidates (PENDING/RUNNING with expected_start more than now):\n"
-            + "\n".join(_line(r) for r in stuck)
-        )
-    payload = "\n\n".join(sections)
-
-    try:
-        result = await _get_synth_agent().run(payload)
-        text = (result.output or "").strip()
-    except Exception as e:
-        logger.warning(f"workflow state synth failed: {e}")
-        return ""
-
-    if not text:
-        return ""
-
-    block = (
-        "[WORKFLOW STATE — synthesized current health of the operator's "
-        f"workflow automation, refreshed every {_TTL_SECONDS // 60}min, "
-        f"anchored by [NOW]. for detail call the prefect_* tools.]\n{text}"
-    )
     _cache["text"] = block
     _cache["fetched_at"] = now
     return block
