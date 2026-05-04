@@ -1,12 +1,14 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { getHealth, PHI_HANDLE } from '$lib/api';
+	import { getHealth, getPhiBio, PHI_HANDLE } from '$lib/api';
 	import type { HealthInfo } from '$lib/types';
 
 	let health = $state<HealthInfo | null>(null);
-	let timer: ReturnType<typeof setInterval> | null = null;
+	let bio = $state<string | null>(null);
+	let healthTimer: ReturnType<typeof setInterval> | null = null;
+	let bioTimer: ReturnType<typeof setInterval> | null = null;
 
-	async function poll() {
+	async function pollHealth() {
 		try {
 			health = await getHealth();
 		} catch {
@@ -14,13 +16,21 @@
 		}
 	}
 
+	async function pollBio() {
+		bio = await getPhiBio();
+	}
+
 	onMount(() => {
-		poll();
-		timer = setInterval(poll, 15000);
+		pollHealth();
+		pollBio();
+		healthTimer = setInterval(pollHealth, 15_000);
+		// Bio changes only at phi's startup (rare). 5 min refresh is enough.
+		bioTimer = setInterval(pollBio, 5 * 60_000);
 	});
 
 	onDestroy(() => {
-		if (timer) clearInterval(timer);
+		if (healthTimer) clearInterval(healthTimer);
+		if (bioTimer) clearInterval(bioTimer);
 	});
 
 	const status = $derived.by(() => {
@@ -29,6 +39,7 @@
 		if (health.polling_active) return { color: 'var(--hud-hot)', label: 'online', pulse: true };
 		return { color: 'var(--text-dim)', label: 'idle', pulse: false };
 	});
+
 </script>
 
 <div class="ident">
@@ -78,6 +89,9 @@
 				>@{PHI_HANDLE}</a
 			>
 		</div>
+		{#if bio}
+			<div class="bio" title={bio}>{bio}</div>
+		{/if}
 	</div>
 </div>
 
@@ -169,5 +183,26 @@
 		font-family: var(--font-mono);
 		font-size: 10px;
 		color: var(--scan-mid);
+	}
+
+	.bio {
+		font-size: 11px;
+		color: var(--text-mid);
+		font-style: italic;
+		line-height: 1.35;
+		max-width: 280px;
+		margin-top: 2px;
+		cursor: help;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	@media (max-width: 640px) {
+		.bio {
+			max-width: calc(100vw - 100px);
+			font-size: 10px;
+			line-height: 1.3;
+		}
 	}
 </style>

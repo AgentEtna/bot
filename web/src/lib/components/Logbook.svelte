@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { logbook } from '$lib/state.svelte';
-	import { relativeWhen } from '$lib/time';
+	import { relativeWhen, whenTooltip } from '$lib/time';
 	import { PHI_HANDLE, PHI_DID, getUserView } from '$lib/api';
 	import ViewIn from './ViewIn.svelte';
 	import type {
@@ -142,9 +142,11 @@
 
 				{#if userView.first_seen}
 					<div class="span chrome faint">
-						first noted {relativeWhen(userView.first_seen)}
+						first noted
+						<span title={whenTooltip(userView.first_seen)}>{relativeWhen(userView.first_seen)}</span>
 						{#if userView.last_seen && userView.last_seen !== userView.first_seen}
-							· last touched {relativeWhen(userView.last_seen)}
+							· last touched
+							<span title={whenTooltip(userView.last_seen)}>{relativeWhen(userView.last_seen)}</span>
 						{/if}
 					</div>
 				{/if}
@@ -168,7 +170,9 @@
 											<span class="tags mono">{obs.tags.slice(0, 3).join(' · ')}</span>
 										{/if}
 										{#if obs.created_at}
-											<span class="when">{relativeWhen(obs.created_at)}</span>
+											<span class="when" title={whenTooltip(obs.created_at)}
+												>{relativeWhen(obs.created_at)}</span
+											>
 										{/if}
 									</div>
 								</li>
@@ -194,7 +198,9 @@
 				</div>
 			{/if}
 			<div class="meta">
-				<span class="faint">noted {relativeWhen(obs.observation.created_at)}</span>
+				<span class="faint" title={whenTooltip(obs.observation.created_at)}
+					>noted {relativeWhen(obs.observation.created_at)}</span
+				>
 			</div>
 			<div class="actions">
 				<ViewIn
@@ -207,6 +213,7 @@
 			</div>
 		{:else if entry.kind === 'goal'}
 			{@const goalE = entry as { kind: 'goal'; goal: Goal }}
+			{@const goalTs = goalE.goal.updated_at || goalE.goal.created_at}
 			<h1>{goalE.goal.title}</h1>
 			<p class="content">{goalE.goal.description}</p>
 			{#if goalE.goal.progress_signal}
@@ -216,8 +223,8 @@
 				</div>
 			{/if}
 			<div class="meta">
-				<span class="faint"
-					>last touched {relativeWhen(goalE.goal.updated_at || goalE.goal.created_at)}</span
+				<span class="faint" title={whenTooltip(goalTs)}
+					>last touched {relativeWhen(goalTs)}</span
 				>
 			</div>
 			<div class="actions">
@@ -243,7 +250,7 @@
 			{/if}
 			<p class="content">{act.item.text}</p>
 			<div class="meta">
-				<span class="faint">{relativeWhen(act.item.time)}</span>
+				<span class="faint" title={whenTooltip(act.item.time)}>{relativeWhen(act.item.time)}</span>
 			</div>
 			<div class="actions">
 				{#if act.item.type === 'post' && act.item.uri.startsWith('at://')}
@@ -274,7 +281,9 @@
 			<h1>{blog.doc.title}</h1>
 			<div class="content prose">{blog.doc.content}</div>
 			<div class="meta">
-				<span class="faint">written {relativeWhen(blog.doc.publishedAt)}</span>
+				<span class="faint" title={whenTooltip(blog.doc.publishedAt)}
+					>written {relativeWhen(blog.doc.publishedAt)}</span
+				>
 			</div>
 			<div class="actions">
 				<ViewIn

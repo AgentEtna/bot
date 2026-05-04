@@ -1,37 +1,68 @@
 <script lang="ts">
+	import { onMount, onDestroy } from 'svelte';
 	import { hudReadout } from '$lib/state.svelte';
+	import { operatorClock } from '$lib/time';
 
-	const text = $derived(hudReadout.value || '');
+	const readout = $derived(hudReadout.value || '');
+
+	// Live operator clock — ticks every 30s. When hudReadout has a value
+	// (something on the canvas is hovered), the readout takes over the slot;
+	// otherwise the clock is the resting state.
+	let clock = $state(operatorClock());
+	let timer: ReturnType<typeof setInterval> | null = null;
+
+	onMount(() => {
+		clock = operatorClock();
+		timer = setInterval(() => {
+			clock = operatorClock();
+		}, 30_000);
+	});
+
+	onDestroy(() => {
+		if (timer) clearInterval(timer);
+	});
 </script>
 
-<div class="readout chrome muted" class:has={!!text}>
-	<span class="dot"></span>
-	<span class="t">{text || 'idle'}</span>
+<div class="readout chrome" class:has={!!readout}>
+	<span class="hex" aria-hidden="true"></span>
+	<span class="t mono" title={readout ? '' : "phi's local time (operator timezone)"}>
+		{readout || clock}
+	</span>
 </div>
 
 <style>
 	.readout {
 		display: flex;
-		gap: 6px;
+		gap: 8px;
 		align-items: center;
 		font-size: 10px;
 		color: var(--text-dim);
 	}
 
-	.dot {
-		width: 5px;
-		height: 5px;
-		border-radius: 50%;
-		background: var(--text-dim);
+	.hex {
 		display: inline-block;
+		width: 6px;
+		height: 7px;
+		background: var(--text-dim);
+		clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
 		transition: background 0.12s;
+		flex-shrink: 0;
 	}
 
-	.has .dot {
+	.has .hex {
 		background: var(--hud-hot);
+	}
+
+	.t {
+		font-size: 10px;
+		letter-spacing: 0.1em;
+		text-transform: none;
 	}
 
 	.has .t {
 		color: var(--hud-hot);
+		font-family: var(--font-chrome);
+		text-transform: uppercase;
+		letter-spacing: 0.18em;
 	}
 </style>

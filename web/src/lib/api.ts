@@ -163,6 +163,20 @@ export async function getBskyFeed(limit = 20): Promise<BskyFeedItem[]> {
 	return data.feed;
 }
 
+// Phi's current profile description — the bio she rewrites at every startup.
+// Renders in the HudIdentity area as her own voice.
+export async function getPhiBio(): Promise<string | null> {
+	try {
+		const url = `${BSKY_PUBLIC}/xrpc/app.bsky.actor.getProfile?actor=${PHI_DID}`;
+		const res = await fetch(url);
+		if (!res.ok) return null;
+		const data: { description?: string } = await res.json();
+		return data.description ?? null;
+	} catch {
+		return null;
+	}
+}
+
 // --- discovery pool ---
 //
 // frontend calls the bot's /api/discovery (NOT hub directly), so the public
