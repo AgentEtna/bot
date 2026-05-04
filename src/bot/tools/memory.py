@@ -12,9 +12,21 @@ from bot.tools._helpers import (
 def register(agent):
     @agent.tool
     async def recall(ctx: RunContext[PhiDeps], query: str, about: str = "") -> str:
-        """Search your private memory. Use to find past conversations and what you know about specific people.
-        Pass about="@handle" to search a specific user, or leave empty for general private recall.
-        For public network knowledge, use search_network instead. The write-side companion is `remember`."""
+        """Search your private memory. Use to find past conversations, things you've
+        explicitly remembered, and observations that have aged out of your active pool.
+
+        Without `about`: searches three places at once — your episodic notes
+        (written via `remember`), the current conversation author's namespace,
+        and the archive of observations that have aged out of [ACTIVE
+        OBSERVATIONS] (your prior attention, no longer in the prompt).
+        Archived observations are labeled `[archived observation: <reason>]`
+        so you can tell prior-attention from a normal note.
+
+        With `about="@handle"`: searches that user's namespace only.
+
+        For public network knowledge, use search_network instead.
+        Write-side companions: `remember` (episodic notes) and `observe`
+        (active attention pool that re-surfaces in your prompt)."""
         if not ctx.deps.memory:
             return "memory not available"
 
