@@ -59,10 +59,6 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = Field(
         default=None, description="The API key for the Anthropic API"
     )
-    voyage_api_key: str | None = Field(
-        default=None, description="API key for Voyage AI embeddings"
-    )
-
     # Google Search configuration
     google_api_key: str | None = Field(
         default=None, description="The API key for the Google API"
