@@ -3,6 +3,7 @@
 import asyncio
 import logging
 from datetime import UTC, date, datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import logfire
 
@@ -12,6 +13,23 @@ from bot.services.message_handler import MessageHandler
 from bot.status import bot_status
 
 logger = logging.getLogger("bot.poller")
+
+
+def _operator_tz() -> ZoneInfo:
+    """ZoneInfo for the operator's clock, falling back to UTC on bad config."""
+    try:
+        return ZoneInfo(settings.operator_timezone)
+    except ZoneInfoNotFoundError:
+        logger.warning(
+            f"unknown operator_timezone {settings.operator_timezone!r}; "
+            "falling back to UTC for schedule"
+        )
+        return ZoneInfo("UTC")
+
+
+def _now_local() -> datetime:
+    """Current time in the operator's timezone — schedule slots are local hours."""
+    return datetime.now(_operator_tz())
 
 
 MAX_CONCURRENT = 3
@@ -66,11 +84,11 @@ class NotificationPoller:
         look at phi's recent top-level posts and infer which schedule slots
         have already been filled today.
 
-        Heuristic (deliberately loose):
-        - any top-level post made today UTC at or after daily_reflection_hour
-          marks the daily reflection slot as already done
-        - any top-level post made today UTC during a thought_post_hours hour
-          marks that hour as already done
+        Heuristic (deliberately loose), all in operator-local time:
+        - any top-level post made today (operator local) at or after
+          daily_reflection_hour marks the daily reflection slot as done
+        - any top-level post made today (operator local) during a
+          thought_post_hours hour marks that hour as done
 
         This is approximate — phi makes top-level posts from many contexts
         besides scheduled reflections (e.g. agent replies that decided to go
@@ -84,7 +102,8 @@ class NotificationPoller:
             logger.warning(f"failed to seed schedule from history: {e}")
             return
 
-        today = datetime.now(UTC).date()
+        tz = _operator_tz()
+        today_local = datetime.now(tz).date()
         seeded_daily = False
         seeded_hours: set[int] = set()
 
@@ -96,19 +115,20 @@ class NotificationPoller:
                 ts = datetime.fromisoformat(indexed_at.replace("Z", "+00:00"))
             except (ValueError, TypeError):
                 continue
-            if ts.date() != today:
+            ts_local = ts.astimezone(tz)
+            if ts_local.date() != today_local:
                 continue
 
-            if not seeded_daily and ts.hour >= settings.daily_reflection_hour:
+            if not seeded_daily and ts_local.hour >= settings.daily_reflection_hour:
                 self._last_daily_post = ts
                 seeded_daily = True
 
-            if ts.hour in settings.thought_post_hours:
-                seeded_hours.add(ts.hour)
+            if ts_local.hour in settings.thought_post_hours:
+                seeded_hours.add(ts_local.hour)
 
         if seeded_hours:
             self._last_thought_hours = seeded_hours
-            self._last_thought_date = today
+            self._last_thought_date = today_local
 
         if seeded_daily or seeded_hours:
             logger.info(
@@ -256,13 +276,17 @@ class NotificationPoller:
                 bot_status.record_error()
 
     def _should_do_daily_post(self) -> bool:
-        """Check if it's time for a daily reflection."""
-        now = datetime.now(UTC)
-        if now.hour < settings.daily_reflection_hour:
+        """Check if it's time for a daily reflection (operator-local hour)."""
+        now_local = _now_local()
+        if now_local.hour < settings.daily_reflection_hour:
             return False
         if bot_status.paused:
             return False
-        if self._last_daily_post and self._last_daily_post.date() == now.date():
+        if (
+            self._last_daily_post
+            and self._last_daily_post.astimezone(_operator_tz()).date()
+            == now_local.date()
+        ):
             return False
         return True
 
@@ -276,16 +300,16 @@ class NotificationPoller:
             logger.error(f"daily reflection error: {e}", exc_info=settings.debug)
 
     def _should_do_thought_post(self) -> bool:
-        """Check if it's time for an original thought post."""
-        now = datetime.now(UTC)
-        today = now.date()
+        """Check if it's time for an original thought post (operator-local hour)."""
+        now_local = _now_local()
+        today_local = now_local.date()
         if bot_status.paused:
             return False
-        # reset tracked hours at midnight
-        if self._last_thought_date != today:
+        # reset tracked hours at local midnight (operator's day)
+        if self._last_thought_date != today_local:
             self._last_thought_hours = set()
-            self._last_thought_date = today
-        hour = now.hour
+            self._last_thought_date = today_local
+        hour = now_local.hour
         if hour not in settings.thought_post_hours:
             return False
         if hour in self._last_thought_hours:
@@ -294,10 +318,10 @@ class NotificationPoller:
 
     async def _maybe_thought_post(self):
         """Post an original thought."""
-        now = datetime.now(UTC)
-        self._last_thought_hours.add(now.hour)
-        self._last_thought_date = now.date()
-        logger.info("triggering original thought")
+        now_local = _now_local()
+        self._last_thought_hours.add(now_local.hour)
+        self._last_thought_date = now_local.date()
+        logger.info(f"triggering original thought (local hour {now_local.hour})")
         try:
             await self.handler.original_thought()
         except Exception as e:

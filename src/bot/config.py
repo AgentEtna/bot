@@ -107,15 +107,33 @@ class Settings(BaseSettings):
         default=10, description="The interval for polling for notifications"
     )
 
-    # Daily reflection
-    daily_reflection_hour: int = Field(
-        default=14, description="UTC hour to post daily reflection (14 = ~9am CT)"
+    # Operator timezone — drives schedule slots + the local-time line in
+    # phi's [NOW] block. Lives on the operator's clock so phi posts at
+    # human-friendly times of day regardless of DST shifts.
+    operator_timezone: str = Field(
+        default="America/Chicago",
+        description=(
+            "IANA timezone name for the operator's local time. Schedule hours "
+            "below are interpreted in this zone; phi sees this in her [NOW] "
+            "block so she knows whose clock she's on."
+        ),
     )
 
-    # Original thought posts
+    # Daily reflection — local hour in operator_timezone
+    daily_reflection_hour: int = Field(
+        default=9,
+        description="Hour-of-day (operator local time) to post the daily reflection",
+    )
+
+    # Original thought posts — local hours in operator_timezone. 4 slots
+    # spread across the operator's waking hours (9am, 1pm, 5pm, 9pm), every
+    # 4h. Quiet enough to feel deliberate rather than noisy.
     thought_post_hours: list[int] = Field(
-        default=[13, 15, 17, 19, 21, 23, 1, 3],
-        description="UTC hours to attempt original thought posts (~8am-10pm CT, every 2h)",
+        default=[9, 13, 17, 21],
+        description=(
+            "Hours-of-day (operator local time) to attempt original thought "
+            "posts. Each slot fires at most once."
+        ),
     )
 
     # Event-driven exploration

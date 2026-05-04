@@ -5,6 +5,7 @@ import logging
 import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic_ai import Agent, ImageUrl, RunContext
 from pydantic_ai.mcp import MCPServerStreamableHTTP
@@ -195,8 +196,30 @@ class PhiAgent:
 
         @self.agent.system_prompt(dynamic=True)
         def inject_today() -> str:
-            now = datetime.now(UTC)
-            return f"[NOW]: {now.strftime('%Y-%m-%d %H:%M UTC')}"
+            """[NOW] anchored to both UTC and the operator's local clock.
+
+            phi runs on the operator's clock — schedule slots (musings,
+            reflection) fire at operator-local hours so posts land at human
+            times of day for the person reading them. surfacing both lines
+            here means phi can reason about "is it morning where you are"
+            without having to convert in her head.
+            """
+            now_utc = datetime.now(UTC)
+            try:
+                tz = ZoneInfo(settings.operator_timezone)
+                now_local = now_utc.astimezone(tz)
+                local_line = (
+                    f"[NOW (operator local)]: "
+                    f"{now_local.strftime('%Y-%m-%d %H:%M %Z')} "
+                    f"({settings.operator_timezone}) — "
+                    f"this is the operator's clock; your scheduled posting "
+                    f"slots are anchored to it so things land at human times "
+                    f"of day for them."
+                )
+            except ZoneInfoNotFoundError:
+                local_line = ""
+            utc_line = f"[NOW]: {now_utc.strftime('%Y-%m-%d %H:%M UTC')}"
+            return f"{utc_line}\n{local_line}" if local_line else utc_line
 
         @self.agent.system_prompt(dynamic=True)
         def inject_pause_history() -> str:
