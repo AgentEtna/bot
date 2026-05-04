@@ -80,8 +80,7 @@ async def lifespan(app: FastAPI):
     # call fails (rate limit, model error, etc), fall back to the existing
     # online-suffix flow rather than blocking startup on it.
     try:
-        bio = await poller.handler.agent.process_bio()
-        await profile_manager.set_description(bio.text)
+        await poller.handler.agent.process_bio()
     except Exception as e:
         logger.warning(f"bio rewrite at startup failed: {e}; falling back to suffix")
         await profile_manager.set_online_status(True)
