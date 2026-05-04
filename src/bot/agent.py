@@ -19,6 +19,7 @@ from bot.core.graze_client import GrazeClient
 from bot.core.observations import list_active as list_active_observations
 from bot.core.operator import get_operator_profile
 from bot.core.owned_feeds import get_owned_feeds_block
+from bot.core.recent_flow_mentions import get_recent_flow_mentions_block
 from bot.core.recent_operations import get_operations_block
 from bot.core.self_state import get_state_block
 from bot.core.workflow_state import get_workflow_state_block
@@ -688,18 +689,33 @@ class PhiAgent:
 
         [WORKFLOW STATE] is pre-synthesized from raw run history so phi
         starts from a correct per-deployment health summary anchored to
-        [NOW]. She can still call prefect_* tools for detail.
+        [NOW]. [RECENT FLOW MENTIONS] shows what phi has already said about
+        workflow state recently, so she can suppress redundant tags.
+        She can still call the prefect_* tools for detail.
         """
         workflow_block = await get_workflow_state_block()
+        mentions_block = await get_recent_flow_mentions_block(bot_client)
+        context_blocks = [b for b in (workflow_block, mentions_block) if b]
         return await self._run_scheduled(
             name="prefect check",
             task=(
-                "review [WORKFLOW STATE]. anything currently broken or stuck "
-                "with no path to fixing itself? tag the operator in that "
-                "case. for detail you can call the prefect_* tools. silence "
-                "is the right answer most of the time."
+                "scheduled prefect check.\n\n"
+                "trust [WORKFLOW STATE] as ground truth — it's a deterministic "
+                "synthesis of actual flow run timestamps anchored to [NOW]. if "
+                "[WORKFLOW STATE] says a deployment is healthy, it's healthy, "
+                "regardless of what older active observations or memories say "
+                "about past failures.\n\n"
+                "tag the operator only when [WORKFLOW STATE] reports something "
+                "currently broken or stuck AND [RECENT FLOW MENTIONS] does not "
+                "already cover that same item. if you've already flagged the "
+                "same deployment in the last few hours and nothing has changed "
+                "since (still broken, still stuck), stay silent — the operator "
+                "has heard you. tag again only when state actually changes: "
+                "newly broken, newly recovered, newly stuck.\n\n"
+                "for detail call the prefect_* tools. silence is the right "
+                "answer most of the time."
             ),
-            context_blocks=[workflow_block] if workflow_block else None,
+            context_blocks=context_blocks or None,
         )
 
     async def process_extraction(self) -> int:
