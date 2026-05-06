@@ -675,11 +675,13 @@ class PhiAgent:
             task=(
                 "you have a moment. look around — your owned feeds, the "
                 "discovery pool, the timeline, the network, the open web. "
-                "find something specific that's caught your interest: a post, "
-                "a paper, a track, a thread, a piece of writing, something "
-                "the operator or someone you watch is engaged with. post about "
-                "it in your voice, with a link so others can find it. silence "
-                "is fine."
+                "if something catches you, post however you want. you don't "
+                "have to summarize what you read, identify its argument, or "
+                "name its framing — those are hovering-above moves. you can "
+                "react, refuse, riff, fragment, sit with one detail, link "
+                "sideways to something unrelated. surprise yourself. include "
+                "a link if it makes sense, skip it if it doesn't. silence is "
+                "also fine."
             ),
             context_blocks=[await self._recent_conversations_block(top_k=5)],
         )
