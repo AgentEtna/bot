@@ -113,7 +113,7 @@ is and the publish-blog skill carries the full procedure.
 - **`/api/abilities`** + **`/api/skills`** are live; the cockpit can
   switch from hand-curated `web/src/lib/abilities.ts` to fetching from
   these endpoints. (already done in the most recent UI commit.)
-- **module reorg from TOOL-SPRAWL.md items 1–9** — the misplacements
+- **module reorg from [tool-sprawl.md](tool-sprawl.md) items 1–9** — the misplacements
   noted there are still real (e.g. `follow_user` lives in `feeds.py`,
   `check_urls` lives in `bluesky.py`). independent of the
   skill-vs-tool question; can be done as a no-behavior-change pass.

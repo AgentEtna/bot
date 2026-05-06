@@ -229,8 +229,6 @@ async def skills():
     Walks `settings.skills_dir`, parses each `SKILL.md`'s frontmatter for
     name + description, lists sibling `.md` files as resources. Cached for
     process lifetime; skills register at startup like tools.
-
-    See bot/SKILLS-API.md for the rationale and the UI consumer plan.
     """
     global _skills_cache
     if _skills_cache is not None:
@@ -291,8 +289,6 @@ async def user_view(handle: str):
     the compact flow in my-prefect-server), and the most recent atomic
     observations. No embedding, no LLM, no fabrication — every field is a
     direct read of rows in the user's tpuf namespace.
-
-    See bot/USER-VIEW.md for the rationale and the UI consumer plan.
     """
     now = time.monotonic()
     cached = _user_view_cache.get(handle)
