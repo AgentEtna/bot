@@ -754,6 +754,13 @@ class PhiAgent:
                 "since (still broken, still stuck), stay silent — the operator "
                 "has heard you. tag again only when state actually changes: "
                 "newly broken, newly recovered, newly stuck.\n\n"
+                "how prefect's scheduler works: a SCHEDULED run with a future "
+                "expected_start_time is just the scheduler's calendar — that's "
+                "what a cron-style schedule is supposed to produce, not a "
+                "backlog. don't mention SCHEDULED runs as 'queued' or 'pending' "
+                "or 'still in queue' — they're not stuck. only PENDING/RUNNING "
+                "runs whose expected_start_time has already passed are stuck, "
+                "and [WORKFLOW STATE] flags those as stuck explicitly.\n\n"
                 "for detail call the prefect_* tools. silence is the right "
                 "answer most of the time."
             ),
