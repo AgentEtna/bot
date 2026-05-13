@@ -13,7 +13,11 @@ mention facets.
 Each ``reply_to`` / ``like_post`` / ``repost_post`` call is scoped to URIs the
 agent saw in its current notifications batch — the tool refuses to act on a URI
 that isn't in ``ctx.deps.notifications_context``. This prevents the model from
-hallucinating a target URI and posting somewhere unrelated.
+hallucinating a target URI and posting somewhere unrelated. The notifications
+context also includes posts *cited by* the current batch (link facets and
+quote-embeds), so the operator-directed "reply to that post" pattern works
+through the safe tool path without requiring the agent to construct URIs from
+prose.
 """
 
 import logging
@@ -51,16 +55,19 @@ def register(agent):
         """Reply to a specific post in your current notifications batch.
 
         Use this for mentions, replies, and quotes — anything where someone is
-        talking to you or about you. The URI must be the URI of a post that
-        appeared in your current [NEW NOTIFICATIONS] block; you cannot reply
-        to arbitrary posts.
+        talking to you or about you. The URI must be in your current
+        [NEW NOTIFICATIONS] block. Cited posts (rendered as ``cited: @author
+        [uri]: ...`` lines under a notification) are also valid targets, so
+        the "operator told me to reply to that post" pattern works here too —
+        pass the cited URI verbatim, don't construct one from prose.
 
         This tool handles facet construction (your mentions only become real
         notifying tags for handles in the consent allowlist), reply-ref
         construction (parent + root), grapheme-aware splitting for long text,
         memory writes (the exchange is stored), and status recording.
 
-        uri: the URI of the post you're replying to (must be from your current notifications)
+        uri: the URI of the post you're replying to — must appear in the current
+            [NEW NOTIFICATIONS] block, either as a notification or a cited line
         text: your reply text — written naturally, no need to construct facets manually
         """
         notifs = ctx.deps.notifications_context or {}

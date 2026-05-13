@@ -24,6 +24,7 @@ from bot.agent import PhiAgent
 from bot.config import settings
 from bot.core.atproto_client import BotClient
 from bot.status import bot_status
+from bot.utils.cited_posts import extract_cited_references, resolve_cited_entry
 from bot.utils.lookup import fetch_author_lookup
 from bot.utils.thread import (
     build_thread_context,
@@ -109,6 +110,8 @@ class MessageHandler:
         except Exception as e:
             logger.warning(f"failed to fetch thread context for {thread_uri}: {e}")
 
+        cited_refs = extract_cited_references(post.record)
+
         return {
             "uri": post_uri,
             "cid": post.cid,
@@ -123,6 +126,7 @@ class MessageHandler:
             "thread_uri": thread_uri,
             "thread_context": thread_context,
             "indexed_at": getattr(post, "indexed_at", "") or "",
+            "cited_refs": cited_refs,
         }
 
     async def _build_engagement_entry(self, notification) -> dict | None:
@@ -140,6 +144,7 @@ class MessageHandler:
         root_cid = ""
         thread_uri = post_uri
         thread_context = ""
+        cited_refs: list[dict] = []
         with logfire.span(
             "build engagement entry",
             post_uri=post_uri,
@@ -151,9 +156,10 @@ class MessageHandler:
                 posts_resp = await self.client.get_posts([post_uri])
                 if posts_resp.posts:
                     p = posts_resp.posts[0]
-                    post_text = p.record.text if hasattr(p.record, "text") else ""
+                    post_text = resolve_facet_links(p.record)
                     cid = p.cid
                     root_cid = cid
+                    cited_refs = extract_cited_references(p.record)
 
                     has_reply = hasattr(p.record, "reply") and p.record.reply
                     logger.info(
@@ -200,6 +206,7 @@ class MessageHandler:
             "thread_uri": thread_uri,
             "thread_context": thread_context,
             "indexed_at": getattr(notification, "indexed_at", "") or "",
+            "cited_refs": cited_refs,
         }
 
     async def _build_follow_entry(self, notification) -> dict:
@@ -280,6 +287,19 @@ class MessageHandler:
                         "batch had no actionable notifications after building context"
                     )
                     return
+
+                # Expand cited posts: when a notification cites another post
+                # (link facet or quote-embed), surface that post as a sibling
+                # entry so reply_to can target it through the safe path.
+                cited_added = 0
+                for src_uri, entry in list(notifications_context.items()):
+                    for ref in entry.get("cited_refs") or []:
+                        cited = await resolve_cited_entry(self.client, ref, src_uri)
+                        if cited and cited["uri"] not in notifications_context:
+                            notifications_context[cited["uri"]] = cited
+                            cited_added += 1
+                if cited_added:
+                    logger.info(f"expanded {cited_added} cited posts into context")
 
                 # Eagerly look up unfamiliar authors (deduped by handle)
                 author_lookups: dict[str, str] = {}
