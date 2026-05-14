@@ -44,9 +44,10 @@ def test_recent_success_after_failure_cluster_is_healthy():
         _run(state="FAILED", end_offset_h=19.5, run_id="devout-kagu"),
         _run(state="FAILED", end_offset_h=19.6, run_id="rapid-roadrunner"),
     ]
-    status, evidence = _classify(runs, stuck_ids=set())
-    assert status == "healthy", evidence
-    assert "completed" in evidence
+    status, latest, qualifier = _classify(runs, stuck_ids=set())
+    assert status == "healthy", latest
+    assert latest.startswith("COMPLETED")
+    assert qualifier == ""
 
 
 def test_most_recent_failed_with_no_recovery_is_broken():
@@ -54,9 +55,10 @@ def test_most_recent_failed_with_no_recovery_is_broken():
         _run(state="FAILED", end_offset_h=1, msg="boom"),
         _run(state="COMPLETED", end_offset_h=10),
     ]
-    status, evidence = _classify(runs, stuck_ids=set())
+    status, latest, qualifier = _classify(runs, stuck_ids=set())
     assert status == "broken"
-    assert "boom" in evidence
+    assert latest.startswith("FAILED")
+    assert "boom" in qualifier
 
 
 def test_stuck_outranks_terminal_state():
@@ -70,9 +72,10 @@ def test_stuck_outranks_terminal_state():
         },
         _run(state="COMPLETED", end_offset_h=10),
     ]
-    status, evidence = _classify(runs, stuck_ids={"stuck-run"})
+    status, latest, qualifier = _classify(runs, stuck_ids={"stuck-run"})
     assert status == "stuck"
-    assert "waiting" in evidence
+    assert latest.startswith("PENDING")
+    assert "not picked up" in qualifier
 
 
 def test_flapping_is_degraded_not_healthy():
@@ -84,8 +87,10 @@ def test_flapping_is_degraded_not_healthy():
         _run(state="COMPLETED", end_offset_h=4, run_id="d"),
         _run(state="COMPLETED", end_offset_h=5, run_id="e"),
     ]
-    status, _ = _classify(runs, stuck_ids=set())
+    status, latest, qualifier = _classify(runs, stuck_ids=set())
     assert status == "degraded"
+    assert latest.startswith("COMPLETED")
+    assert "recent terminals failed" in qualifier
 
 
 def test_single_recent_failure_is_not_degraded_when_recovered():
@@ -96,14 +101,15 @@ def test_single_recent_failure_is_not_degraded_when_recovered():
         _run(state="COMPLETED", end_offset_h=3, run_id="c"),
         _run(state="COMPLETED", end_offset_h=4, run_id="d"),
     ]
-    status, _ = _classify(runs, stuck_ids=set())
+    status, _, _ = _classify(runs, stuck_ids=set())
     assert status == "healthy"
 
 
 def test_empty_runs_returns_empty_status():
-    status, evidence = _classify([], stuck_ids=set())
+    status, latest, qualifier = _classify([], stuck_ids=set())
     assert status == ""
-    assert evidence == ""
+    assert latest == ""
+    assert qualifier == ""
 
 
 def test_compose_orders_broken_before_healthy():
@@ -128,8 +134,10 @@ def test_compose_orders_broken_before_healthy():
         {"id": "ingest", "name": "ingest"},
     ]
     block = _compose({"runs": runs, "stuck": [], "deployments": deployments})
-    # broken comes before healthy
-    assert block.find("- ingest: broken") < block.find("- rebuild-atlas: healthy")
+    # broken comes before healthy; FAILED token leads the ingest line, COMPLETED leads atlas
+    assert block.find("- ingest: FAILED") < block.find("- rebuild-atlas: COMPLETED")
+    assert "[broken — oops]" in block
+    assert "[healthy]" in block
 
 
 def test_compose_empty_when_no_data():

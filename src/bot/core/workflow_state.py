@@ -141,15 +141,19 @@ def _state_type(run: dict) -> str:
     return run.get("state_type") or (run.get("state") or {}).get("type", "") or ""
 
 
-def _classify(runs: list[dict], stuck_ids: set[str]) -> tuple[str, str]:
+def _classify(runs: list[dict], stuck_ids: set[str]) -> tuple[str, str, str]:
     """Classify a single deployment from its runs (most-recent first).
 
-    Returns (status, evidence) where status is one of healthy/broken/
-    stuck/degraded and evidence is a short clause grounded in actual
-    timestamps relative to now (e.g. "most recent run completed 2h ago").
+    Returns ``(status, latest, qualifier)`` where:
+      - ``status`` is one of healthy/broken/stuck/degraded (the decision label)
+      - ``latest`` is the most-recent run state + age (the load-bearing fact —
+        always shown first so phi can't miss it). e.g. ``"COMPLETED 42m ago"``
+      - ``qualifier`` is the secondary clause that justifies the status
+        (e.g. ``"4/5 recent terminals failed"``), or ``""`` if the status is
+        self-evident from ``latest``.
     """
     if not runs:
-        return "", ""
+        return "", "", ""
 
     # If a stuck PENDING/RUNNING row exists for this deployment, that
     # outranks the terminal-state classification — the work isn't getting
@@ -158,21 +162,23 @@ def _classify(runs: list[dict], stuck_ids: set[str]) -> tuple[str, str]:
         if r["id"] in stuck_ids:
             start = r.get("start_time") or r.get("expected_start_time", "")
             when = relative_when(start) if start else ""
-            tail = f" since {when}" if when else ""
-            return "stuck", f"a {_state_type(r).lower()} run has been waiting{tail}"
+            state = _state_type(r).upper() or "PENDING"
+            latest = f"{state} since {when}" if when else state
+            return "stuck", latest, "work not picked up"
 
     # Most recent terminal-state run = ground truth for healthy vs broken.
     terminal = [r for r in runs if _state_type(r) in _TERMINAL_STATES]
     if not terminal:
         # Only running / pending runs in the window. Treat as healthy until
         # we have terminal evidence otherwise.
-        return "healthy", "no terminal runs in window; nothing failed"
+        return "healthy", "no terminal runs in window", ""
 
     most_recent = terminal[0]
-    most_recent_state = _state_type(most_recent)
+    most_recent_state = _state_type(most_recent).upper()
     most_recent_when = relative_when(most_recent.get("end_time", "")) or relative_when(
         most_recent.get("start_time", "")
     )
+    latest = f"{most_recent_state} {most_recent_when}".strip()
 
     if most_recent_state == "COMPLETED":
         # Healthy unless the recent fail rate is high enough to flag
@@ -180,31 +186,19 @@ def _classify(runs: list[dict], stuck_ids: set[str]) -> tuple[str, str]:
         window = terminal[:_DEGRADED_WINDOW]
         fails = sum(1 for r in window if _state_type(r) in {"FAILED", "CRASHED"})
         if fails >= _DEGRADED_FAIL_THRESHOLD:
-            return (
-                "degraded",
-                f"most recent run completed {most_recent_when}, "
-                f"but {fails}/{len(window)} of recent runs failed",
-            )
-        return "healthy", f"most recent run completed {most_recent_when}"
+            return "degraded", latest, f"{fails}/{len(window)} recent terminals failed"
+        return "healthy", latest, ""
 
     if most_recent_state in {"FAILED", "CRASHED"}:
         msg = (most_recent.get("state_message") or "").strip().splitlines()
         first_line = msg[0] if msg else ""
         first_line = first_line[:140] + "…" if len(first_line) > 140 else first_line
-        suffix = f" — {first_line}" if first_line else ""
-        return (
-            "broken",
-            f"most recent run failed {most_recent_when}{suffix}",
-        )
+        return "broken", latest, first_line
 
     if most_recent_state == "CANCELLED":
-        return "healthy", f"most recent run was cancelled {most_recent_when}"
+        return "healthy", latest, ""
 
-    # unknown terminal state — fall back to a neutral line
-    return (
-        "healthy",
-        f"most recent run was {most_recent_state.lower()} {most_recent_when}",
-    )
+    return "healthy", latest, ""
 
 
 def _compose(raw: dict) -> str:
@@ -241,32 +235,27 @@ def _compose(raw: dict) -> str:
 
     now_iso = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
 
-    lines: list[tuple[str, str]] = []
+    # Each entry: (status, name, rendered_line). Sort by (status_priority, name)
+    # using the structured status rather than re-parsing the line.
+    entries: list[tuple[str, str, str]] = []
     for dep_id, dep_runs in by_dep.items():
-        status, evidence = _classify(dep_runs, stuck_ids)
+        status, latest, qualifier = _classify(dep_runs, stuck_ids)
         if not status:
             continue
         name = dep_names.get(dep_id, dep_id[:8])
-        lines.append((name, f"- {name}: {status}. {evidence}"))
+        # Format: "- name: LATEST_RUN [status — qualifier]"
+        # The most-recent run is the leading fact; the bracketed classification
+        # is the decision label phi acts on.
+        bracket = f"[{status} — {qualifier}]" if qualifier else f"[{status}]"
+        entries.append((status, name, f"- {name}: {latest} {bracket}"))
 
-    if not lines:
+    if not entries:
         return ""
 
-    # Sort: broken → stuck → degraded → healthy, then by name within each.
     priority = {"broken": 0, "stuck": 1, "degraded": 2, "healthy": 3}
+    entries.sort(key=lambda e: (priority.get(e[0], 99), e[1]))
 
-    def _sort_key(item: tuple[str, str]) -> tuple[int, str]:
-        name, line = item
-        # second token in the line is the status (after "name: ")
-        try:
-            status = line.split(": ", 1)[1].split(".", 1)[0].strip()
-        except IndexError:
-            status = "healthy"
-        return (priority.get(status, 99), name)
-
-    lines.sort(key=_sort_key)
-
-    body = "\n".join(line for _, line in lines)
+    body = "\n".join(line for _, _, line in entries)
     return (
         f"[WORKFLOW STATE — current health of the operator's workflow "
         f"automation, refreshed every {_TTL_SECONDS // 60}min, anchored by "
