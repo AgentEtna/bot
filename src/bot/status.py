@@ -91,6 +91,11 @@ class BotStatus:
                 "last_response_time": self.last_response_time.isoformat()
                 if self.last_response_time
                 else None,
+                # `paused` is persisted so a deploy / machine restart doesn't
+                # silently resume a bot the operator paused for a reason. the
+                # timestamps below let phi see the most recent cycle in her
+                # context block; the bool is what gates the poller.
+                "paused": self.paused,
                 "paused_at": self.paused_at.isoformat() if self.paused_at else None,
                 "resumed_at": self.resumed_at.isoformat() if self.resumed_at else None,
             }
@@ -107,6 +112,7 @@ class BotStatus:
             self.mentions_received = data.get("mentions_received", 0)
             self.responses_sent = data.get("responses_sent", 0)
             self.errors = data.get("errors", 0)
+            self.paused = bool(data.get("paused", False))
             if data.get("last_mention_time"):
                 self.last_mention_time = datetime.fromisoformat(
                     data["last_mention_time"]
