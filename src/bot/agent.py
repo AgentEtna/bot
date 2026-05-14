@@ -187,13 +187,21 @@ class PhiAgent:
         # like_post, etc). The final string return is just a brief summary
         # for logging.
         # anthropic prompt caching — tool definitions are perfectly static
-        # across runs (~30 tools, schemas baked in at import). 1h TTL so cycles
-        # spaced hours apart still hit the cache. cache hits cost 10% of base
-        # input; writes cost 100% more (1h ttl) → break-even at ~20 hits/write.
-        # plenty given hourly poll-driven traffic. instructions/messages caching
-        # is deliberately NOT enabled yet — the dynamic system_prompt callbacks
-        # below would invalidate any system-prefix cache every run. that's a
-        # follow-up refactor (move dynamic blocks into the user message).
+        # across runs (~30 tools; observed ~12k tokens cached). 1h TTL chosen
+        # for active-period coverage: tool-call loops, notification bursts,
+        # startup ritual, and any clustered traffic. it does NOT bridge the
+        # 4-hour cycle cadence; between cycles the cache will normally lapse.
+        # break-even on the write premium is ~1-2 reads: 1h writes cost +100%
+        # of base input, hits cost 10%, so each hit saves 90% of base while
+        # the write costs 100% extra over base — recouped after the second
+        # read on cached prefix.
+        #
+        # instructions/messages caching is deliberately NOT enabled yet — the
+        # dynamic system_prompt callbacks below (including [NEW NOTIFICATIONS],
+        # episodic recall, per-author memory) would invalidate any system-
+        # prefix cache every run. the follow-up refactor introduces a runtime
+        # context builder that appends event state to the user message under
+        # a [SYSTEM NOTIFICATION] header, leaving the system prompt stable.
         self.agent = Agent[PhiDeps, str](
             name="phi",
             model=settings.agent_model,
