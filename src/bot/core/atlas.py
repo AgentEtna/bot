@@ -22,6 +22,7 @@ import logging
 from typing import Any
 
 import httpx
+from atproto_client.models.utils import get_model_as_dict
 
 from bot.core.atproto_client import bot_client
 
@@ -40,7 +41,13 @@ _cached_atlas: dict[str, Any] | None = None
 
 
 async def _fetch_record() -> dict[str, Any] | None:
-    """Read the small metadata record (generatedAt + pointCount + blob ref)."""
+    """Read the small metadata record (generatedAt + pointCount + blob ref).
+
+    `result.value` is a DotDict — its `.get` is intercepted as attribute
+    access and returns None for unknown keys, which downstream blows up as
+    `None(...)` is not callable. We use the SDK's `get_model_as_dict` to
+    deep-convert to plain dicts at the boundary.
+    """
     await bot_client.authenticate()
     try:
         result = bot_client.client.com.atproto.repo.get_record(
@@ -49,17 +56,25 @@ async def _fetch_record() -> dict[str, Any] | None:
     except Exception as e:
         logger.info(f"no atlas record on PDS yet: {e}")
         return None
-    return {"uri": result.uri, "cid": result.cid, "value": dict(result.value)}
+    return {
+        "uri": result.uri,
+        "cid": result.cid,
+        "value": get_model_as_dict(result.value),
+    }
 
 
 async def _fetch_blob(blob_cid: str) -> bytes:
     """Fetch the atlas blob via com.atproto.sync.getBlob.
 
-    We hit the entryway directly with httpx — the SDK's typed wrapper would
-    also work, but raw bytes are simpler when we already know we need to
-    parse them as JSON regardless of what the response content-type claims.
+    bsky.social is the entryway; com.atproto.sync.getBlob returns a 302
+    redirecting to the actual PDS that holds the blob. follow_redirects=True
+    handles that without us having to resolve phi's PDS host ourselves.
+
+    We hit the entryway directly with httpx (rather than the SDK's typed
+    wrapper) because raw bytes are simpler when we know we need to parse
+    them as JSON regardless of what the response content-type claims.
     """
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
         resp = await client.get(
             f"{PDS_BASE}/xrpc/com.atproto.sync.getBlob",
             params={"did": PHI_DID, "cid": blob_cid},
