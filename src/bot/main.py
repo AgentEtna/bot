@@ -24,6 +24,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from bot.config import settings
+from bot.core.atlas import get_atlas
 from bot.core.atproto_client import bot_client
 from bot.core.discovery_pool import get_filtered_pool
 from bot.core.profile_manager import ProfileManager
@@ -449,6 +450,23 @@ async def discovery():
     _discovery_cache_data = entries
     _discovery_cache_expires = now + _DISCOVERY_CACHE_TTL
     return JSONResponse(entries)
+
+
+@app.get("/api/atlas")
+async def atlas():
+    """phi's atlas — daily 2D map of every PDS record + TurboPuffer row,
+    written by the phi-atlas Prefect flow. The fetch is cached in-process
+    by the PDS record CID, so a hot endpoint with a stale atlas reuses the
+    parsed JSON; a new atlas write invalidates automatically.
+    """
+    try:
+        data = await get_atlas()
+    except Exception as e:
+        logger.warning(f"atlas fetch failed: {e}")
+        return JSONResponse({"error": str(e)}, status_code=502)
+    if data is None:
+        return JSONResponse({"error": "no atlas record on PDS yet"}, status_code=404)
+    return JSONResponse(data)
 
 
 _graph_cache_data: dict | None = None
