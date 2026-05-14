@@ -13,6 +13,7 @@ from pydantic_ai.models.anthropic import AnthropicModelSettings
 from pydantic_ai_skills import SkillsToolset
 
 from bot.config import settings
+from bot.core.atlas import get_atlas_digest
 from bot.core.atproto_client import bot_client, get_identity_block
 from bot.core.cosmik import create_cosmik_record
 from bot.core.discovery_pool import get_discovery_pool_block
@@ -410,6 +411,19 @@ class PhiAgent:
             except Exception as e:
                 logger.warning(f"failed to retrieve episodic memories: {e}")
             return ""
+
+        @self.agent.system_prompt(dynamic=True)
+        async def inject_atlas_digest() -> str:
+            """[ATLAS] — daily distilled shape of phi's mind. Computed by the
+            phi-atlas Prefect flow once a day; phi sees the digest here for
+            free, and can drill into specific clusters / promotion candidates
+            via the inspect_atlas tool.
+            """
+            try:
+                return await get_atlas_digest()
+            except Exception as e:
+                logger.debug(f"atlas digest fetch failed: {e}")
+                return ""
 
         @self.agent.system_prompt(dynamic=True)
         async def inject_owned_feeds() -> str:

@@ -9,7 +9,6 @@ Usage:
 """
 
 import argparse
-import sys
 
 from turbopuffer import Turbopuffer
 
@@ -17,7 +16,9 @@ from bot.config import settings
 
 
 def get_client() -> Turbopuffer:
-    return Turbopuffer(api_key=settings.turbopuffer_api_key, region=settings.turbopuffer_region)
+    return Turbopuffer(
+        api_key=settings.turbopuffer_api_key, region=settings.turbopuffer_region
+    )
 
 
 def list_namespaces(client: Turbopuffer):
@@ -178,8 +179,14 @@ def main():
     parser = argparse.ArgumentParser(description="Inspect and prune phi memories")
     parser.add_argument("handle", nargs="?", help="User handle to inspect")
     parser.add_argument("--delete", metavar="ID", help="Delete a specific row by ID")
-    parser.add_argument("--purge-observations", action="store_true", help="Delete all observations for a user")
-    parser.add_argument("--episodic", action="store_true", help="Dump phi's episodic (world) memories")
+    parser.add_argument(
+        "--purge-observations",
+        action="store_true",
+        help="Delete all observations for a user",
+    )
+    parser.add_argument(
+        "--episodic", action="store_true", help="Dump phi's episodic (world) memories"
+    )
     args = parser.parse_args()
 
     client = get_client()

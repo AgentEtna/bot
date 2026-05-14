@@ -118,3 +118,75 @@ async def get_atlas() -> dict[str, Any] | None:
     _cached_record_cid = record_cid
     _cached_atlas = atlas
     return atlas
+
+
+# ---------------------------------------------------------------------------
+# digest — small text rollup of the atlas
+# ---------------------------------------------------------------------------
+
+
+def _summarize_atlas(atlas: dict[str, Any]) -> str:
+    """Compute the digest text from a loaded atlas dict.
+
+    Compact enough to inject into every agent.run as a context block —
+    phi can see the shape of her own mind without any tool call. For
+    detail, she calls inspect_atlas.
+    """
+    points: list[dict[str, Any]] = atlas.get("points") or []
+    coarse: list[dict[str, Any]] = atlas.get("clusters_coarse") or []
+    fine: list[dict[str, Any]] = atlas.get("clusters_fine") or []
+    generated_at = atlas.get("generated_at") or "?"
+    # truncate ISO timestamp to minutes for readability
+    generated_at = generated_at[:16].replace("T", " ") + " UTC"
+
+    # kind distribution, top kinds first
+    kinds: dict[str, int] = {}
+    for p in points:
+        k = p.get("kind") or ""
+        if k:
+            kinds[k] = kinds.get(k, 0) + 1
+    kind_line = ", ".join(
+        f"{n} {k}" for k, n in sorted(kinds.items(), key=lambda kv: -kv[1])
+    )
+
+    # promotion distribution
+    promo: dict[str, int] = {}
+    for p in points:
+        s = p.get("promotion_status") or ""
+        if s:
+            promo[s] = promo.get(s, 0) + 1
+    promo_line = " / ".join(
+        f"{n} {s}" for s, n in sorted(promo.items(), key=lambda kv: -kv[1])
+    )
+
+    # coarse cluster labels with counts (highest count first)
+    coarse_sorted = sorted(coarse, key=lambda c: -(c.get("count") or 0))
+    coarse_parts = []
+    for c in coarse_sorted:
+        label = c.get("label") or f"cluster-{c.get('id')}"
+        coarse_parts.append(f"{label} ({c.get('count', 0)})")
+    coarse_line = ", ".join(coarse_parts)
+
+    return (
+        f"[ATLAS — daily map of every point in your mind, generated {generated_at}]\n"
+        f"{len(points)} points: {kind_line}\n"
+        f"{len(coarse)} coarse clusters: {coarse_line}\n"
+        f"{len(fine)} fine clusters\n"
+        f"promotion: {promo_line}\n"
+        "call inspect_atlas() for the same digest, "
+        "inspect_atlas(cluster_id=N) for cluster contents, "
+        "inspect_atlas(status='raw') for promotion candidates "
+        "(private signals with no public anchor)."
+    )
+
+
+async def get_atlas_digest() -> str:
+    """Return the atlas digest, or empty string if no atlas is available.
+
+    Cheap — uses the same record-CID-cached atlas as get_atlas(), and the
+    digest itself is recomputed each call (small, microseconds).
+    """
+    atlas = await get_atlas()
+    if atlas is None:
+        return ""
+    return _summarize_atlas(atlas)

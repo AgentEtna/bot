@@ -14,7 +14,7 @@ import argparse
 import json
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from turbopuffer import Turbopuffer
 
@@ -22,7 +22,9 @@ from bot.config import settings
 
 
 def get_client() -> Turbopuffer:
-    return Turbopuffer(api_key=settings.turbopuffer_api_key, region=settings.turbopuffer_region)
+    return Turbopuffer(
+        api_key=settings.turbopuffer_api_key, region=settings.turbopuffer_region
+    )
 
 
 def get_deploy_windows() -> list[dict]:
@@ -33,7 +35,8 @@ def get_deploy_windows() -> list[dict]:
     # fly.io releases
     result = subprocess.run(
         ["fly", "releases", "-a", "zzstoatzz-phi", "--json"],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     if result.returncode != 0:
         print(f"error fetching fly releases: {result.stderr}", file=sys.stderr)
@@ -44,8 +47,16 @@ def get_deploy_windows() -> list[dict]:
 
     # git tags with timestamps
     result = subprocess.run(
-        ["git", "tag", "-l", "v*", "--format=%(creatordate:iso-strict) %(refname:short)"],
-        capture_output=True, text=True, cwd=".",
+        [
+            "git",
+            "tag",
+            "-l",
+            "v*",
+            "--format=%(creatordate:iso-strict) %(refname:short)",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=".",
     )
     tag_times: dict[str, datetime] = {}
     for line in result.stdout.strip().splitlines():
@@ -62,26 +73,32 @@ def get_deploy_windows() -> list[dict]:
     for i, rel in enumerate(releases):
         start = datetime.fromisoformat(rel["CreatedAt"].replace("Z", "+00:00"))
         if i + 1 < len(releases):
-            end = datetime.fromisoformat(releases[i + 1]["CreatedAt"].replace("Z", "+00:00"))
+            end = datetime.fromisoformat(
+                releases[i + 1]["CreatedAt"].replace("Z", "+00:00")
+            )
         else:
-            end = datetime.now(timezone.utc)
+            end = datetime.now(UTC)
 
         fly_version = rel["Version"]
 
         # find the most recent git tag at or before this deploy
         matching_tag = None
-        for tag, tag_ts in sorted(tag_times.items(), key=lambda kv: kv[1], reverse=True):
-            tag_utc = tag_ts.astimezone(timezone.utc)
+        for tag, tag_ts in sorted(
+            tag_times.items(), key=lambda kv: kv[1], reverse=True
+        ):
+            tag_utc = tag_ts.astimezone(UTC)
             if tag_utc <= start:
                 matching_tag = tag
                 break
 
-        windows.append({
-            "start": start,
-            "end": end,
-            "fly_version": fly_version,
-            "git_tag": matching_tag or "pre-tags",
-        })
+        windows.append(
+            {
+                "start": start,
+                "end": end,
+                "fly_version": fly_version,
+                "git_tag": matching_tag or "pre-tags",
+            }
+        )
 
     return windows
 
@@ -94,7 +111,7 @@ def classify_record(created_at: str, windows: list[dict]) -> dict:
     try:
         ts = datetime.fromisoformat(created_at)
         if ts.tzinfo is None:
-            ts = ts.replace(tzinfo=timezone.utc)
+            ts = ts.replace(tzinfo=UTC)
     except ValueError:
         return {"fly_version": "?", "git_tag": "?"}
 
@@ -109,7 +126,9 @@ def classify_record(created_at: str, windows: list[dict]) -> dict:
     return {"fly_version": "?", "git_tag": "?"}
 
 
-def dump_with_versions(client: Turbopuffer, handle: str, windows: list[dict], summary_only: bool = False):
+def dump_with_versions(
+    client: Turbopuffer, handle: str, windows: list[dict], summary_only: bool = False
+):
     """Dump records for a user, annotated with bot version."""
     clean = handle.replace(".", "_").replace("@", "").replace("-", "_")
     ns_name = f"phi-users-{clean}"
@@ -143,14 +162,16 @@ def dump_with_versions(client: Turbopuffer, handle: str, windows: list[dict], su
     for row in response.rows:
         created_at = getattr(row, "created_at", "")
         version_info = classify_record(created_at, windows)
-        records.append({
-            "id": row.id,
-            "kind": getattr(row, "kind", "?"),
-            "content": row.content,
-            "tags": getattr(row, "tags", []),
-            "created_at": created_at,
-            **version_info,
-        })
+        records.append(
+            {
+                "id": row.id,
+                "kind": getattr(row, "kind", "?"),
+                "content": row.content,
+                "tags": getattr(row, "tags", []),
+                "created_at": created_at,
+                **version_info,
+            }
+        )
 
     if summary_only:
         print(f"\n@{handle} ({len(records)} records)")
@@ -165,9 +186,9 @@ def dump_with_versions(client: Turbopuffer, handle: str, windows: list[dict], su
             print(f"  {label:<15} {kinds}")
         return
 
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print(f"@{handle} ({len(records)} records)")
-    print(f"{'='*70}\n")
+    print(f"{'=' * 70}\n")
 
     for r in sorted(records, key=lambda x: x["created_at"]):
         kind = r["kind"]
@@ -179,7 +200,9 @@ def dump_with_versions(client: Turbopuffer, handle: str, windows: list[dict], su
         print()
 
 
-def dump_episodic_with_versions(client: Turbopuffer, windows: list[dict], summary_only: bool = False):
+def dump_episodic_with_versions(
+    client: Turbopuffer, windows: list[dict], summary_only: bool = False
+):
     """Dump episodic memories annotated with bot version."""
     ns = client.namespace("phi-episodic")
 
@@ -203,14 +226,16 @@ def dump_episodic_with_versions(client: Turbopuffer, windows: list[dict], summar
     for row in response.rows:
         created_at = getattr(row, "created_at", "")
         version_info = classify_record(created_at, windows)
-        records.append({
-            "id": row.id,
-            "content": row.content,
-            "tags": getattr(row, "tags", []),
-            "source": getattr(row, "source", "unknown"),
-            "created_at": created_at,
-            **version_info,
-        })
+        records.append(
+            {
+                "id": row.id,
+                "content": row.content,
+                "tags": getattr(row, "tags", []),
+                "source": getattr(row, "source", "unknown"),
+                "created_at": created_at,
+                **version_info,
+            }
+        )
 
     if summary_only:
         print(f"\nepisodic ({len(records)} records)")
@@ -221,9 +246,9 @@ def dump_episodic_with_versions(client: Turbopuffer, windows: list[dict], summar
             print(f"  {tag:<15} {counts[tag]} records")
         return
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"episodic memories ({len(records)} records)")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     by_version: dict[str, list[dict]] = {}
     for r in records:
@@ -241,7 +266,9 @@ def dump_episodic_with_versions(client: Turbopuffer, windows: list[dict], summar
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Show which bot version created each memory")
+    parser = argparse.ArgumentParser(
+        description="Show which bot version created each memory"
+    )
     parser.add_argument("handle", nargs="?", help="User handle to inspect")
     parser.add_argument("--summary", action="store_true", help="Version counts only")
     parser.add_argument("--episodic", action="store_true", help="Episodic memories")
@@ -278,8 +305,8 @@ def main():
     for ns in sorted(user_ns, key=lambda n: n.id):
         handle = ns.id.removeprefix(prefix).replace("_", ".")
         print(f"  {handle:<40} ({ns.id})")
-    print(f"\nuse: uv run scripts/memory_versions.py HANDLE")
-    print(f"  or: uv run scripts/memory_versions.py --all --summary")
+    print("\nuse: uv run scripts/memory_versions.py HANDLE")
+    print("  or: uv run scripts/memory_versions.py --all --summary")
 
 
 if __name__ == "__main__":
