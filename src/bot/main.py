@@ -168,14 +168,14 @@ async def resume(request: Request):
 
 @app.post("/api/control/post")
 async def trigger_post(request: Request, background_tasks: BackgroundTasks):
-    """Trigger an original thought post immediately."""
+    """Trigger one cognitive cycle immediately."""
     if err := _check_control_token(request):
         return err
     poller: NotificationPoller | None = getattr(app.state, "poller", None)
     if not poller:
         return JSONResponse({"error": "poller not available"}, status_code=503)
-    background_tasks.add_task(poller.handler.original_thought)
-    logger.info("original thought triggered via API")
+    background_tasks.add_task(poller.handler.cycle)
+    logger.info("cycle triggered via API")
     return {"triggered": True}
 
 

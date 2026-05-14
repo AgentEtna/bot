@@ -339,17 +339,9 @@ class MessageHandler:
             except Exception as e:
                 logger.exception(f"{span_name} failed: {e}")
 
-    async def original_thought(self):
-        """Generate and post an original thought if phi has something to say."""
-        await self._run_scheduled("original thought", self.agent.process_musing)
-
-    async def check_relays(self):
-        """Run a scheduled relay-fleet check and let phi decide whether to post."""
-        await self._run_scheduled("relay check", self.agent.process_relay_check)
-
-    async def check_prefect(self):
-        """Scheduled look at the operator's prefect instance."""
-        await self._run_scheduled("prefect check", self.agent.process_prefect_check)
+    async def cycle(self):
+        """One cognitive cycle — see :meth:`PhiAgent.process_cycle`."""
+        await self._run_scheduled("cycle", self.agent.process_cycle)
 
     async def review_memories(self):
         """Run the dream/distill pass — review observations with distance."""

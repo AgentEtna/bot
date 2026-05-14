@@ -50,10 +50,6 @@ class NotificationPoller:
         self._last_thought_date: date | None = None
         self._semaphore = asyncio.Semaphore(MAX_CONCURRENT)
         self._background_tasks: set[asyncio.Task] = set()
-        # scheduled monitor check state (relay + prefect flows are
-        # independently scheduled — different cadences, different sources)
-        self._polls_since_last_monitor_check: int = 0
-        self._polls_since_last_prefect_check: int = 0
 
     async def start(self) -> asyncio.Task:
         """Start polling for notifications."""
@@ -145,9 +141,6 @@ class NotificationPoller:
         await self._seed_schedule_from_history()
 
         while self._running:
-            self._polls_since_last_monitor_check += 1
-            self._polls_since_last_prefect_check += 1
-
             try:
                 await self._check_notifications()
             except Exception as e:
@@ -164,29 +157,12 @@ class NotificationPoller:
                 logger.error(f"daily reflection error: {e}", exc_info=settings.debug)
 
             try:
-                if self._should_do_thought_post():
-                    task = asyncio.create_task(self._maybe_thought_post())
+                if self._should_run_cycle():
+                    task = asyncio.create_task(self._maybe_run_cycle())
                     self._background_tasks.add(task)
                     task.add_done_callback(self._background_tasks.discard)
             except Exception as e:
-                logger.error(f"thought post error: {e}", exc_info=settings.debug)
-
-            # scheduled infrastructure monitoring
-            try:
-                if self._should_check_monitors():
-                    task = asyncio.create_task(self._maybe_check_monitors())
-                    self._background_tasks.add(task)
-                    task.add_done_callback(self._background_tasks.discard)
-            except Exception as e:
-                logger.error(f"monitor check error: {e}", exc_info=settings.debug)
-
-            try:
-                if self._should_check_prefect():
-                    task = asyncio.create_task(self._maybe_check_prefect())
-                    self._background_tasks.add(task)
-                    task.add_done_callback(self._background_tasks.discard)
-            except Exception as e:
-                logger.error(f"prefect check error: {e}", exc_info=settings.debug)
+                logger.error(f"cycle error: {e}", exc_info=settings.debug)
 
             try:
                 await asyncio.sleep(settings.notification_poll_interval)
@@ -299,8 +275,13 @@ class NotificationPoller:
         except Exception as e:
             logger.error(f"daily reflection error: {e}", exc_info=settings.debug)
 
-    def _should_do_thought_post(self) -> bool:
-        """Check if it's time for an original thought post (operator-local hour)."""
+    def _should_run_cycle(self) -> bool:
+        """Check if it's time for a cognitive cycle (operator-local hour).
+
+        One cycle subsumes what used to be three separate scheduled jobs
+        (musing / relay check / prefect check). Fires at each
+        ``settings.thought_post_hours`` slot, at most once per slot per day.
+        """
         now_local = _now_local()
         today_local = now_local.date()
         if bot_status.paused:
@@ -316,53 +297,13 @@ class NotificationPoller:
             return False
         return True
 
-    async def _maybe_thought_post(self):
-        """Post an original thought."""
+    async def _maybe_run_cycle(self):
+        """Trigger one cognitive cycle."""
         now_local = _now_local()
         self._last_thought_hours.add(now_local.hour)
         self._last_thought_date = now_local.date()
-        logger.info(f"triggering original thought (local hour {now_local.hour})")
+        logger.info(f"triggering cycle (local hour {now_local.hour})")
         try:
-            await self.handler.original_thought()
+            await self.handler.cycle()
         except Exception as e:
-            logger.error(f"thought post error: {e}", exc_info=settings.debug)
-
-    # --- scheduled monitor checks ---
-
-    def _should_check_monitors(self) -> bool:
-        """Check if it's time for a scheduled infrastructure monitor check."""
-        if bot_status.paused:
-            return False
-        if self._polls_since_last_monitor_check < settings.relay_check_interval_polls:
-            return False
-        return True
-
-    async def _maybe_check_monitors(self):
-        """Run a scheduled monitor check."""
-        self._polls_since_last_monitor_check = 0
-        logger.info("triggering monitor check")
-        try:
-            await self.handler.check_relays()
-        except Exception as e:
-            logger.error(f"monitor check error: {e}", exc_info=settings.debug)
-
-    # --- scheduled prefect check ---
-
-    def _should_check_prefect(self) -> bool:
-        """Check if it's time for a scheduled look at the operator's prefect instance."""
-        if bot_status.paused:
-            return False
-        if not settings.prefect_api_auth_string:
-            return False  # no creds, no check
-        if self._polls_since_last_prefect_check < settings.prefect_check_interval_polls:
-            return False
-        return True
-
-    async def _maybe_check_prefect(self):
-        """Run a scheduled look at the operator's prefect instance."""
-        self._polls_since_last_prefect_check = 0
-        logger.info("triggering prefect check")
-        try:
-            await self.handler.check_prefect()
-        except Exception as e:
-            logger.error(f"prefect check error: {e}", exc_info=settings.debug)
+            logger.error(f"cycle error: {e}", exc_info=settings.debug)

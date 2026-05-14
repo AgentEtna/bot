@@ -159,10 +159,6 @@ class Settings(BaseSettings):
         default="https://relay-eval.waow.tech/api/relays",
         description="Base URL for relay-eval's relay API (snapshot endpoint)",
     )
-    relay_check_interval_polls: int = Field(
-        default=1080,  # 1080 polls * 10s = 10800s = 3h
-        description="Min polls between scheduled relay checks (~3h at default poll interval)",
-    )
 
     # Prefect flow monitoring — phi polls the prefect-server via the prefect
     # MCP to notice failed/crashed flows (ingest, brief, compact, etc.) and
@@ -182,11 +178,6 @@ class Settings(BaseSettings):
             "x-prefect-api-auth-string header. Set via fly secret."
         ),
     )
-    prefect_check_interval_polls: int = Field(
-        default=360,  # 360 polls * 10s = 3600s = 1h
-        description="Min polls between scheduled prefect checks (~1h)",
-    )
-
     # Discovery pool — generic agents endpoint serving authors the operator
     # has been liking. Currently lives on hub.waow.tech as part of the
     # prefect-server side; consumers (phi here) read it as opaque JSON.

@@ -690,81 +690,73 @@ class PhiAgent:
             context_blocks=context_blocks,
         )
 
-    async def process_musing(self) -> str:
-        """Generate an original thought post from memory, reading, patterns noticed."""
-        return await self._run_scheduled(
-            name="musing",
-            task=(
-                "you have a moment. look around — your owned feeds, the "
-                "discovery pool, the timeline, the network, the open web. "
-                "if something wants to come out, post it. include a link "
-                "when you're pointing at something specific. silence is fine."
-            ),
-            context_blocks=[await self._recent_conversations_block(top_k=5)],
-        )
+    async def process_cycle(self) -> str:
+        """One cognitive moment — phi assembles every signal she has and
+        decides at most one thing to surface (or stays silent).
 
-    async def process_relay_check(self) -> str:
-        """Scheduled relay-fleet check. Posts about transitions if notable."""
-        return await self._run_scheduled(
-            name="relay check",
-            task=(
-                "scheduled relay check. call check_relays to see current relay "
-                "status. for any relay that's transitioned to degraded or "
-                "critical recently, call observe() with the factual change in "
-                "your voice — what dropped, by how much, baseline. no theories "
-                "about cause. observations sit in your active pool and the "
-                "next musing or reflection will see them; don't post about each "
-                "one as it happens.\n\n"
-                "only post immediately and tag the operator in either of these "
-                "cases: (1) any *.waow.tech relay is degraded or worse — those "
-                "are the operator's own, they need to know now; (2) the whole "
-                "fleet is degraded or worse — that's fleet-wide and needs "
-                "immediate visibility. write the post in your voice with the "
-                "factual change, group multiple transitions into one post.\n\n"
-                "otherwise: silent on the timeline, observe everything, let the "
-                "digest happen later."
-            ),
-        )
-
-    async def process_prefect_check(self) -> str:
-        """Scheduled look at the operator's workflow automation.
-
-        [WORKFLOW STATE] is pre-synthesized from raw run history so phi
-        starts from a correct per-deployment health summary anchored to
-        [NOW]. [RECENT FLOW MENTIONS] shows what phi has already said about
-        workflow state recently, so she can suppress redundant tags.
-        She can still call the prefect_* tools for detail.
+        Replaces the older separate scheduled paths (musing / relay_check /
+        prefect_check). Those were three parallel agent runs, each producing
+        their own post from their own slice of phi's mind, which meant the
+        operator sometimes got two disconnected commentaries in the same
+        minute — one about, say, mushrooms, one about a workflow failure.
+        One cycle = one integrated read.
         """
-        workflow_block = await get_workflow_state_block()
-        mentions_block = await get_recent_flow_mentions_block(bot_client)
-        context_blocks = [b for b in (workflow_block, mentions_block) if b]
+        context_blocks: list[str] = []
+
+        try:
+            wf = await get_workflow_state_block()
+            if wf:
+                context_blocks.append(wf)
+        except Exception as e:
+            logger.warning(f"workflow state fetch failed: {e}")
+
+        try:
+            rfm = await get_recent_flow_mentions_block(bot_client)
+            if rfm:
+                context_blocks.append(rfm)
+        except Exception as e:
+            logger.warning(f"recent flow mentions fetch failed: {e}")
+
+        convs = await self._recent_conversations_block(top_k=5)
+        if convs:
+            context_blocks.append(convs)
+
+        task = (
+            "you have a moment. one cycle — at most one post (or one thread, "
+            "or silence). pick the single thread most worth surfacing now.\n\n"
+            "what's available to look at:\n"
+            "- [WORKFLOW STATE] — ground truth on the operator's infrastructure, "
+            "anchored to [NOW]. deterministic synthesis of flow run history.\n"
+            "- [RECENT FLOW MENTIONS] — what you've already said about workflow "
+            "state recently, so you can avoid repeating yourself.\n"
+            "- your [ACTIVE OBSERVATIONS] and [RECENT CONVERSATIONS] sitting in "
+            "your context already.\n"
+            "- your owned feeds, the timeline, the discovery pool, the network, "
+            "the open web — call tools to pull more.\n"
+            "- relay state via check_relays if it feels worth checking.\n\n"
+            "rules of engagement:\n"
+            "- one integrated read, one decision. if two threads both want "
+            "attention (say, a workflow failure AND something you noticed "
+            "reading), either braid them into one post if they connect, or "
+            "pick the one that matters more and skip the other. never two "
+            "disconnected posts in the same cycle.\n"
+            "- workflow state: tag the operator only when [WORKFLOW STATE] "
+            "reports something newly broken or stuck AND [RECENT FLOW MENTIONS] "
+            "doesn't already cover it. SCHEDULED runs with a future "
+            "expected_start_time are normal scheduler calendar, not a backlog "
+            "— don't mention them as 'queued' or 'pending'. only PENDING/RUNNING "
+            "runs past their expected start are stuck.\n"
+            "- relay state: post about transitions only when a *.waow.tech "
+            "relay is degraded or worse, OR the whole fleet is degraded or "
+            "worse. otherwise observe() the change in your voice and let a "
+            "future cycle surface it.\n"
+            "- silence is usually right."
+        )
+
         return await self._run_scheduled(
-            name="prefect check",
-            task=(
-                "scheduled prefect check.\n\n"
-                "trust [WORKFLOW STATE] as ground truth — it's a deterministic "
-                "synthesis of actual flow run timestamps anchored to [NOW]. if "
-                "[WORKFLOW STATE] says a deployment is healthy, it's healthy, "
-                "regardless of what older active observations or memories say "
-                "about past failures.\n\n"
-                "tag the operator only when [WORKFLOW STATE] reports something "
-                "currently broken or stuck AND [RECENT FLOW MENTIONS] does not "
-                "already cover that same item. if you've already flagged the "
-                "same deployment in the last few hours and nothing has changed "
-                "since (still broken, still stuck), stay silent — the operator "
-                "has heard you. tag again only when state actually changes: "
-                "newly broken, newly recovered, newly stuck.\n\n"
-                "how prefect's scheduler works: a SCHEDULED run with a future "
-                "expected_start_time is just the scheduler's calendar — that's "
-                "what a cron-style schedule is supposed to produce, not a "
-                "backlog. don't mention SCHEDULED runs as 'queued' or 'pending' "
-                "or 'still in queue' — they're not stuck. only PENDING/RUNNING "
-                "runs whose expected_start_time has already passed are stuck, "
-                "and [WORKFLOW STATE] flags those as stuck explicitly.\n\n"
-                "for detail call the prefect_* tools. silence is the right "
-                "answer most of the time."
-            ),
-            context_blocks=context_blocks or None,
+            name="cycle",
+            task=task,
+            context_blocks=context_blocks,
         )
 
     async def process_extraction(self) -> int:
