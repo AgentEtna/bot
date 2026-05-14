@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic_ai import Agent, ImageUrl, RunContext
 from pydantic_ai.mcp import MCPServerStreamableHTTP
+from pydantic_ai.models.anthropic import AnthropicModelSettings
 from pydantic_ai_skills import SkillsToolset
 
 from bot.config import settings
@@ -185,6 +186,14 @@ class PhiAgent:
         # action — actions happen as tool calls during the run (reply_to,
         # like_post, etc). The final string return is just a brief summary
         # for logging.
+        # anthropic prompt caching — tool definitions are perfectly static
+        # across runs (~30 tools, schemas baked in at import). 1h TTL so cycles
+        # spaced hours apart still hit the cache. cache hits cost 10% of base
+        # input; writes cost 100% more (1h ttl) → break-even at ~20 hits/write.
+        # plenty given hourly poll-driven traffic. instructions/messages caching
+        # is deliberately NOT enabled yet — the dynamic system_prompt callbacks
+        # below would invalidate any system-prefix cache every run. that's a
+        # follow-up refactor (move dynamic blocks into the user message).
         self.agent = Agent[PhiDeps, str](
             name="phi",
             model=settings.agent_model,
@@ -193,6 +202,9 @@ class PhiAgent:
                 f"{self.base_personality}\n\n"
                 "--- operational rules below (these are constraints) ---\n\n"
                 f"{_build_operational_instructions()}"
+            ),
+            model_settings=AnthropicModelSettings(
+                anthropic_cache_tool_definitions="1h",
             ),
             output_type=str,
             deps_type=PhiDeps,
