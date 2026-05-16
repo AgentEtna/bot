@@ -56,6 +56,7 @@
 </svelte:head>
 
 <main class="page">
+	<div class="page-inner">
 	{#if !loaded}
 		<div class="status">loading docket…</div>
 	{:else if err}
@@ -147,14 +148,25 @@
 			</ul>
 		{/if}
 	{/if}
+	</div>
 </main>
 
 <style>
+	/* body sets overflow:hidden + height:100vh for the canvas pages (MindMap,
+	 * Constellation) — content pages like docket need their own scroll
+	 * container that fills the viewport, sits below the fixed HUD chrome,
+	 * and scrolls internally. */
 	.page {
+		position: fixed;
+		inset: 0;
+		overflow-y: auto;
+		overflow-x: hidden;
 		padding: 96px 16px 80px;
+		-webkit-overflow-scrolling: touch;
+	}
+	.page-inner {
 		max-width: 1080px;
 		margin: 0 auto;
-		min-height: 100vh;
 	}
 
 	.status {
