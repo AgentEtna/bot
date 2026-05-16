@@ -217,8 +217,14 @@ a:hover {
 		border-top: 1px solid var(--line-dim);
 	}
 
+	/* HudReadout stays visible on mobile — was previously display:none, which
+	 * removed all hover/status feedback on phones. Repositioned as a small
+	 * inline status strip just above the bottom HudCounts bar. */
 	.hud-br {
-		display: none;
+		bottom: 44px; /* clear of .hud-bl */
+		right: 8px;
+		left: 8px;
+		font-size: 11px;
 	}
 }
 

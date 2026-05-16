@@ -27,6 +27,7 @@ from bot.config import settings
 from bot.core.atlas import get_atlas
 from bot.core.atproto_client import bot_client
 from bot.core.discovery_pool import get_filtered_pool
+from bot.core.docket import get_docket
 from bot.core.profile_manager import ProfileManager
 from bot.logging_config import _clear_uvicorn_handlers
 from bot.memory import NamespaceMemory
@@ -466,6 +467,23 @@ async def atlas():
         return JSONResponse({"error": str(e)}, status_code=502)
     if data is None:
         return JSONResponse({"error": "no atlas record on PDS yet"}, status_code=404)
+    return JSONResponse(data)
+
+
+@app.get("/api/docket")
+async def docket():
+    """phi's daily promotion docket — 5-15 work-item candidates emitted by
+    the `docket` Prefect flow after each atlas regeneration. Each candidate
+    cites private evidence + nearby public anchors + a suggested action.
+    Same record-CID-keyed cache pattern as /api/atlas.
+    """
+    try:
+        data = await get_docket()
+    except Exception as e:
+        logger.warning(f"docket fetch failed: {e}")
+        return JSONResponse({"error": str(e)}, status_code=502)
+    if data is None:
+        return JSONResponse({"error": "no docket record on PDS yet"}, status_code=404)
     return JSONResponse(data)
 
 

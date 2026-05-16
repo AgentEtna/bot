@@ -17,6 +17,7 @@ from bot.core.atlas import get_atlas_digest
 from bot.core.atproto_client import bot_client, get_identity_block
 from bot.core.cosmik import create_cosmik_record
 from bot.core.discovery_pool import get_discovery_pool_block
+from bot.core.docket import get_docket_digest
 from bot.core.goals import list_goals as list_goal_records
 from bot.core.graze_client import GrazeClient
 from bot.core.observations import list_active as list_active_observations
@@ -423,6 +424,20 @@ class PhiAgent:
                 return await get_atlas_digest()
             except Exception as e:
                 logger.debug(f"atlas digest fetch failed: {e}")
+                return ""
+
+        @self.agent.system_prompt(dynamic=True)
+        async def inject_docket_digest() -> str:
+            """[DOCKET] — daily promotion candidates emitted by the docket
+            Prefect flow after each atlas. Tiny block: title + suggested
+            shape per candidate, nothing more. Full evidence + rationale is
+            one pdsx.get_record away. The docket is an object phi can reach
+            for, not another state block.
+            """
+            try:
+                return await get_docket_digest()
+            except Exception as e:
+                logger.debug(f"docket digest fetch failed: {e}")
                 return ""
 
         @self.agent.system_prompt(dynamic=True)

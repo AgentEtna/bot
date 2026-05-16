@@ -9,6 +9,7 @@ import type {
 	BskyFeedItem,
 	Capability,
 	DiscoveryEntry,
+	Docket,
 	Goal,
 	GraphData,
 	HealthInfo,
@@ -141,6 +142,21 @@ export async function getSkills(): Promise<Skill[]> {
 	const res = await fetch('/api/skills');
 	if (!res.ok) throw new Error(`skills: ${res.status}`);
 	return await res.json();
+}
+
+// phi's daily promotion docket — 5-15 work-item candidates emitted by the
+// `docket` Prefect flow after each atlas. The bot endpoint caches by PDS
+// record CID so a hot endpoint reuses the parsed JSON. Returns null when
+// no docket has been written yet (page renders an empty state).
+export async function getDocket(): Promise<Docket | null> {
+	try {
+		const res = await fetch('/api/docket');
+		if (res.status === 404) return null;
+		if (!res.ok) throw new Error(`docket: ${res.status}`);
+		return await res.json();
+	} catch {
+		return null;
+	}
 }
 
 export async function getUserView(handle: string): Promise<UserView | null> {

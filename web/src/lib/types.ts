@@ -164,6 +164,41 @@ export interface BskyFeedItem {
 	reply?: { parent?: { author?: BskyAuthor; record?: BskyPostRecord; uri?: string } };
 }
 
+// --- /api/docket (daily promotion object) ---
+
+export interface DocketEvidenceRef {
+	atlas_point_id: string;
+	kind: string;
+	snippet: string;
+}
+
+export interface DocketAnchorRef {
+	at_uri: string;
+	kind: string;
+	snippet: string;
+}
+
+export interface DocketCandidate {
+	id: string;
+	title: string;
+	rationale: string;
+	private_evidence: DocketEvidenceRef[];
+	existing_public_anchors: DocketAnchorRef[];
+	related_tags: string[];
+	// knownValues-style — not a closed enum; the bot may emit new strings as
+	// the rubric evolves. Renderer falls back to a neutral badge.
+	suggested_shape: string;
+	atlas_cluster_fine: number;
+	atlas_cluster_coarse: number;
+}
+
+export interface Docket {
+	generated_at: string;
+	atlas_record_cid: string;
+	atlas_point_count: number;
+	candidates: DocketCandidate[];
+}
+
 // --- cockpit / hud ---
 
 /**
