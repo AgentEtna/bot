@@ -149,14 +149,10 @@ export async function getSkills(): Promise<Skill[]> {
 // record CID so a hot endpoint reuses the parsed JSON. Returns null when
 // no docket has been written yet (page renders an empty state).
 export async function getDocket(): Promise<Docket | null> {
-	try {
-		const res = await fetch('/api/docket');
-		if (res.status === 404) return null;
-		if (!res.ok) throw new Error(`docket: ${res.status}`);
-		return await res.json();
-	} catch {
-		return null;
-	}
+	const res = await fetch('/api/docket');
+	if (res.status === 404) return null;
+	if (!res.ok) throw new Error(`docket: ${res.status}`);
+	return await res.json();
 }
 
 export async function getUserView(handle: string): Promise<UserView | null> {

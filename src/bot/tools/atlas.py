@@ -106,6 +106,17 @@ def register(agent):
                 )
             ),
         ] = "",
+        sort: Annotated[
+            str,
+            Field(
+                description=(
+                    "Sort order for cluster / status listings. 'newest' "
+                    "shows what's most recently active; 'oldest' shows what "
+                    "has been sitting in the pool the longest — the things "
+                    "you've been avoiding most successfully."
+                )
+            ),
+        ] = "newest",
         top_k: Annotated[
             int,
             Field(description="Max points to return for cluster / status queries."),
@@ -156,14 +167,16 @@ def register(agent):
                 f"{n} {k}"
                 for k, n in sorted(kind_counts.items(), key=lambda kv: -kv[1])
             )
-            # show top_k members, most-recent first
+            # show top_k members, sorted per `sort` ('newest' or 'oldest')
+            descending = sort.strip().lower() != "oldest"
             members_sorted = sorted(
-                members, key=lambda m: m.get("created_at") or "", reverse=True
+                members, key=lambda m: m.get("created_at") or "", reverse=descending
             )[:top_k]
+            order_word = "recency" if descending else "age (oldest first)"
             lines = [
                 f"fine cluster {cluster_id}: {label or '(no label)'}",
                 f"{len(members)} points total — {kinds_line}",
-                f"top {len(members_sorted)} by recency:",
+                f"top {len(members_sorted)} by {order_word}:",
             ]
             lines.extend(_format_point_brief(p) for p in members_sorted)
             return "\n".join(lines)
@@ -180,12 +193,14 @@ def register(agent):
             ]
             if not matching:
                 return f"no points with status {normalized!r}"
+            descending = sort.strip().lower() != "oldest"
             matching_sorted = sorted(
-                matching, key=lambda p: p.get("created_at") or "", reverse=True
+                matching, key=lambda p: p.get("created_at") or "", reverse=descending
             )[:top_k]
+            order_word = "recency" if descending else "age (oldest first)"
             return (
                 f"{len(matching)} points with status {normalized!r} "
-                f"(showing top {len(matching_sorted)} by recency):\n"
+                f"(showing top {len(matching_sorted)} by {order_word}):\n"
                 + "\n".join(_format_point_brief(p) for p in matching_sorted)
             )
 

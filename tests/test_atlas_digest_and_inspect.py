@@ -295,6 +295,31 @@ async def test_inspect_atlas_unknown_status(sample_atlas):
     assert "unknown status" in out
 
 
+async def test_inspect_atlas_cluster_sort_oldest_first(sample_atlas):
+    """sort='oldest' flips ordering — for chasing the stalest pool entries."""
+    out = await _call_inspect(sample_atlas, cluster_id=0, sort="oldest")
+    # cluster 0 has obs-1 (2026-05-13T22:00), obs-2 (05-14T01:00), note-1 (05-14T02:00)
+    # oldest-first means obs-1 line appears before note-1 line
+    assert "age (oldest first)" in out
+    assert out.index("obs-1") < out.index("note-1")
+
+
+async def test_inspect_atlas_status_sort_oldest_first(sample_atlas):
+    """Status filter respects sort='oldest' — find what's been sitting longest."""
+    out = await _call_inspect(sample_atlas, status="promoted", sort="oldest")
+    # promoted points: obs-2 (05-14T01:00) and note-1 (05-14T02:00)
+    assert "age (oldest first)" in out
+    assert out.index("obs-2") < out.index("note-1")
+
+
+async def test_inspect_atlas_default_sort_is_newest(sample_atlas):
+    """Default behavior preserved — newest-first when sort kwarg omitted."""
+    out = await _call_inspect(sample_atlas, status="promoted")
+    assert "by recency" in out
+    # note-1 (later) appears before obs-2 (earlier)
+    assert out.index("note-1") < out.index("obs-2")
+
+
 async def test_inspect_atlas_no_atlas_returns_useful_message(sample_atlas):
     """If the atlas hasn't been generated yet, surface that — don't pretend."""
     from bot.tools import atlas as atlas_tool
