@@ -15,12 +15,10 @@ from pydantic_ai_skills import SkillsToolset
 from bot.config import settings
 from bot.core.atlas import get_atlas_digest
 from bot.core.atproto_client import bot_client, get_identity_block
-from bot.core.cosmik import create_cosmik_record
 from bot.core.discovery_pool import get_discovery_pool_block
 from bot.core.docket import get_docket_digest
 from bot.core.goals import list_goals as list_goal_records
 from bot.core.graze_client import GrazeClient
-from bot.core.observations import list_active as list_active_observations
 from bot.core.operator import get_operator_profile
 from bot.core.owned_feeds import get_owned_feeds_block
 from bot.core.recent_flow_mentions import get_recent_flow_mentions_block
@@ -29,12 +27,10 @@ from bot.core.self_state import get_state_block
 from bot.core.workflow_state import get_workflow_state_block
 from bot.memory.extraction import EXTRACTION_SYSTEM_PROMPT, ExtractionResult
 from bot.memory.namespace_memory import InteractionRow
-from bot.memory.review import REVIEW_SYSTEM_PROMPT, ReviewResult
 from bot.status import bot_status
 from bot.tools import PhiDeps, _check_services_impl, register_all
 from bot.tools.bluesky import fetch_relay_names
-from bot.types import CosmikNoteCard, NoteContent
-from bot.utils.time import humanize_duration, relative_when
+from bot.utils.time import humanize_duration
 
 logger = logging.getLogger("bot.agent")
 
@@ -305,26 +301,6 @@ class PhiAgent:
             return await get_state_block(bot_client, self.memory)
 
         @self.agent.system_prompt(dynamic=True)
-        async def inject_active_observations() -> str:
-            """[ACTIVE OBSERVATIONS] — phi's small attention pool, sits next to GOALS."""
-            rows = await list_active_observations(bot_client)
-            if not rows:
-                return ""
-            lines = [
-                "[ACTIVE OBSERVATIONS — stored at io.zzstoatzz.phi.observation on "
-                "your PDS — things you've seen and not yet acted on, kept small "
-                "(max 5) and rotating. mutate via observe / drop_observation. "
-                "older items age out into a searchable archive (not in prompt).]"
-            ]
-            for r in rows:
-                age = relative_when(r["created_at"]) if r["created_at"] else ""
-                age_part = f" ({age})" if age else ""
-                lines.append(f"- [rkey={r['rkey']}] {r['content']}{age_part}")
-                if r["reasoning"]:
-                    lines.append(f"  reasoning: {r['reasoning']}")
-            return "\n".join(lines)
-
-        @self.agent.system_prompt(dynamic=True)
         async def inject_recent_operations() -> str:
             """[RECENT OPERATIONS] — last N PDS writes across collections, for continuity."""
             return await get_operations_block(bot_client)
@@ -494,15 +470,6 @@ class PhiAgent:
             model=settings.agent_model,
             system_prompt=f"{self.base_personality}\n\n{EXTRACTION_SYSTEM_PROMPT}",
             output_type=ExtractionResult,
-        )
-
-        # Review agent — the dream/distill pass. Reviews observations with
-        # distance from the original conversation and decides keep/supersede/promote.
-        self._review_agent = Agent[None, ReviewResult](
-            name="phi-reviewer",
-            model=settings.agent_model,
-            system_prompt=f"{self.base_personality}\n\n{REVIEW_SYSTEM_PROMPT}",
-            output_type=ReviewResult,
         )
 
         logger.info(
@@ -890,119 +857,3 @@ class PhiAgent:
             ),
             deps=PhiDeps(author_handle="", memory=self.memory),
         )
-
-    async def process_review(self) -> str:
-        """Review recent observations with distance. The dream/distill pass.
-
-        Fetches recent observations across user namespaces, asks the review
-        agent to evaluate each (keep/supersede/promote), and applies the
-        decisions. Returns a summary string for logging.
-        """
-        if not self.memory:
-            return "no memory"
-
-        # gather recent observations across all user namespaces
-        user_prefix = f"{self.memory.NAMESPACES['users']}-"
-        observations: list[dict] = []
-        try:
-            page = self.memory.client.namespaces(prefix=user_prefix)
-            for ns_summary in page.namespaces:
-                handle = ns_summary.id.removeprefix(user_prefix).replace("_", ".")
-                user_ns = self.memory.client.namespace(ns_summary.id)
-                try:
-                    response = user_ns.query(
-                        rank_by=("created_at", "desc"),
-                        top_k=10,
-                        filters=[
-                            "And",
-                            [
-                                ["kind", "Eq", "observation"],
-                                ["status", "NotEq", "superseded"],
-                            ],
-                        ],
-                        include_attributes=["content", "tags", "created_at"],
-                    )
-                    if response.rows:
-                        for row in response.rows:
-                            observations.append(
-                                {
-                                    "handle": handle,
-                                    "id": row.id,
-                                    "content": row.content,
-                                    "tags": getattr(row, "tags", []),
-                                    "created_at": getattr(row, "created_at", ""),
-                                }
-                            )
-                except Exception:
-                    pass
-        except Exception as e:
-            logger.warning(f"review: failed to gather observations: {e}")
-            return f"failed: {e}"
-
-        if not observations:
-            logger.info("review: no observations to review")
-            return "nothing to review"
-
-        logger.info(f"review: examining {len(observations)} observations")
-
-        # format for the review agent
-        lines = []
-        for i, obs in enumerate(observations):
-            lines.append(
-                f"{i + 1}. [@{obs['handle']}] {obs['content']} "
-                f"(tags: {obs['tags']}, from: {obs['created_at'][:10]})"
-            )
-        prompt = f"review these {len(observations)} observations:\n\n" + "\n".join(
-            lines
-        )
-
-        try:
-            result = await self._review_agent.run(prompt)
-        except Exception as e:
-            logger.warning(f"review agent failed: {e}")
-            return f"review agent failed: {e}"
-
-        output = result.output
-        superseded = 0
-        promoted = 0
-
-        for i, decision in enumerate(output.decisions):
-            if i >= len(observations):
-                break
-            obs = observations[i]
-            handle = obs["handle"]
-
-            if decision.action == "supersede":
-                user_ns = self.memory.get_user_namespace(handle)
-                user_ns.write(patch_rows=[{"id": obs["id"], "status": "superseded"}])
-                superseded += 1
-                logger.info(
-                    f"review: superseded observation for @{handle}: "
-                    f"{obs['content'][:60]} ({decision.reason})"
-                )
-
-            elif decision.action == "promote" and decision.card_title:
-                try:
-                    card = CosmikNoteCard(
-                        content=NoteContent(
-                            text=decision.card_description or obs["content"]
-                        )
-                    )
-                    uri = await create_cosmik_record(
-                        "network.cosmik.card", card.to_record()
-                    )
-                    promoted += 1
-                    logger.info(
-                        f"review: promoted to cosmik card for @{handle}: "
-                        f"{decision.card_title} → {uri}"
-                    )
-                except Exception as e:
-                    logger.warning(f"review: failed to promote: {e}")
-
-        summary = (
-            f"reviewed {len(observations)} observations: "
-            f"{superseded} superseded, {promoted} promoted, "
-            f"{len(observations) - superseded - promoted} kept"
-        )
-        logger.info(f"review: {summary}")
-        return summary

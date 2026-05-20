@@ -192,11 +192,6 @@ class NamespaceMemory:
     NAMESPACES: ClassVar[dict[str, str]] = {
         "users": "phi-users",
         "episodic": "phi-episodic",
-        # `phi-observations` is the archive sink for active observations
-        # that age out (or get explicitly dropped) from the bounded pool
-        # in core/observations.py. recall searches it so phi can find
-        # things she once paid attention to but no longer holds in mind.
-        "archive": "phi-observations",
     }
 
     def __init__(self, api_key: str | None = None):
@@ -796,54 +791,10 @@ class NamespaceMemory:
                 logger.warning(f"unified search episodic namespace failed: {e}")
                 return []
 
-        async def _search_archive() -> list[dict]:
-            """Search phi-observations: things that aged out of the active pool.
-
-            Each row carries `archival_reason` (e.g. "aged out" or a custom
-            drop reason) and the original `created_at` from when phi first
-            noticed it. The formatter labels these distinctly so phi knows
-            this was once active attention, not a normal note.
-            """
-            try:
-                response = await loop.run_in_executor(
-                    None,
-                    lambda: self.namespaces["archive"].query(
-                        rank_by=("vector", "ANN", query_embedding),
-                        top_k=top_k,
-                        include_attributes=[
-                            "content",
-                            "reasoning",
-                            "archival_reason",
-                            "created_at",
-                            "archived_at",
-                        ],
-                    ),
-                )
-                results = []
-                if response.rows:
-                    for row in response.rows:
-                        results.append(
-                            {
-                                "content": row.content,
-                                "reasoning": getattr(row, "reasoning", "") or "",
-                                "archival_reason": getattr(row, "archival_reason", "")
-                                or "aged out",
-                                "created_at": getattr(row, "created_at", ""),
-                                "archived_at": getattr(row, "archived_at", ""),
-                                "_source": "archive",
-                            }
-                        )
-                return results
-            except Exception as e:
-                if "was not found" in str(e):
-                    return []
-                logger.warning(f"unified search archive namespace failed: {e}")
-                return []
-
-        user_results, episodic_results, archive_results = await asyncio.gather(
-            _search_user(), _search_episodic(), _search_archive()
+        user_results, episodic_results = await asyncio.gather(
+            _search_user(), _search_episodic()
         )
-        return user_results + episodic_results + archive_results
+        return user_results + episodic_results
 
     @staticmethod
     def _project_2d(

@@ -16,7 +16,6 @@ what changes per path is the user prompt and the deps shape, not the agent.
 | **scheduled musing** | every 2h during configured hours | "you have a moment. post if you want, or don't" |
 | **daily reflection** | once per day at `DAILY_REFLECTION_HOUR` | "end of day. post a reflection if you have one" |
 | **relay check** | every ~3h | "scheduled relay check. report transitions; tag owner if `*.waow.tech` dips or fleet-wide degradation" |
-| **memory review** | on demand | dream/distill pass over recent observations |
 
 ## data flow (notifications)
 

@@ -14,7 +14,6 @@ def register_all(agent, graze_client: GrazeClient):
         feeds,
         goals,
         memory,
-        observations,
         posting,
         search,
     )
@@ -26,7 +25,6 @@ def register_all(agent, graze_client: GrazeClient):
     bio.register(agent)
     blog.register(agent)
     goals.register(agent)
-    observations.register(agent)
     posting.register(agent)
     atlas.register(agent)
 

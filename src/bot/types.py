@@ -57,14 +57,14 @@ def _validate_entity_ref(v: str) -> str:
 EntityRef = Annotated[str, AfterValidator(_validate_entity_ref)]
 
 ConnectionType = Literal[
-    "related",
-    "supports",
-    "opposes",
-    "addresses",
-    "helpful",
-    "explainer",
-    "leads_to",
-    "supplements",
+    "RELATED",
+    "SUPPORTS",
+    "OPPOSES",
+    "ADDRESSES",
+    "HELPFUL",
+    "EXPLAINER",
+    "LEADS_TO",
+    "SUPPLEMENTS",
 ]
 
 

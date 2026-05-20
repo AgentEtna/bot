@@ -39,15 +39,11 @@ observations carry a `status` field (`active` | `superseded`) and a `supersedes`
 
 after every reply, `after_interaction` stores the verbatim exchange. periodically, the extraction agent reads the recent exchanges and proposes new observations. for each proposal:
 
-1. find the 3 most similar active observations (vector search)
+1. find the 3 most similar non-superseded observations (vector search)
 2. send the new + best-match to a haiku reconciliation agent
 3. it returns ADD / UPDATE / DELETE / NOOP — execute accordingly
 
 reconciliation runs blind on the new exchange (no existing observations in the prompt) so the extraction model can't pattern-match off potentially-bad prior observations. only the reconciliation step sees both.
-
-### dream/distill
-
-a separate `process_review` pass evaluates recent observations across user namespaces — keep, supersede, promote to public cosmik card. operator-triggered; not on a cron yet.
 
 ## 3. public memory (cosmik / semble)
 
@@ -98,7 +94,7 @@ per-author observation blocks aren't synthesized because they're already curated
 
 ## the graph (`/memory`)
 
-a visualization at `/memory` shows phi + user nodes positioned by semantic similarity of their observation vectors (PCA projection). only active observations contribute to positioning.
+a visualization at `/memory` shows phi + user nodes positioned by semantic similarity of their observation vectors (PCA projection). only non-superseded observations contribute to positioning.
 
 ## summary table
 

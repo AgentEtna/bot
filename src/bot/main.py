@@ -181,17 +181,6 @@ async def trigger_post(request: Request, background_tasks: BackgroundTasks):
     return {"triggered": True}
 
 
-@app.post("/api/control/review")
-async def trigger_review(request: Request, background_tasks: BackgroundTasks):
-    """Trigger a memory review (dream/distill pass) immediately."""
-    if err := _check_control_token(request):
-        return err
-    poller: NotificationPoller | None = getattr(app.state, "poller", None)
-    if not poller:
-        return JSONResponse({"error": "poller not available"}, status_code=503)
-    background_tasks.add_task(poller.handler.review_memories)
-    logger.info("memory review triggered via API")
-    return {"triggered": True}
 
 
 _abilities_cache: list | None = None

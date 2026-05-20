@@ -27,7 +27,6 @@ function cell<T>(initial: T) {
 export const hudReadout = cell<string>('');
 export const logbook = cell<LogbookEntry | null>(null);
 export const mindCounts = cell({
-	obs: 0,
 	goals: 0,
 	out: 0,
 	ppl: 0,

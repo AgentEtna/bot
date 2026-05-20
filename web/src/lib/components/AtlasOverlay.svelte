@@ -41,7 +41,6 @@
 	const maxZoom = 18;
 
 	const palette: Record<string, Palette> = {
-		'active-observation': { core: '#b6f4ff', mid: '#5aa9bc', edge: '#183b48' },
 		observation: { core: '#8ed2e0', mid: '#4a8b9a', edge: '#163944' },
 		interaction: { core: '#ff9c62', mid: '#b86b3a', edge: '#512912' },
 		summary: { core: '#7bd3b1', mid: '#3c9f7c', edge: '#123f33' },
@@ -292,7 +291,7 @@
 		const promoted = p.promotion_status === 'promoted';
 		const base = view.zoom < 2 ? 1.05 : Math.min(4.6, 1.15 + view.zoom * 0.3);
 		if (p.kind === 'handle-engaged') return base * (promoted ? 2.05 : 1.72);
-		if (p.kind === 'goal' || p.kind === 'active-observation') return base * 2.1;
+		if (p.kind === 'goal') return base * 2.1;
 		if (p.kind === 'summary' || p.kind === 'blog') return base * 1.55;
 		return promoted ? base * 1.4 : base;
 	}
@@ -313,7 +312,7 @@
 		const c = color(p.kind);
 		const promoted = p.promotion_status === 'promoted';
 		const r = pointRadius(p);
-		const hot = promoted || p.kind === 'active-observation' || p.kind === 'goal';
+		const hot = promoted || p.kind === 'goal';
 		ctx.globalAlpha = hot ? 0.95 : 0.58;
 		ctx.fillStyle = hot ? c.core : c.mid;
 		ctx.strokeStyle = hot ? rgba(c.core, 0.95) : rgba(c.mid, 0.72);
@@ -324,10 +323,8 @@
 		}
 		switch (p.kind) {
 			case 'observation':
-			case 'active-observation':
 				polygon(ctx, x, y, r * 1.15, 4, Math.PI / 4);
 				ctx.fill();
-				if (p.kind === 'active-observation') ctx.stroke();
 				break;
 			case 'interaction':
 				ctx.beginPath();
@@ -874,8 +871,7 @@
 		box-shadow: 0 0 10px var(--dot);
 	}
 
-	.glyph-observation,
-	.glyph-active-observation {
+	.glyph-observation {
 		border-radius: 1px;
 		transform: rotate(45deg);
 	}

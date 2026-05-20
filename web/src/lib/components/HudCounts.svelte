@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import {
-		getActiveObservations,
 		getGoals,
 		getActivity,
 		getMemoryGraph,
@@ -10,7 +9,6 @@
 	import { mindCounts } from '$lib/state.svelte';
 
 	let counts = $state({
-		obs: 0,
 		goals: 0,
 		out: 0,
 		ppl: 0,
@@ -21,8 +19,7 @@
 	const displayed = $derived(mindCounts.value.loaded ? mindCounts.value : counts);
 
 	onMount(async () => {
-		const [obs, goals, activity, graph, disc] = await Promise.allSettled([
-			getActiveObservations(),
+		const [goals, activity, graph, disc] = await Promise.allSettled([
 			getGoals(),
 			getActivity(),
 			getMemoryGraph(),
@@ -30,7 +27,6 @@
 		]);
 		if (!mindCounts.value.loaded) {
 			counts = {
-				obs: obs.status === 'fulfilled' ? obs.value.length : 0,
 				goals: goals.status === 'fulfilled' ? goals.value.length : 0,
 				out: activity.status === 'fulfilled' ? activity.value.length : 0,
 				ppl:
@@ -46,7 +42,6 @@
 
 <div class="ticker">
 	<div class="row">
-		<span class="kv"><span class="k chrome">attn</span><span class="v mono">{displayed.obs}</span></span>
 		<span class="kv"
 			><span class="k chrome">goals</span><span class="v mono">{displayed.goals}</span></span
 		>

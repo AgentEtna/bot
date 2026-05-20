@@ -10,13 +10,11 @@
 		Docket,
 		Goal,
 		GraphNode,
-		LogbookEntry,
-		Observation
+		LogbookEntry
 	} from '$lib/types';
 
 	interface Props {
 		goals: Goal[];
-		observations: Observation[];
 		known: GraphNode[];
 		candidates: DiscoveryEntry[];
 		avatars: Record<string, string>;
@@ -24,7 +22,7 @@
 		atlas: Atlas | null;
 	}
 
-	let { goals, observations, known, candidates, avatars, docket, atlas }: Props = $props();
+	let { goals, known, candidates, avatars, docket, atlas }: Props = $props();
 
 	let canvas: HTMLCanvasElement;
 	let W = $state(0);
@@ -49,7 +47,7 @@
 	const maxZoom = 5.5;
 
 	type Rect = { x: number; y: number; w: number; h: number };
-	type Ring = 'self' | 'goals' | 'attention' | 'people' | 'horizon';
+	type Ring = 'self' | 'goals' | 'people' | 'horizon';
 	type AtlasKind = 'observation' | 'interaction' | 'summary' | 'episodic' | 'post' | 'note' | 'url' | 'handle-engaged' | 'other';
 	type Hotspot = Rect & {
 		label: string;
@@ -63,7 +61,6 @@
 
 	const rings: { key: Ring; r: number; label: string; metric: () => number }[] = [
 		{ key: 'goals', r: 0.18, label: 'intent', metric: () => goals.length },
-		{ key: 'attention', r: 0.32, label: 'attention', metric: () => observations.length },
 		{ key: 'people', r: 0.55, label: 'people carried', metric: () => known.length },
 		{ key: 'horizon', r: 0.82, label: 'horizon', metric: () => candidates.length }
 	];
@@ -75,7 +72,6 @@
 			.filter(Boolean)
 			.slice(0, 10)
 	);
-	const attentionPreview = $derived([...observations].slice(0, 3));
 	const goalPreview = $derived([...goals].slice(0, 2));
 	const docketPreview = $derived(docket?.candidates.slice(0, 3) ?? []);
 	const atlasPreview = $derived.by(() => buildAtlasPreview());
@@ -173,20 +169,6 @@
 			});
 		}
 
-		const sortedObs = [...observations].sort((a, b) => a.rkey.localeCompare(b.rkey));
-		for (let i = 0; i < sortedObs.length; i++) {
-			const obs = sortedObs[i];
-			const angle = -Math.PI / 2 + (i / Math.max(sortedObs.length, 1)) * Math.PI * 2;
-			out.push({
-				id: `obs-${obs.rkey}`,
-				kind: 'observation',
-				label: obs.content,
-				x: Math.cos(angle) * 0.32,
-				y: Math.sin(angle) * 0.32,
-				payload: obs
-			});
-		}
-
 		const knownEntries = known.filter((n) => n.type === 'user');
 		for (const node of knownEntries) {
 			const handle = node.label.replace(/^@/, '');
@@ -235,7 +217,6 @@
 
 	$effect(() => {
 		void goals;
-		void observations;
 		void known;
 		void candidates;
 		void avatars;
@@ -370,7 +351,6 @@
 		chrome(ctx, mobile() ? 'memory field' : 'living memory field', f.x, f.y - 24, 12);
 		const stats = [
 			mobile() ? `${goals.length} intent` : `${goals.length} intent`,
-			mobile() ? `${observations.length} attn` : `${observations.length} attention`,
 			`${known.length} people`,
 			mobile() ? `${docket?.candidates.length ?? 0} cand` : `${candidates.length} horizon`,
 			...(mobile()
@@ -499,7 +479,7 @@
 		ctx.strokeStyle = resolve('--line-dim');
 		ctx.lineWidth = 1;
 		for (const p of points) {
-			if (p.kind !== 'goal' && p.kind !== 'observation') continue;
+			if (p.kind !== 'goal') continue;
 			const [x, y] = worldToScreen(p.x, p.y);
 			ctx.beginPath();
 			ctx.moveTo(cx, cy);
@@ -610,8 +590,8 @@
 		const rows = [
 			{
 				title: 'PDS state',
-				value: `${goals.length} goals · ${observations.length} observations`,
-				entry: { kind: 'store', store: 'pds', goals, observations } as LogbookEntry
+				value: `${goals.length} goals`,
+				entry: { kind: 'store', store: 'pds', goals } as LogbookEntry
 			},
 			{
 				title: 'people memory',
@@ -843,8 +823,7 @@
 			phi: 'self',
 			'handle-engaged': 'person in memory',
 			'handle-candidate': 'person on horizon',
-			goal: 'intent',
-			observation: 'active attention'
+			goal: 'intent'
 		};
 		return `${labels[p.kind] ?? p.kind} · ${p.label}`;
 	}
@@ -860,7 +839,6 @@
 			return { kind: 'discovery', entry: payload.entry };
 		}
 		if (p.kind === 'goal') return { kind: 'goal', goal: p.payload as Goal };
-		if (p.kind === 'observation') return { kind: 'observation', observation: p.payload as Observation };
 		return null;
 	}
 
@@ -1069,20 +1047,10 @@
 			<div class="metric-grid" aria-label="memory counts">
 				<button
 					class="metric"
-					onclick={() => logbook.set({ kind: 'store', store: 'pds', goals, observations })}
+					onclick={() => logbook.set({ kind: 'store', store: 'pds', goals })}
 				>
 					<span class="metric-value mono">{goals.length}</span>
 					<span class="metric-label chrome">intent</span>
-				</button>
-				<button
-					class="metric"
-					onclick={() => {
-						const first = observations[0];
-						if (first) logbook.set({ kind: 'observation', observation: first });
-					}}
-				>
-					<span class="metric-value mono">{observations.length}</span>
-					<span class="metric-label chrome">attention</span>
 				</button>
 				<button
 					class="metric"
@@ -1136,25 +1104,6 @@
 				</div>
 			{/if}
 		</button>
-
-		<section class="mobile-panel">
-			<div class="card-top">
-				<div>
-					<div class="section-label chrome">active attention</div>
-					<div class="panel-summary">{observations.length} observations currently carried</div>
-				</div>
-			</div>
-			<div class="stack-list">
-				{#each attentionPreview as obs (obs.rkey)}
-					<button class="list-row" onclick={() => logbook.set({ kind: 'observation', observation: obs })}>
-						<span class="row-rule"></span>
-						<span class="row-body">{obs.content}</span>
-					</button>
-				{:else}
-					<div class="empty-row chrome">no active observations</div>
-				{/each}
-			</div>
-		</section>
 
 		<section class="mobile-panel people-panel">
 			<div class="card-top">
@@ -1514,23 +1463,14 @@
 			margin-top: 8px;
 		}
 
-		.list-row,
-		.person-chip,
-		.mini-action {
-			border: 1px solid rgba(74, 139, 154, 0.22);
+			.person-chip,
+			.mini-action {
+				border: 1px solid rgba(74, 139, 154, 0.22);
 			background: rgba(4, 7, 12, 0.42);
 			color: inherit;
 			font: inherit;
 			text-align: left;
 			cursor: pointer;
-		}
-
-		.list-row {
-			display: grid;
-			grid-template-columns: 3px 1fr;
-			gap: 10px;
-			min-height: 48px;
-			padding: 10px 11px;
 		}
 
 		.brief-card {
@@ -1599,25 +1539,6 @@
 		.brief-open {
 			color: var(--scan-mid);
 			font-size: 9px;
-		}
-
-		.row-rule {
-			width: 3px;
-			min-height: 100%;
-			background: var(--scan-mid);
-			box-shadow: 0 0 8px rgba(126, 192, 212, 0.28);
-		}
-
-		.row-body {
-			min-width: 0;
-			color: var(--text);
-			font-size: 13px;
-			line-height: 1.35;
-			display: -webkit-box;
-			line-clamp: 2;
-			-webkit-line-clamp: 2;
-			-webkit-box-orient: vertical;
-			overflow: hidden;
 		}
 
 		.people-panel {

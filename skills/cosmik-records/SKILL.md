@@ -15,7 +15,7 @@ read `pdsx-fundamentals` first if you haven't — this skill assumes you underst
 |---|---|---|
 | `network.cosmik.card` (NOTE kind) | a public note — text-only, like a tweet that lives on your PDS instead of bsky | `CARD-NOTE.md` |
 | `network.cosmik.card` (URL kind) | a bookmark — a URL with title/description metadata | `CARD-URL.md` |
-| `network.cosmik.connection` | a typed link between two cards (e.g. SUPPORTS, CONTRADICTS) | `CONNECTION.md` |
+| `network.cosmik.connection` | a typed link between two cards (e.g. SUPPORTS, OPPOSES) | `CONNECTION.md` |
 
 cards and connections together form a directed graph. semble indexes both.
 

@@ -343,15 +343,6 @@ class MessageHandler:
         """One cognitive cycle — see :meth:`PhiAgent.process_cycle`."""
         await self._run_scheduled("cycle", self.agent.process_cycle)
 
-    async def review_memories(self):
-        """Run the dream/distill pass — review observations with distance."""
-        with logfire.span("memory review"):
-            try:
-                summary = await self.agent.process_review()
-                logger.info(f"memory review: {summary}")
-            except Exception as e:
-                logger.warning(f"memory review failed: {e}")
-
     async def daily_reflection(self):
         """Generate and post a daily reflection if phi has something to say.
 

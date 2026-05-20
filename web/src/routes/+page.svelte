@@ -6,17 +6,15 @@
 	import {
 		getMemoryGraph,
 		getDiscoveryPool,
-		getActiveObservations,
 		getGoals,
 		getDocket,
 		getAtlas,
 		getActivity,
 		PHI_HANDLE
 	} from '$lib/api';
-	import type { GraphNode, DiscoveryEntry, Observation, Goal, Docket, Atlas } from '$lib/types';
+	import type { GraphNode, DiscoveryEntry, Goal, Docket, Atlas } from '$lib/types';
 
 	let goals = $state<Goal[]>([]);
-	let observations = $state<Observation[]>([]);
 	let known = $state<GraphNode[]>([]);
 	let candidates = $state<DiscoveryEntry[]>([]);
 	let avatars = $state<Record<string, string>>({});
@@ -54,7 +52,6 @@
 		let outCount = 0;
 		const publishCounts = () => {
 			mindCounts.set({
-				obs: observations.length,
 				goals: goals.length,
 				out: outCount,
 				ppl: known.length,
@@ -90,12 +87,6 @@
 				publishCounts();
 			})
 			.catch(() => {});
-		const obsP = getActiveObservations()
-			.then((r) => {
-				observations = r;
-				publishCounts();
-			})
-			.catch(() => publishCounts());
 		const goalsP = getGoals()
 			.then((r) => {
 				goals = r;
@@ -114,7 +105,7 @@
 			})
 			.catch(() => {});
 
-		void Promise.allSettled([obsP, goalsP]);
+		void Promise.allSettled([goalsP]);
 		Promise.allSettled([graphP, discP]).then(([graphResult, discoveryResult]) => {
 			const handles = new Set<string>([PHI_HANDLE]);
 			const graphNodes = graphResult.status === 'fulfilled' ? graphResult.value : [];
@@ -131,7 +122,7 @@
 </svelte:head>
 
 <div class="lens">
-	<MindMap {goals} {observations} {known} {candidates} {avatars} {docket} {atlas} />
+	<MindMap {goals} {known} {candidates} {avatars} {docket} {atlas} />
 </div>
 
 <Logbook />

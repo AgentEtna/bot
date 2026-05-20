@@ -21,24 +21,24 @@ def test_connection_valid():
     conn = CosmikConnection(
         source="https://example.com",
         target="at://did:plc:abc/app.bsky.feed.post/123",
-        connection_type="related",
+        connection_type="RELATED",
         note="test",
     )
     assert conn.source == "https://example.com"
-    assert conn.connection_type == "related"
+    assert conn.connection_type == "RELATED"
 
 
 def test_connection_to_record_full():
     conn = CosmikConnection(
         source="https://a.com",
         target="https://b.com",
-        connection_type="supports",
+        connection_type="SUPPORTS",
         note="because reasons",
     )
     record = conn.to_record()
     assert record["source"] == "https://a.com"
     assert record["target"] == "https://b.com"
-    assert record["connectionType"] == "supports"
+    assert record["connectionType"] == "SUPPORTS"
     assert record["note"] == "because reasons"
     assert "createdAt" in record
     assert "updatedAt" in record

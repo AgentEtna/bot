@@ -15,7 +15,6 @@ the source — the UI just renders what's there.
 | `tools/bluesky.py` | `post`, `get_own_posts`, `check_urls`, `manage_labels`, `manage_mentionable`, `check_services`, `check_relays`, `changelog` |
 | `tools/feeds.py` | `create_feed`, `list_feeds`, `delete_feed`, `read_timeline`, `read_feed`, `follow_user` |
 | `tools/goals.py` | `list_goals`, `propose_goal_change` |
-| `tools/observations.py` | `observe`, `drop_observation` |
 | `tools/blog.py` | `list_blog_posts`, `publish_blog_post` |
 
 **removed**: `tools/cosmik.py` (`save_url`, `create_connection`) — these are now

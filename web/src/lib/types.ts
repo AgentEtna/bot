@@ -1,5 +1,5 @@
 // Shape mirrors phi's PDS record schemas + bot API responses.
-// Keep in sync with bot/src/bot/core/{goals,observations}.py and the json
+// Keep in sync with bot/src/bot/core/goals.py and the json
 // returned by /api/* endpoints.
 
 // --- PDS records ---
@@ -11,13 +11,6 @@ export interface Goal {
 	progress_signal: string;
 	created_at: string;
 	updated_at: string;
-}
-
-export interface Observation {
-	rkey: string;
-	content: string;
-	reasoning: string;
-	created_at: string;
 }
 
 export interface BlogDoc {
@@ -235,15 +228,14 @@ export interface Atlas {
 
 /**
  * AtlasPoint is the unifying primitive across the mind lens. Every "object of
- * phi's attention" — concept-shaped (observation, goal) and people-shaped
- * (engaged, candidate) — becomes a point with a kind, a position, and a
- * payload that becomes the logbook entry on click.
+ * phi's attention" — concept-shaped (goal) and people-shaped (engaged,
+ * candidate) — becomes a point with a kind, a position, and a payload that
+ * becomes the logbook entry on click.
  */
 export type AtlasKind =
 	| 'phi'
 	| 'handle-engaged'
 	| 'handle-candidate'
-	| 'observation'
 	| 'goal';
 
 export interface AtlasPoint {
@@ -262,7 +254,6 @@ export interface AtlasPoint {
  */
 export type LogbookEntry =
 	| { kind: 'handle'; handle: string; did?: string; engaged: boolean; payload: unknown }
-	| { kind: 'observation'; observation: Observation }
 	| { kind: 'goal'; goal: Goal }
 	| { kind: 'docket'; candidate: DocketCandidate }
 	| { kind: 'docket-list'; docket: Docket }
@@ -270,7 +261,6 @@ export type LogbookEntry =
 			kind: 'store';
 			store: 'pds' | 'memory' | 'atlas';
 			goals?: Goal[];
-			observations?: Observation[];
 			known?: GraphNode[];
 			atlas?: Atlas | null;
 	  }

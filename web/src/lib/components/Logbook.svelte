@@ -5,7 +5,6 @@
 	import ViewIn from './ViewIn.svelte';
 	import type {
 		Goal,
-		Observation,
 		ActivityItem,
 		BlogDoc,
 		DocketCandidate,
@@ -220,7 +219,7 @@
 	<aside class="drawer scroll" aria-label="logbook entry">
 		<header>
 			<div class="kind chrome">
-				{#if entry.kind === 'handle'}{entry.engaged ? 'in my memory' : 'on my radar'}{:else if entry.kind === 'observation'}attention{:else if entry.kind === 'goal'}goal{:else if entry.kind === 'docket'}promotion pressure{:else if entry.kind === 'activity'}emission · {entry.item.type}{:else if entry.kind === 'blog'}long form{:else if entry.kind === 'discovery'}on my radar{/if}
+				{#if entry.kind === 'handle'}{entry.engaged ? 'in my memory' : 'on my radar'}{:else if entry.kind === 'goal'}goal{:else if entry.kind === 'docket'}promotion pressure{:else if entry.kind === 'activity'}emission · {entry.item.type}{:else if entry.kind === 'blog'}long form{:else if entry.kind === 'discovery'}on my radar{/if}
 				{#if entry.kind === 'docket-list'}public candidates{:else if entry.kind === 'store'}memory store{/if}
 			</div>
 			<button class="close chrome" onclick={close} aria-label="close">close · esc</button>
@@ -321,30 +320,6 @@
 
 			<div class="actions">
 				<ViewIn kind="profile" handle={handleEntry.handle} did={handleEntry.did} />
-			</div>
-		{:else if entry.kind === 'observation'}
-			{@const obs = entry as { kind: 'observation'; observation: Observation }}
-			<h1>what i'm watching</h1>
-			<p class="content">{obs.observation.content}</p>
-			{#if obs.observation.reasoning}
-				<div class="block">
-					<div class="block-label chrome">why</div>
-					<div class="muted">{obs.observation.reasoning}</div>
-				</div>
-			{/if}
-			<div class="meta">
-				<span class="faint" title={whenTooltip(obs.observation.created_at)}
-					>noted {relativeWhen(obs.observation.created_at)}</span
-				>
-			</div>
-			<div class="actions">
-				<ViewIn
-					kind="record"
-					handle={PHI_HANDLE}
-					did={PHI_DID}
-					collection="io.zzstoatzz.phi.observation"
-					rkey={obs.observation.rkey}
-				/>
 			</div>
 		{:else if entry.kind === 'goal'}
 			{@const goalE = entry as { kind: 'goal'; goal: Goal }}
@@ -457,24 +432,18 @@
 				kind: 'store';
 				store: 'pds' | 'memory' | 'atlas';
 				goals?: Goal[];
-				observations?: Observation[];
 				known?: GraphNode[];
 				atlas?: Atlas | null;
 			}}
 			{#if store.store === 'pds'}
 				<h1>PDS state</h1>
 				<p class="muted">
-					Small durable records that phi carries into future runs: explicit goals and active
-					observations.
+					Small durable records that phi carries into future runs.
 				</p>
 				<div class="hist">
 					<div class="hist-cell">
 						<div class="hist-num mono">{store.goals?.length ?? 0}</div>
 						<div class="hist-lbl chrome">goals</div>
-					</div>
-					<div class="hist-cell">
-						<div class="hist-num mono">{store.observations?.length ?? 0}</div>
-						<div class="hist-lbl chrome">attention</div>
 					</div>
 					<div class="hist-cell">
 						<div class="hist-num mono">PDS</div>
@@ -494,23 +463,10 @@
 						</ul>
 					</div>
 				{/if}
-				{#if store.observations && store.observations.length > 0}
-					<div class="block">
-						<div class="block-label chrome">attention</div>
-						<ul class="obs-list">
-							{#each store.observations as obs (obs.rkey)}
-								<li class="obs">
-									<div class="obs-text">{obs.content}</div>
-									<div class="obs-meta faint">{obs.reasoning}</div>
-								</li>
-							{/each}
-						</ul>
-					</div>
-				{/if}
 			{:else if store.store === 'memory'}
 				<h1>people memory</h1>
 				<p class="muted">
-					Relationship memory carried per person: impressions, active observations, and traces of
+					Relationship memory carried per person: impressions, observations, and traces of
 					exchange.
 				</p>
 				<div class="hist">

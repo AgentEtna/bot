@@ -14,7 +14,6 @@ import type {
 	Goal,
 	GraphData,
 	HealthInfo,
-	Observation,
 	Skill,
 	UserView
 } from './types';
@@ -58,22 +57,6 @@ export async function getGoals(): Promise<Goal[]> {
 		updated_at: string;
 	}>(PHI_DID, 'io.zzstoatzz.phi.goal', 20);
 	return records.map((r) => ({ rkey: rkey(r.uri), ...r.value }));
-}
-
-export async function getActiveObservations(): Promise<Observation[]> {
-	const records = await listPdsRecords<{
-		content: string;
-		reasoning?: string;
-		created_at: string;
-	}>(PHI_DID, 'io.zzstoatzz.phi.observation', 50);
-	return records
-		.map((r) => ({
-			rkey: rkey(r.uri),
-			content: r.value.content,
-			reasoning: r.value.reasoning ?? '',
-			created_at: r.value.created_at
-		}))
-		.sort((a, b) => a.rkey.localeCompare(b.rkey));
 }
 
 export async function getBlogDocs(limit = 50): Promise<BlogDoc[]> {
