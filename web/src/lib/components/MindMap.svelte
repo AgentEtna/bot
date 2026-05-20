@@ -40,6 +40,7 @@
 
 	type Rect = { x: number; y: number; w: number; h: number };
 	type Ring = 'self' | 'goals' | 'attention' | 'people' | 'horizon';
+	type AtlasKind = 'observation' | 'interaction' | 'summary' | 'episodic' | 'post' | 'note' | 'url' | 'handle-engaged' | 'other';
 	type Hotspot = Rect & {
 		label: string;
 		readout: string;
@@ -56,6 +57,42 @@
 
 	function resolve(name: string): string {
 		return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888';
+	}
+
+	function rgba(hex: string, alpha: number): string {
+		const h = hex.replace('#', '');
+		const r = parseInt(h.slice(0, 2), 16);
+		const g = parseInt(h.slice(2, 4), 16);
+		const b = parseInt(h.slice(4, 6), 16);
+		return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+	}
+
+	function atlasColor(kind: string | undefined): { core: string; mid: string; edge: string } {
+		const key = (kind ?? 'other') as AtlasKind;
+		const palette: Record<AtlasKind, { core: string; mid: string; edge: string }> = {
+			observation: { core: '#7ec0d4', mid: '#4a8b9a', edge: '#1d3b46' },
+			interaction: { core: '#e09060', mid: '#b86b3a', edge: '#4d2c14' },
+			summary: { core: '#7bd3b1', mid: '#3c9f7c', edge: '#174638' },
+			episodic: { core: '#b9a6ff', mid: '#7762c8', edge: '#30285c' },
+			post: { core: '#e0bb6a', mid: '#c08a35', edge: '#5b3b12' },
+			note: { core: '#f0d27d', mid: '#c9a05a', edge: '#5c4720' },
+			url: { core: '#90d087', mid: '#5d9a52', edge: '#274821' },
+			'handle-engaged': { core: '#d6d2c9', mid: '#8c8579', edge: '#3d3932' },
+			other: { core: '#9aa3ad', mid: '#626c76', edge: '#252c34' }
+		};
+		return palette[key] ?? palette.other;
+	}
+
+	function dominantKind(kindCounts: Record<string, number> | undefined): string {
+		let best = 'other';
+		let bestCount = -1;
+		for (const [kind, count] of Object.entries(kindCounts ?? {})) {
+			if (count > bestCount) {
+				best = kind;
+				bestCount = count;
+			}
+		}
+		return best;
 	}
 
 	function loadImage(url: string) {
@@ -216,7 +253,7 @@
 
 	function sidePanel(): Rect {
 		const f = field();
-		if (mobile()) return { x: f.x, y: f.y + f.h - 160, w: f.w, h: 138 };
+		if (mobile()) return { x: f.x, y: f.y + f.h - 190, w: f.w, h: 168 };
 		return { x: f.x + f.w * 0.72, y: f.y + 26, w: Math.min(360, f.w * 0.24), h: f.h - 64 };
 	}
 
@@ -448,6 +485,158 @@
 		ctx.restore();
 	}
 
+	function atlasBounds() {
+		const pts = atlas?.points.filter((p) => typeof p.x === 'number' && typeof p.y === 'number') ?? [];
+		if (pts.length === 0) return null;
+		let minX = Infinity;
+		let maxX = -Infinity;
+		let minY = Infinity;
+		let maxY = -Infinity;
+		for (const p of pts) {
+			const x = p.x as number;
+			const y = p.y as number;
+			if (x < minX) minX = x;
+			if (x > maxX) maxX = x;
+			if (y < minY) minY = y;
+			if (y > maxY) maxY = y;
+		}
+		const dx = Math.max(0.001, maxX - minX);
+		const dy = Math.max(0.001, maxY - minY);
+		return {
+			minX: minX - dx * 0.08,
+			maxX: maxX + dx * 0.08,
+			minY: minY - dy * 0.08,
+			maxY: maxY + dy * 0.08
+		};
+	}
+
+	function atlasProject(x: number, y: number, r: Rect, b: NonNullable<ReturnType<typeof atlasBounds>>): [number, number] {
+		const nx = (x - b.minX) / (b.maxX - b.minX);
+		const ny = (y - b.minY) / (b.maxY - b.minY);
+		return [r.x + nx * r.w, r.y + (1 - ny) * r.h];
+	}
+
+	function drawAtlasMini(ctx: CanvasRenderingContext2D, r: Rect) {
+		rounded(ctx, r, 6);
+		ctx.save();
+		ctx.clip();
+		const bg = ctx.createLinearGradient(r.x, r.y, r.x + r.w, r.y + r.h);
+		bg.addColorStop(0, 'rgba(4, 8, 14, 0.92)');
+		bg.addColorStop(0.52, 'rgba(8, 18, 24, 0.82)');
+		bg.addColorStop(1, 'rgba(20, 12, 18, 0.88)');
+		ctx.fillStyle = bg;
+		ctx.fillRect(r.x, r.y, r.w, r.h);
+
+		ctx.strokeStyle = 'rgba(126, 192, 212, 0.055)';
+		ctx.lineWidth = 1;
+		const pitch = 18;
+		for (let x = r.x - r.h; x < r.x + r.w + r.h; x += pitch) {
+			ctx.beginPath();
+			ctx.moveTo(x, r.y + r.h);
+			ctx.lineTo(x + r.h, r.y);
+			ctx.stroke();
+		}
+		for (let y = r.y; y < r.y + r.h; y += 4) {
+			ctx.strokeStyle = y % 16 === 0 ? 'rgba(224, 144, 96, 0.055)' : 'rgba(255,255,255,0.018)';
+			ctx.beginPath();
+			ctx.moveTo(r.x, y);
+			ctx.lineTo(r.x + r.w, y);
+			ctx.stroke();
+		}
+
+		const b = atlasBounds();
+		if (!atlas || !b) {
+			label(ctx, 'atlas pending', r.x + 12, r.y + r.h / 2, r.w - 24, '--text-dim', 11);
+			ctx.restore();
+			return;
+		}
+
+		const coarse = [...atlas.clusters_coarse].sort((a, b2) => (b2.count ?? 0) - (a.count ?? 0));
+		for (const cl of coarse) {
+			if (typeof cl.x !== 'number' || typeof cl.y !== 'number') continue;
+			const [x, y] = atlasProject(cl.x, cl.y, r, b);
+			const color = atlasColor(dominantKind(cl.kind_counts));
+			const radius = Math.max(14, Math.min(58, Math.sqrt(cl.count ?? 1) * 3.2));
+			const grad = ctx.createRadialGradient(x, y, 0, x, y, radius);
+			grad.addColorStop(0, rgba(color.core, 0.24));
+			grad.addColorStop(0.45, rgba(color.mid, 0.1));
+			grad.addColorStop(1, rgba(color.edge, 0));
+			ctx.fillStyle = grad;
+			ctx.globalAlpha = 0.9;
+			ctx.beginPath();
+			ctx.arc(x, y, radius, 0, Math.PI * 2);
+			ctx.fill();
+		}
+
+		for (const p of atlas.points) {
+			if (typeof p.x !== 'number' || typeof p.y !== 'number') continue;
+			const [x, y] = atlasProject(p.x, p.y, r, b);
+			const color = atlasColor(p.kind);
+			const promoted = p.promotion_status === 'promoted';
+			ctx.globalAlpha = promoted ? 0.96 : 0.52;
+			ctx.fillStyle = promoted ? color.core : color.mid;
+			ctx.fillRect(x, y, promoted ? 1.8 : 1.2, promoted ? 1.8 : 1.2);
+		}
+
+		ctx.globalAlpha = 1;
+		ctx.font = '9px "Saira Condensed", sans-serif';
+		ctx.textAlign = 'center';
+		ctx.textBaseline = 'middle';
+		const placed: { x: number; y: number; w: number; h: number }[] = [];
+		const labelLimit = mobile() ? 2 : 4;
+		let labelCount = 0;
+		for (const cl of coarse) {
+			if (labelCount >= labelLimit) break;
+			if (!cl.label || typeof cl.x !== 'number' || typeof cl.y !== 'number') continue;
+			const [x, y] = atlasProject(cl.x, cl.y, r, b);
+			const text = cl.label.toUpperCase();
+			const tw = ctx.measureText(text).width;
+			const box = { x: x - tw / 2, y: y - 7, w: tw, h: 14 };
+			let collides = false;
+			for (const prev of placed) {
+				if (
+					box.x < prev.x + prev.w + 8 &&
+					box.x + box.w + 8 > prev.x &&
+					box.y < prev.y + prev.h + 6 &&
+					box.y + box.h + 6 > prev.y
+				) {
+					collides = true;
+					break;
+				}
+			}
+			if (collides) continue;
+			placed.push(box);
+			ctx.strokeStyle = 'rgba(0,0,0,0.72)';
+			ctx.lineWidth = 3;
+			ctx.strokeText(text, x, y);
+			ctx.fillStyle = 'rgba(214, 210, 201, 0.76)';
+			ctx.fillText(text, x, y);
+			labelCount++;
+		}
+		ctx.textAlign = 'left';
+		ctx.textBaseline = 'alphabetic';
+
+		const promoted = atlas.points.filter((p) => p.promotion_status === 'promoted').length;
+		const pointText =
+			atlas.points.length >= 1000 ? `${(atlas.points.length / 1000).toFixed(1)}k` : String(atlas.points.length);
+		const read = `${pointText} pts · ${atlas.clusters_coarse.length} rg · ${atlas.clusters_fine.length} cl`;
+		ctx.fillStyle = 'rgba(4, 7, 12, 0.72)';
+		ctx.fillRect(r.x, r.y + r.h - 22, r.w, 22);
+		chrome(ctx, 'semantic atlas', r.x + 10, r.y + r.h - 8, 9);
+		label(ctx, read, r.x + 100, r.y + r.h - 8, r.w - 110, '--scan-hot', 10);
+		ctx.restore();
+
+		ctx.strokeStyle = 'rgba(126, 192, 212, 0.28)';
+		rounded(ctx, r, 6);
+		ctx.stroke();
+		hotspots.push({
+			...r,
+			label: 'semantic atlas',
+			readout: `semantic atlas · ${atlas.points.length} points · ${promoted} promoted · click to inspect clusters`,
+			entry: { kind: 'store', store: 'atlas', atlas } as LogbookEntry
+		});
+	}
+
 	function drawStores(ctx: CanvasRenderingContext2D) {
 		const p = sidePanel();
 		ctx.save();
@@ -457,7 +646,15 @@
 		ctx.strokeStyle = 'rgba(74, 139, 154, 0.32)';
 		ctx.stroke();
 		chrome(ctx, 'under the field', p.x + 14, p.y + 24, 11);
-		label(ctx, 'click a store to inspect what it carries', p.x + 14, p.y + 45, p.w - 28, '--text-dim', 11);
+		label(ctx, 'private state, memory, and publication pressure', p.x + 14, p.y + 45, p.w - 28, '--text-dim', 11);
+
+		const atlasRect = {
+			x: p.x + 14,
+			y: p.y + (mobile() ? 56 : 64),
+			w: p.w - 28,
+			h: mobile() ? 70 : Math.min(218, p.h * 0.44)
+		};
+		drawAtlasMini(ctx, atlasRect);
 
 		const docketCount = docket?.candidates.length ?? 0;
 		const rows = [
@@ -472,19 +669,14 @@
 				entry: { kind: 'store', store: 'memory', known } as LogbookEntry
 			},
 			{
-				title: 'atlas',
-				value: atlas ? `${atlas.points.length} points · ${atlas.clusters_fine.length} fine clusters` : 'pending',
-				entry: { kind: 'store', store: 'atlas', atlas } as LogbookEntry
-			},
-			{
 				title: 'public candidates',
 				value: `${docketCount} candidates from private evidence`,
 				entry: docket ? ({ kind: 'docket-list', docket } as LogbookEntry) : undefined
 			}
 		];
-		const rowH = mobile() ? 22 : 52;
+		const rowH = mobile() ? 22 : 46;
 		const gap = mobile() ? 7 : 10;
-		let y = p.y + (mobile() ? 58 : 66);
+		let y = atlasRect.y + atlasRect.h + (mobile() ? 9 : 12);
 		for (const row of rows) {
 			const r = { x: p.x + 14, y, w: p.w - 28, h: rowH };
 			rounded(ctx, r, 5);

@@ -30,6 +30,15 @@
 		return parts[0] ?? PHI_DID;
 	}
 
+	function atlasKindCounts(atlas: Atlas | null | undefined): [string, number][] {
+		const counts = new Map<string, number>();
+		for (const point of atlas?.points ?? []) {
+			const kind = point.kind ?? 'other';
+			counts.set(kind, (counts.get(kind) ?? 0) + 1);
+		}
+		return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+	}
+
 	const entry = $derived(logbook.value);
 
 	function close() {
@@ -428,6 +437,16 @@
 						<div class="hist-lbl chrome">fine</div>
 					</div>
 				</div>
+				{#if store.atlas}
+					<div class="block">
+						<div class="block-label chrome">point kinds</div>
+						<div class="tags mono">
+							{atlasKindCounts(store.atlas)
+								.map(([kind, count]) => `${kind}:${count}`)
+								.join(' · ')}
+						</div>
+					</div>
+				{/if}
 				{#if store.atlas?.clusters_fine?.length}
 					<div class="block">
 						<div class="block-label chrome">largest fine clusters</div>

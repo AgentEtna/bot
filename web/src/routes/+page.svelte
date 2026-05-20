@@ -59,8 +59,8 @@
 			.then((r) => {
 				known = r.nodes.filter((n) => n.type === 'user') as GraphNode[];
 			})
-			.catch((e: Error) => {
-				err = err ?? e.message;
+			.catch(() => {
+				known = [];
 			});
 		const discP = getDiscoveryPool()
 			.then((r) => {

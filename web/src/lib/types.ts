@@ -205,12 +205,28 @@ export interface AtlasCluster {
 	id: number;
 	label?: string;
 	count?: number;
+	x?: number;
+	y?: number;
+	kind_counts?: Record<string, number>;
+	parent_coarse?: number | null;
 	[key: string]: unknown;
 }
 
 export interface Atlas {
 	generated_at: string;
-	points: { kind?: string; promotion_status?: string; [key: string]: unknown }[];
+	points: {
+		id?: string;
+		kind?: string;
+		label?: string;
+		x?: number;
+		y?: number;
+		layer?: string;
+		promotion_status?: string;
+		cluster_coarse?: number;
+		cluster_fine?: number;
+		tags?: string[];
+		[key: string]: unknown;
+	}[];
 	clusters_coarse: AtlasCluster[];
 	clusters_fine: AtlasCluster[];
 }
