@@ -13,6 +13,7 @@
 	type Cluster = Atlas['clusters_coarse'][number];
 	type Bounds = { minX: number; maxX: number; minY: number; maxY: number; cx: number; cy: number };
 	type Palette = { core: string; mid: string; edge: string };
+	type PointLink = { href: string; label: string; note: string };
 
 	let canvas: HTMLCanvasElement;
 	let W = 0;
@@ -40,19 +41,95 @@
 	const maxZoom = 18;
 
 	const palette: Record<string, Palette> = {
+		'active-observation': { core: '#b6f4ff', mid: '#5aa9bc', edge: '#183b48' },
 		observation: { core: '#8ed2e0', mid: '#4a8b9a', edge: '#163944' },
 		interaction: { core: '#ff9c62', mid: '#b86b3a', edge: '#512912' },
 		summary: { core: '#7bd3b1', mid: '#3c9f7c', edge: '#123f33' },
 		episodic: { core: '#b9a6ff', mid: '#7762c8', edge: '#282252' },
 		post: { core: '#f2c772', mid: '#c08a35', edge: '#5a3910' },
+		blog: { core: '#ffd58b', mid: '#b98b42', edge: '#553714' },
+		goal: { core: '#f6b85c', mid: '#c37d32', edge: '#5a3214' },
 		note: { core: '#f0d27d', mid: '#c9a05a', edge: '#5c4720' },
 		url: { core: '#90d087', mid: '#5d9a52', edge: '#274821' },
 		'handle-engaged': { core: '#d6d2c9', mid: '#8c8579', edge: '#3d3932' },
 		other: { core: '#9aa3ad', mid: '#626c76', edge: '#252c34' }
 	};
 
+	const atlasById = $derived.by(() => new Map(atlas.points.map((p) => [p.id, p])));
+
 	function color(kind: string | undefined): Palette {
 		return palette[kind ?? 'other'] ?? palette.other;
+	}
+
+	function pointKind(kind: string | undefined): string {
+		return (kind ?? 'point').replaceAll('-', ' ');
+	}
+
+	function refs(p: Point): Record<string, unknown> {
+		return typeof p.refs === 'object' && p.refs !== null ? (p.refs as Record<string, unknown>) : {};
+	}
+
+	function parseAtUri(uri: string): { authority: string; collection?: string; rkey?: string } | null {
+		const match = uri.match(/^at:\/\/([^/]+)(?:\/([^/]+)(?:\/([^/]+))?)?$/);
+		if (!match) return null;
+		return {
+			authority: match[1],
+			collection: match[2],
+			rkey: match[3]
+		};
+	}
+
+	function recordViewer(uri: string): string {
+		const parsed = parseAtUri(uri);
+		if (!parsed?.collection || !parsed.rkey) return `https://pdsls.dev/${encodeURIComponent(uri)}`;
+		return `https://pdsls.dev/at/${parsed.authority}/${parsed.collection}/${parsed.rkey}`;
+	}
+
+	function urlInLabel(p: Point): string | null {
+		const match = String(p.label ?? '').match(/https?:\/\/[^\s)]+/);
+		return match?.[0] ?? null;
+	}
+
+	function pointLinks(p: Point): PointLink[] {
+		const r = refs(p);
+		const links: PointLink[] = [];
+		const handle = typeof r.handle === 'string' ? r.handle : null;
+		const atUri = typeof r.at_uri === 'string' ? r.at_uri : null;
+		const parsed = atUri ? parseAtUri(atUri) : null;
+		if (parsed?.collection === 'app.bsky.feed.post' && parsed.rkey) {
+			links.push({
+				href: `https://bsky.app/profile/${parsed.authority}/post/${parsed.rkey}`,
+				label: 'open post',
+				note: 'public Bluesky record'
+			});
+		}
+		if (handle) {
+			links.push({
+				href: `https://bsky.app/profile/${handle}`,
+				label: 'open profile',
+				note: p.kind === 'handle-engaged' ? 'this person' : 'source profile'
+			});
+		}
+		const embedded = urlInLabel(p);
+		if (embedded) {
+			links.push({ href: embedded, label: 'open url', note: 'URL carried by card' });
+		}
+		if (atUri) {
+			links.push({
+				href: recordViewer(atUri),
+				label: parsed?.collection === 'app.bsky.feed.post' ? 'raw record' : 'open record',
+				note: parsed?.collection ?? 'AT Protocol record'
+			});
+		}
+		return links.filter((link, index, arr) => arr.findIndex((other) => other.href === link.href) === index);
+	}
+
+	function pointFingerprint(p: Point): string {
+		const r = refs(p);
+		if (typeof r.tpuf_namespace === 'string' && typeof r.tpuf_id === 'string') return `${r.tpuf_namespace} · ${r.tpuf_id}`;
+		if (typeof r.collection === 'string') return r.collection;
+		if (typeof r.observation_count === 'number') return `${r.observation_count} observations`;
+		return p.id ?? 'atlas point';
 	}
 
 	function dominantKind(kindCounts: Record<string, number> | undefined): string {
@@ -160,6 +237,15 @@
 			ctx.beginPath();
 			ctx.arc(x, y, radius, 0, Math.PI * 2);
 			ctx.fill();
+			if (view.zoom < 2.4 && (cl.count ?? 0) > 20) {
+				ctx.strokeStyle = rgba(c.core, alpha * 1.45);
+				ctx.lineWidth = 0.8;
+				for (let i = 0.42; i <= 0.86; i += 0.22) {
+					ctx.beginPath();
+					ctx.ellipse(x, y, radius * i * 1.38, radius * i * 0.56, -0.18, 0, Math.PI * 2);
+					ctx.stroke();
+				}
+			}
 		}
 	}
 
@@ -204,20 +290,111 @@
 		ctx.globalAlpha = 1;
 	}
 
+	function pointRadius(p: Point): number {
+		const promoted = p.promotion_status === 'promoted';
+		const base = view.zoom < 2 ? 1.05 : Math.min(4.6, 1.15 + view.zoom * 0.3);
+		if (p.kind === 'handle-engaged') return base * (promoted ? 2.05 : 1.72);
+		if (p.kind === 'goal' || p.kind === 'active-observation') return base * 2.1;
+		if (p.kind === 'summary' || p.kind === 'blog') return base * 1.55;
+		return promoted ? base * 1.4 : base;
+	}
+
+	function polygon(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, sides: number, rotation = 0) {
+		ctx.beginPath();
+		for (let i = 0; i < sides; i++) {
+			const a = rotation + (Math.PI * 2 * i) / sides;
+			const px = x + Math.cos(a) * r;
+			const py = y + Math.sin(a) * r;
+			if (i === 0) ctx.moveTo(px, py);
+			else ctx.lineTo(px, py);
+		}
+		ctx.closePath();
+	}
+
+	function drawGlyph(ctx: CanvasRenderingContext2D, p: Point, x: number, y: number) {
+		const c = color(p.kind);
+		const promoted = p.promotion_status === 'promoted';
+		const r = pointRadius(p);
+		const hot = promoted || p.kind === 'active-observation' || p.kind === 'goal';
+		ctx.globalAlpha = hot ? 0.95 : 0.58;
+		ctx.fillStyle = hot ? c.core : c.mid;
+		ctx.strokeStyle = hot ? rgba(c.core, 0.95) : rgba(c.mid, 0.72);
+		ctx.lineWidth = Math.max(0.75, Math.min(1.4, r * 0.24));
+		if (view.zoom < 1.35 && p.kind !== 'handle-engaged' && p.kind !== 'goal') {
+			ctx.fillRect(x - r, y - r, r * 2, r * 2);
+			return;
+		}
+		switch (p.kind) {
+			case 'observation':
+			case 'active-observation':
+				polygon(ctx, x, y, r * 1.15, 4, Math.PI / 4);
+				ctx.fill();
+				if (p.kind === 'active-observation') ctx.stroke();
+				break;
+			case 'interaction':
+				ctx.beginPath();
+				ctx.arc(x, y, r * 1.2, 0, Math.PI * 2);
+				ctx.stroke();
+				ctx.beginPath();
+				ctx.arc(x, y, r * 0.42, 0, Math.PI * 2);
+				ctx.fill();
+				break;
+			case 'summary':
+				polygon(ctx, x, y, r * 1.18, 6, Math.PI / 6);
+				ctx.fill();
+				break;
+			case 'episodic':
+				polygon(ctx, x, y + r * 0.08, r * 1.25, 3, -Math.PI / 2);
+				ctx.fill();
+				break;
+			case 'post':
+				ctx.beginPath();
+				ctx.moveTo(x - r * 1.35, y + r * 0.35);
+				ctx.lineTo(x + r * 1.15, y - r * 0.55);
+				ctx.lineTo(x + r * 0.45, y + r * 0.72);
+				ctx.closePath();
+				ctx.fill();
+				break;
+			case 'blog':
+			case 'note':
+				ctx.fillRect(x - r * 1.05, y - r * 0.75, r * 2.1, r * 1.5);
+				if (p.kind === 'blog') ctx.strokeRect(x - r * 1.05, y - r * 0.75, r * 2.1, r * 1.5);
+				break;
+			case 'url':
+				ctx.beginPath();
+				ctx.moveTo(x - r * 1.25, y);
+				ctx.lineTo(x + r * 1.25, y);
+				ctx.moveTo(x, y - r * 1.25);
+				ctx.lineTo(x, y + r * 1.25);
+				ctx.stroke();
+				break;
+			case 'handle-engaged':
+				ctx.beginPath();
+				ctx.arc(x, y, r * 1.1, 0, Math.PI * 2);
+				ctx.stroke();
+				ctx.beginPath();
+				ctx.arc(x, y, r * 0.62, 0, Math.PI * 2);
+				ctx.fill();
+				break;
+			case 'goal':
+				polygon(ctx, x, y, r * 1.2, 6, Math.PI / 6);
+				ctx.fill();
+				ctx.stroke();
+				break;
+			default:
+				ctx.beginPath();
+				ctx.arc(x, y, r, 0, Math.PI * 2);
+				ctx.fill();
+		}
+	}
+
 	function drawPoints(ctx: CanvasRenderingContext2D) {
 		const vb = visibleBounds();
-		const r = view.zoom < 2 ? 1.1 : Math.min(4.2, 1.2 + view.zoom * 0.28);
 		for (const p of atlas.points) {
 			if (typeof p.x !== 'number' || typeof p.y !== 'number') continue;
 			if (p.x < vb.minX || p.x > vb.maxX || p.y < vb.minY || p.y > vb.maxY) continue;
 			const [x, y] = dataToScreen(p.x, p.y);
-			const c = color(p.kind);
-			const promoted = p.promotion_status === 'promoted';
-			ctx.globalAlpha = promoted ? 0.95 : 0.54;
-			ctx.fillStyle = promoted ? c.core : c.mid;
-			ctx.beginPath();
-			ctx.arc(x, y, promoted ? r * 1.45 : r, 0, Math.PI * 2);
-			ctx.fill();
+			drawGlyph(ctx, p, x, y);
 		}
 		ctx.globalAlpha = 1;
 	}
@@ -284,7 +461,7 @@
 	function drawReticle(ctx: CanvasRenderingContext2D, p: Point) {
 		if (typeof p.x !== 'number' || typeof p.y !== 'number') return;
 		const [x, y] = dataToScreen(p.x, p.y);
-		const r = 12;
+		const r = Math.max(12, pointRadius(p) + 8);
 		ctx.strokeStyle = p === selected ? '#ff9c62' : '#8ed2e0';
 		ctx.lineWidth = 1.2;
 		for (const [sx, sy] of [
@@ -299,6 +476,15 @@
 			ctx.lineTo(x + sx * (r + 7), y + sy * r);
 			ctx.stroke();
 		}
+	}
+
+	function selectNeighbor(id: string) {
+		const p = atlasById.get(id);
+		if (!p || typeof p.x !== 'number' || typeof p.y !== 'number') return;
+		selected = p;
+		focusDataAtScreen(p.x, p.y, W * 0.52, H * 0.48);
+		view.zoom = Math.max(view.zoom, 4.2);
+		scheduleFrame();
 	}
 
 	function draw() {
@@ -535,8 +721,8 @@
 	<div class="legend" aria-label="atlas point kinds">
 		{#each Object.entries(palette).filter(([kind]) => kind !== 'other') as [kind, swatch]}
 			<div class="legend-item">
-				<span class="dot" style={`--dot: ${swatch.core}`}></span>
-				<span>{kind}</span>
+				<span class={`dot glyph-${kind}`} style={`--dot: ${swatch.core}`}></span>
+				<span>{pointKind(kind)}</span>
 			</div>
 		{/each}
 	</div>
@@ -544,16 +730,48 @@
 	{#if hover || selected}
 		{@const p = hover ?? selected}
 		{#if p}
+			{@const links = pointLinks(p)}
+			{@const neighbors = (p.neighbor_ids as string[] | undefined)?.filter((id) => atlasById.has(id)).slice(0, 5) ?? []}
 			<div class="readout">
-				<div class="readout-kind chrome">{p.kind ?? 'point'}</div>
+				<div class="readout-top">
+					<div class="readout-kind chrome">{pointKind(p.kind)}</div>
+					{#if selected === p}
+						<div class="selected-mark chrome">selected</div>
+					{/if}
+				</div>
 				<div class="readout-title">{p.label ?? p.id ?? 'untitled point'}</div>
 				<div class="readout-meta mono">
 					{#if p.promotion_status}{p.promotion_status} · {/if}
 					{#if p.cluster_coarse != null}region {p.cluster_coarse}{/if}
 					{#if p.cluster_fine != null} · cluster {p.cluster_fine}{/if}
 				</div>
+				<div class="readout-id mono">{pointFingerprint(p)}</div>
 				{#if p.tags?.length}
 					<div class="readout-tags mono">{p.tags.slice(0, 6).join(' · ')}</div>
+				{/if}
+				{#if links.length}
+					<div class="link-row">
+						{#each links as link (link.href)}
+							<a class="source-link" href={link.href} target="_blank" rel="noreferrer">
+								<span>{link.label}</span>
+								<small>{link.note}</small>
+							</a>
+						{/each}
+					</div>
+				{:else}
+					<div class="private-note">private memory point · no public entity link</div>
+				{/if}
+				{#if neighbors.length}
+					<div class="neighbors">
+						<div class="chrome neighbor-label">nearby</div>
+						<div class="neighbor-row">
+							{#each neighbors as id}
+								<button class="neighbor-chip" onclick={() => selectNeighbor(id)}>
+									{atlasById.get(id)?.kind ?? 'point'}
+								</button>
+							{/each}
+						</div>
+					</div>
 				{/if}
 			</div>
 		{/if}
@@ -650,6 +868,7 @@
 	}
 
 	.dot {
+		position: relative;
 		width: 7px;
 		height: 7px;
 		border-radius: 50%;
@@ -657,16 +876,64 @@
 		box-shadow: 0 0 10px var(--dot);
 	}
 
+	.glyph-observation,
+	.glyph-active-observation {
+		border-radius: 1px;
+		transform: rotate(45deg);
+	}
+
+	.glyph-interaction,
+	.glyph-handle-engaged {
+		background: transparent;
+		border: 1px solid var(--dot);
+	}
+
+	.glyph-summary,
+	.glyph-goal {
+		clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+	}
+
+	.glyph-episodic {
+		clip-path: polygon(50% 0, 100% 100%, 0 100%);
+	}
+
+	.glyph-post {
+		clip-path: polygon(0 70%, 100% 20%, 66% 100%);
+	}
+
+	.glyph-note,
+	.glyph-blog {
+		border-radius: 0;
+	}
+
+	.glyph-url {
+		width: 9px;
+		height: 1px;
+		border-radius: 0;
+	}
+
 	.readout {
 		right: 20px;
 		bottom: 18px;
-		width: min(390px, calc(100vw - 40px));
+		width: min(440px, calc(100vw - 40px));
 		padding: 14px 16px;
+	}
+
+	.readout-top {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
 	}
 
 	.readout-kind {
 		font-size: 9px;
 		color: var(--text-dim);
+	}
+
+	.selected-mark {
+		color: var(--scan-mid);
+		font-size: 8px;
 	}
 
 	.readout-title {
@@ -677,10 +944,82 @@
 	}
 
 	.readout-meta,
-	.readout-tags {
+	.readout-tags,
+	.readout-id {
 		margin-top: 8px;
 		color: var(--scan-mid);
 		font-size: 10px;
+	}
+
+	.readout-id {
+		color: var(--text-dim);
+		word-break: break-word;
+	}
+
+	.link-row {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+		gap: 8px;
+		margin-top: 13px;
+	}
+
+	.source-link {
+		display: grid;
+		gap: 2px;
+		padding: 9px 10px;
+		border: 1px solid rgba(224, 144, 96, 0.34);
+		background:
+			linear-gradient(180deg, rgba(224, 144, 96, 0.1), rgba(4, 7, 12, 0.34)),
+			rgba(4, 7, 12, 0.55);
+		color: var(--scan-hot);
+		text-decoration: none;
+		text-transform: uppercase;
+		letter-spacing: 0.09em;
+		font-family: var(--font-chrome);
+		font-size: 10px;
+	}
+
+	.source-link small {
+		color: var(--text-dim);
+		font-family: var(--font-ui);
+		font-size: 10px;
+		letter-spacing: 0;
+		text-transform: none;
+	}
+
+	.private-note {
+		margin-top: 12px;
+		padding-left: 10px;
+		border-left: 1px solid rgba(126, 192, 212, 0.42);
+		color: var(--text-dim);
+		font-size: 11px;
+	}
+
+	.neighbors {
+		margin-top: 13px;
+	}
+
+	.neighbor-label {
+		color: var(--text-dim);
+		font-size: 8px;
+	}
+
+	.neighbor-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+		margin-top: 7px;
+	}
+
+	.neighbor-chip {
+		padding: 6px 8px;
+		border: 1px solid rgba(74, 139, 154, 0.28);
+		background: rgba(7, 12, 18, 0.58);
+		color: var(--scan-mid);
+		font: inherit;
+		font-size: 10px;
+		text-transform: uppercase;
+		cursor: pointer;
 	}
 
 	@media (max-width: 760px) {
@@ -737,7 +1076,7 @@
 			right: 10px;
 			bottom: calc(max(10px, env(safe-area-inset-bottom)) + 48px);
 			width: auto;
-			max-height: min(34vh, 220px);
+			max-height: min(42vh, 310px);
 			overflow: auto;
 			padding: 12px 13px;
 		}
@@ -745,6 +1084,10 @@
 		.readout-title {
 			font-size: 13px;
 			line-height: 1.35;
+		}
+
+		.link-row {
+			grid-template-columns: 1fr 1fr;
 		}
 	}
 
