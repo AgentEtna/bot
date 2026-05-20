@@ -7,6 +7,7 @@
 		getMemoryGraph,
 		getDiscoveryPool
 	} from '$lib/api';
+	import { mindCounts } from '$lib/state.svelte';
 
 	let counts = $state({
 		obs: 0,
@@ -17,6 +18,8 @@
 		loaded: false
 	});
 
+	const displayed = $derived(mindCounts.value.loaded ? mindCounts.value : counts);
+
 	onMount(async () => {
 		const [obs, goals, activity, graph, disc] = await Promise.allSettled([
 			getActiveObservations(),
@@ -25,33 +28,35 @@
 			getMemoryGraph(),
 			getDiscoveryPool()
 		]);
-		counts = {
-			obs: obs.status === 'fulfilled' ? obs.value.length : 0,
-			goals: goals.status === 'fulfilled' ? goals.value.length : 0,
-			out: activity.status === 'fulfilled' ? activity.value.length : 0,
-			ppl:
-				graph.status === 'fulfilled'
-					? graph.value.nodes.filter((n) => n.type === 'user').length
-					: 0,
-			cand: disc.status === 'fulfilled' ? disc.value.length : 0,
-			loaded: true
-		};
+		if (!mindCounts.value.loaded) {
+			counts = {
+				obs: obs.status === 'fulfilled' ? obs.value.length : 0,
+				goals: goals.status === 'fulfilled' ? goals.value.length : 0,
+				out: activity.status === 'fulfilled' ? activity.value.length : 0,
+				ppl:
+					graph.status === 'fulfilled'
+						? graph.value.nodes.filter((n) => n.type === 'user').length
+						: 0,
+				cand: disc.status === 'fulfilled' ? disc.value.length : 0,
+				loaded: true
+			};
+		}
 	});
 </script>
 
 <div class="ticker">
 	<div class="row">
-		<span class="kv"><span class="k chrome">attn</span><span class="v mono">{counts.obs}</span></span>
+		<span class="kv"><span class="k chrome">attn</span><span class="v mono">{displayed.obs}</span></span>
 		<span class="kv"
-			><span class="k chrome">goals</span><span class="v mono">{counts.goals}</span></span
+			><span class="k chrome">goals</span><span class="v mono">{displayed.goals}</span></span
 		>
 		<span class="kv"
-			><span class="k chrome">people</span><span class="v mono">{counts.ppl}</span></span
+			><span class="k chrome">people</span><span class="v mono">{displayed.ppl}</span></span
 		>
 		<span class="kv"
-			><span class="k chrome">cand</span><span class="v mono">{counts.cand}</span></span
+			><span class="k chrome">cand</span><span class="v mono">{displayed.cand}</span></span
 		>
-		<span class="kv"><span class="k chrome">out</span><span class="v mono">{counts.out}</span></span>
+		<span class="kv"><span class="k chrome">out</span><span class="v mono">{displayed.out}</span></span>
 	</div>
 </div>
 

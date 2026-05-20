@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import MindMap from '$lib/components/MindMap.svelte';
 	import Logbook from '$lib/components/Logbook.svelte';
+	import { mindCounts } from '$lib/state.svelte';
 	import {
 		getMemoryGraph,
 		getDiscoveryPool,
@@ -9,6 +10,7 @@
 		getGoals,
 		getDocket,
 		getAtlas,
+		getActivity,
 		PHI_HANDLE
 	} from '$lib/api';
 	import type { GraphNode, DiscoveryEntry, Observation, Goal, Docket, Atlas } from '$lib/types';
@@ -20,8 +22,6 @@
 	let avatars = $state<Record<string, string>>({});
 	let docket = $state<Docket | null>(null);
 	let atlas = $state<Atlas | null>(null);
-	let loaded = $state(false);
-	let err = $state<string | null>(null);
 
 	async function fetchAvatars(handles: string[]): Promise<void> {
 		const filtered = handles.filter((h) => h && !h.includes('example'));
@@ -49,54 +49,78 @@
 	}
 
 	onMount(() => {
-		// Render the MindMap as soon as data trickles in — don't block on the
-		// slowest fetch (/api/memory/graph is rate-limited + does PCA backend-side).
-		// Each fetch updates its own state slice; the map redraws reactively.
-		// Goals + observations are PDS reads, usually fastest; they unblock
-		// `loaded` so the user sees the map immediately. Memory graph,
-		// discovery, atlas, and docket layer in after.
+		// Render the instrument immediately; each source settles into place
+		// independently so slow graph/atlas reads never leave a black cockpit.
+		let outCount = 0;
+		const publishCounts = () => {
+			mindCounts.set({
+				obs: observations.length,
+				goals: goals.length,
+				out: outCount,
+				ppl: known.length,
+				cand: docket?.candidates.length ?? candidates.length,
+				loaded: true
+			});
+		};
+		publishCounts();
 		const graphP = getMemoryGraph()
 			.then((r) => {
 				known = r.nodes.filter((n) => n.type === 'user') as GraphNode[];
+				publishCounts();
+				return known;
 			})
 			.catch(() => {
 				known = [];
+				publishCounts();
+				return [] as GraphNode[];
 			});
 		const discP = getDiscoveryPool()
 			.then((r) => {
 				candidates = r;
+				publishCounts();
+				return r;
+			})
+			.catch(() => {
+				publishCounts();
+				return [] as DiscoveryEntry[];
+			});
+		getActivity()
+			.then((r) => {
+				outCount = r.length;
+				publishCounts();
 			})
 			.catch(() => {});
 		const obsP = getActiveObservations()
 			.then((r) => {
 				observations = r;
+				publishCounts();
 			})
-			.catch(() => {});
+			.catch(() => publishCounts());
 		const goalsP = getGoals()
 			.then((r) => {
 				goals = r;
+				publishCounts();
 			})
-			.catch(() => {});
+			.catch(() => publishCounts());
 		getDocket()
 			.then((r) => {
 				docket = r;
+				publishCounts();
 			})
-			.catch(() => {});
+			.catch(() => publishCounts());
 		getAtlas()
 			.then((r) => {
 				atlas = r;
 			})
 			.catch(() => {});
 
-		// Unblock render once the fast PDS reads land.
-		Promise.allSettled([obsP, goalsP]).then(() => {
-			loaded = true;
-		});
-
-		Promise.allSettled([graphP, discP]).then(() => {
+		void Promise.allSettled([obsP, goalsP]);
+		Promise.allSettled([graphP, discP]).then(([graphResult, discoveryResult]) => {
 			const handles = new Set<string>([PHI_HANDLE]);
-			for (const n of known) handles.add(n.label.replace(/^@/, ''));
-			for (const c of candidates) handles.add(c.handle);
+			const graphNodes = graphResult.status === 'fulfilled' ? graphResult.value : [];
+			const discoveryEntries = discoveryResult.status === 'fulfilled' ? discoveryResult.value : [];
+			for (const n of graphNodes) handles.add(n.label.replace(/^@/, ''));
+			for (const c of discoveryEntries) handles.add(c.handle);
 			fetchAvatars([...handles]);
 		});
 	});
@@ -107,13 +131,7 @@
 </svelte:head>
 
 <div class="lens">
-	{#if !loaded}
-		<div class="overlay chrome muted">acquiring map…</div>
-	{:else if err}
-		<div class="overlay chrome muted">connection lost · {err}</div>
-	{:else}
-		<MindMap {goals} {observations} {known} {candidates} {avatars} {docket} {atlas} />
-	{/if}
+	<MindMap {goals} {observations} {known} {candidates} {avatars} {docket} {atlas} />
 </div>
 
 <Logbook />
@@ -124,14 +142,4 @@
 		inset: 0;
 	}
 
-	.overlay {
-		position: absolute;
-		inset: 0;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 11px;
-		color: var(--text-mid);
-		letter-spacing: 0.18em;
-	}
 </style>

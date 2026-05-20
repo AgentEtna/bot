@@ -1299,8 +1299,9 @@
 		}
 
 		.desktop-field {
+			--mobile-field-h: clamp(300px, 48dvh, 410px);
 			top: 126px;
-			height: 410px;
+			height: var(--mobile-field-h);
 			inset-inline: 0;
 			bottom: auto;
 			z-index: 1;
@@ -1308,21 +1309,19 @@
 
 		.mobile-mind {
 			position: absolute;
-			inset: 0;
+			top: calc(126px + clamp(300px, 48dvh, 410px) + 12px);
+			right: 0;
+			bottom: 0;
+			left: 0;
 			display: flex;
 			flex-direction: column;
 			gap: 12px;
-			padding: 548px 14px calc(74px + env(safe-area-inset-bottom));
+			padding: 0 14px calc(74px + env(safe-area-inset-bottom));
 			overflow-y: auto;
 			-webkit-overflow-scrolling: touch;
 			scrollbar-width: none;
-			pointer-events: none;
-			z-index: 2;
-		}
-
-		.mobile-panel,
-		.atlas-card {
 			pointer-events: auto;
+			z-index: 2;
 		}
 
 		.mobile-mind::-webkit-scrollbar {
