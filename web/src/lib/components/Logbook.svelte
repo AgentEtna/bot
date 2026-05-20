@@ -440,12 +440,14 @@
 				<ul class="obs-list">
 					{#each docketList.docket.candidates as candidate (candidate.id)}
 						<li class="obs">
-							<div class="obs-text">{candidate.title}</div>
-							<div class="obs-meta faint">
-								<span>{candidate.private_evidence.length} private</span>
-								<span>{candidate.existing_public_anchors.length} public</span>
-								<span>form: {candidate.suggested_shape}</span>
-							</div>
+							<button class="obs-button" onclick={() => logbook.set({ kind: 'docket', candidate })}>
+								<div class="obs-text">{candidate.title}</div>
+								<div class="obs-meta faint">
+									<span>{candidate.private_evidence.length} private</span>
+									<span>{candidate.existing_public_anchors.length} public</span>
+									<span>form: {candidate.suggested_shape}</span>
+								</div>
+							</button>
 						</li>
 					{/each}
 				</ul>
@@ -930,6 +932,22 @@
 		color: var(--text);
 		margin-bottom: 4px;
 		white-space: pre-wrap;
+	}
+
+	.obs-button {
+		display: block;
+		width: 100%;
+		padding: 0;
+		border: 0;
+		background: transparent;
+		color: inherit;
+		font: inherit;
+		text-align: left;
+		cursor: pointer;
+	}
+
+	.obs-button:hover .obs-text {
+		color: var(--hud-hot);
 	}
 
 	.obs-meta {

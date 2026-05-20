@@ -1054,8 +1054,13 @@
 				<div class="section-label chrome">intent</div>
 				<div class="stack-list compact">
 					{#each goalPreview as goal (goal.rkey)}
-						<button class="list-row simple" onclick={() => logbook.set({ kind: 'goal', goal })}>
-							<span class="row-body">{goal.title}</span>
+						<button class="brief-card intent-card" onclick={() => logbook.set({ kind: 'goal', goal })}>
+							<span class="brief-kicker chrome">current goal</span>
+							<span class="brief-title">{goal.title}</span>
+							{#if goal.progress_signal || goal.description}
+								<span class="brief-note">{goal.progress_signal || goal.description}</span>
+							{/if}
+							<span class="brief-open chrome">inspect</span>
 						</button>
 					{:else}
 						<div class="empty-row chrome">no goals loaded</div>
@@ -1067,12 +1072,17 @@
 				<div class="stack-list compact">
 					{#each docketPreview as candidate (candidate.id)}
 						<button
-							class="list-row warm"
+							class="brief-card pressure-card"
 							onclick={() => {
-								if (docket) logbook.set({ kind: 'docket-list', docket });
+								logbook.set({ kind: 'docket', candidate });
 							}}
 						>
-							<span class="row-body">{candidate.title}</span>
+							<span class="brief-kicker chrome">{candidate.suggested_shape}</span>
+							<span class="brief-title">{candidate.title}</span>
+							<span class="brief-note">{candidate.rationale}</span>
+							<span class="brief-meta mono">
+								{candidate.private_evidence.length} private · {candidate.existing_public_anchors.length} public
+							</span>
 						</button>
 					{:else}
 						<div class="empty-row chrome">docket pending</div>
@@ -1372,13 +1382,72 @@
 			padding: 10px 11px;
 		}
 
-		.list-row.warm {
-			grid-template-columns: 1fr;
-			border-color: rgba(224, 144, 96, 0.28);
+		.brief-card {
+			position: relative;
+			display: grid;
+			gap: 7px;
+			width: 100%;
+			min-height: 92px;
+			padding: 12px 38px 12px 12px;
+			border: 1px solid rgba(74, 139, 154, 0.26);
+			background:
+				linear-gradient(180deg, rgba(4, 7, 12, 0.6), rgba(4, 7, 12, 0.38)),
+				radial-gradient(circle at 100% 0%, rgba(126, 192, 212, 0.08), transparent 52%);
+			color: inherit;
+			font: inherit;
+			text-align: left;
+			cursor: pointer;
 		}
 
-		.list-row.simple {
-			grid-template-columns: 1fr;
+		.brief-card::after {
+			content: '';
+			position: absolute;
+			right: 13px;
+			top: 50%;
+			width: 8px;
+			height: 8px;
+			border-top: 1px solid currentColor;
+			border-right: 1px solid currentColor;
+			color: var(--text-dim);
+			transform: translateY(-50%) rotate(45deg);
+		}
+
+		.pressure-card {
+			border-color: rgba(224, 144, 96, 0.34);
+			background:
+				linear-gradient(180deg, rgba(4, 7, 12, 0.64), rgba(4, 7, 12, 0.42)),
+				radial-gradient(circle at 100% 0%, rgba(224, 144, 96, 0.11), transparent 56%);
+		}
+
+		.brief-kicker {
+			color: var(--text-dim);
+			font-size: 9px;
+			line-height: 1;
+		}
+
+		.brief-title {
+			color: var(--text);
+			font-size: 14px;
+			line-height: 1.2;
+			letter-spacing: 0.04em;
+			text-transform: uppercase;
+		}
+
+		.brief-note {
+			color: var(--text-mid);
+			font-size: 12px;
+			line-height: 1.35;
+			display: -webkit-box;
+			line-clamp: 2;
+			-webkit-line-clamp: 2;
+			-webkit-box-orient: vertical;
+			overflow: hidden;
+		}
+
+		.brief-meta,
+		.brief-open {
+			color: var(--scan-mid);
+			font-size: 9px;
 		}
 
 		.row-rule {
