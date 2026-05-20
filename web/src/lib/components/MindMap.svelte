@@ -50,6 +50,8 @@
 		action?: 'atlas';
 		point?: AtlasPoint;
 	};
+	type PreviewPoint = { id: string; sx: number; sy: number; color: string; promotion_status?: string };
+	type PreviewCluster = { id: string | number; label: string; sx: number; sy: number; count: number };
 
 	const rings: { key: Ring; r: number; label: string; metric: () => number }[] = [
 		{ key: 'goals', r: 0.18, label: 'intent', metric: () => goals.length },
@@ -57,6 +59,19 @@
 		{ key: 'people', r: 0.55, label: 'people carried', metric: () => known.length },
 		{ key: 'horizon', r: 0.82, label: 'horizon', metric: () => candidates.length }
 	];
+
+	const knownPeople = $derived.by(() =>
+		known
+			.filter((n) => n.type === 'user')
+			.map((n) => n.label.replace(/^@/, ''))
+			.filter(Boolean)
+			.slice(0, 10)
+	);
+	const attentionPreview = $derived([...observations].slice(0, 3));
+	const goalPreview = $derived([...goals].slice(0, 2));
+	const docketPreview = $derived(docket?.candidates.slice(0, 3) ?? []);
+	const atlasPreview = $derived.by(() => buildAtlasPreview());
+	const atlasClusterPreview = $derived.by(() => buildAtlasClusterPreview());
 
 	function resolve(name: string): string {
 		return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888';
@@ -525,6 +540,60 @@
 		return [r.x + nx * r.w, r.y + (1 - ny) * r.h];
 	}
 
+	function atlasUnit(x: number, y: number, b: NonNullable<ReturnType<typeof atlasBounds>>): [number, number] {
+		const sx = ((x - b.minX) / (b.maxX - b.minX)) * 100;
+		const sy = (1 - (y - b.minY) / (b.maxY - b.minY)) * 100;
+		return [sx, sy];
+	}
+
+	function buildAtlasPreview(): PreviewPoint[] {
+		const b = atlasBounds();
+		if (!atlas || !b) return [];
+		const numeric = atlas.points.filter((p) => typeof p.x === 'number' && typeof p.y === 'number');
+		const limit = 560;
+		const step = Math.max(1, Math.ceil(numeric.length / limit));
+		const out: PreviewPoint[] = [];
+		for (let i = 0; i < numeric.length; i += step) {
+			const p = numeric[i];
+			const [sx, sy] = atlasUnit(p.x as number, p.y as number, b);
+			out.push({
+				id: p.id ?? `atlas-${i}`,
+				sx,
+				sy,
+				color: atlasColor(p.kind).core,
+				promotion_status: p.promotion_status
+			});
+		}
+		return out;
+	}
+
+	function buildAtlasClusterPreview(): PreviewCluster[] {
+		const b = atlasBounds();
+		if (!atlas || !b) return [];
+		return [...atlas.clusters_coarse]
+			.filter((cl) => cl.label && typeof cl.x === 'number' && typeof cl.y === 'number')
+			.sort((a, b2) => (b2.count ?? 0) - (a.count ?? 0))
+			.slice(0, 3)
+			.map((cl) => {
+				const [sx, sy] = atlasUnit(cl.x as number, cl.y as number, b);
+				return {
+					id: cl.id,
+					label: cl.label ?? 'region',
+					sx,
+					sy,
+					count: cl.count ?? 0
+				};
+			});
+	}
+
+	function avatarFor(handle: string): string | null {
+		return avatars[handle] ?? null;
+	}
+
+	function compactHandle(handle: string): string {
+		return handle.length > 22 ? `${handle.slice(0, 21)}…` : handle;
+	}
+
 	function atlasMiniRect(): Rect {
 		const p = sidePanel();
 		return {
@@ -830,8 +899,9 @@
 
 	let ro: ResizeObserver | null = null;
 	function resize() {
-		if (!canvas?.parentElement) return;
-		const rect = canvas.parentElement.getBoundingClientRect();
+		const host = canvas?.closest('.host') as HTMLElement | null;
+		if (!canvas || !host) return;
+		const rect = host.getBoundingClientRect();
 		W = rect.width;
 		H = rect.height;
 		dpr = window.devicePixelRatio || 1;
@@ -845,7 +915,8 @@
 	onMount(() => {
 		resize();
 		ro = new ResizeObserver(resize);
-		if (canvas?.parentElement) ro.observe(canvas.parentElement);
+		const host = canvas?.closest('.host') as HTMLElement | null;
+		if (host) ro.observe(host);
 	});
 
 	onDestroy(() => {
@@ -855,17 +926,174 @@
 </script>
 
 <div class="host">
-	<canvas
-		bind:this={canvas}
-		onpointermove={onPointerMove}
-		onpointerleave={() => {
-			hovered = null;
-			hudReadout.set('');
-			canvas.style.cursor = 'default';
-			scheduleFrame();
-		}}
-		onclick={onClick}
-	></canvas>
+	<div class="desktop-field" aria-hidden="true">
+		<canvas
+			bind:this={canvas}
+			onpointermove={onPointerMove}
+			onpointerleave={() => {
+				hovered = null;
+				hudReadout.set('');
+				canvas.style.cursor = 'default';
+				scheduleFrame();
+			}}
+			onclick={onClick}
+		></canvas>
+	</div>
+
+	<div class="mobile-mind">
+		<section class="mobile-panel overview">
+			<div class="section-label chrome">mind state</div>
+			<div class="overview-copy">
+				<div class="overview-title chrome">living memory</div>
+				<div class="overview-sub">A compact read of phi's current context surfaces.</div>
+			</div>
+			<div class="metric-grid" aria-label="memory counts">
+				<button
+					class="metric"
+					onclick={() => logbook.set({ kind: 'store', store: 'pds', goals, observations })}
+				>
+					<span class="metric-value mono">{goals.length}</span>
+					<span class="metric-label chrome">intent</span>
+				</button>
+				<button
+					class="metric"
+					onclick={() => {
+						const first = observations[0];
+						if (first) logbook.set({ kind: 'observation', observation: first });
+					}}
+				>
+					<span class="metric-value mono">{observations.length}</span>
+					<span class="metric-label chrome">attention</span>
+				</button>
+				<button
+					class="metric"
+					onclick={() => logbook.set({ kind: 'store', store: 'memory', known, atlas })}
+				>
+					<span class="metric-value mono">{known.length}</span>
+					<span class="metric-label chrome">people</span>
+				</button>
+				<button
+					class="metric metric-warm"
+					onclick={() => {
+						if (docket) logbook.set({ kind: 'docket-list', docket });
+					}}
+				>
+					<span class="metric-value mono">{docket?.candidates.length ?? 0}</span>
+					<span class="metric-label chrome">public queue</span>
+				</button>
+			</div>
+		</section>
+
+		<button class="atlas-card" onclick={() => (atlasExpanded = true)} aria-label="open semantic atlas">
+			<div class="card-top">
+				<div>
+					<div class="section-label chrome">semantic atlas</div>
+					<div class="card-title">
+						{atlas ? `${atlas.points.length.toLocaleString()} points` : 'atlas pending'}
+					</div>
+				</div>
+				<div class="card-meta mono">
+					{atlas ? `${atlas.clusters_coarse.length} regions` : 'syncing'}
+				</div>
+			</div>
+			<div class="atlas-phone-map" aria-hidden="true">
+				{#if atlasPreview.length > 0}
+					{#each atlasPreview as p (p.id)}
+						<span
+							class="atlas-pixel"
+							class:promoted={p.promotion_status === 'promoted'}
+							style={`left:${p.sx}%;top:${p.sy}%;--dot:${p.color};`}
+						></span>
+					{/each}
+					{#each atlasClusterPreview as cl (cl.id)}
+						<span class="cluster-label chrome" style={`left:${cl.sx}%;top:${cl.sy}%;`}>
+							{cl.label}
+						</span>
+					{/each}
+				{:else}
+					<div class="atlas-empty chrome">waiting for atlas</div>
+				{/if}
+			</div>
+		</button>
+
+		<section class="mobile-panel">
+			<div class="card-top">
+				<div>
+					<div class="section-label chrome">active attention</div>
+					<div class="panel-summary">{observations.length} observations currently carried</div>
+				</div>
+			</div>
+			<div class="stack-list">
+				{#each attentionPreview as obs (obs.rkey)}
+					<button class="list-row" onclick={() => logbook.set({ kind: 'observation', observation: obs })}>
+						<span class="row-rule"></span>
+						<span class="row-body">{obs.content}</span>
+					</button>
+				{:else}
+					<div class="empty-row chrome">no active observations</div>
+				{/each}
+			</div>
+		</section>
+
+		<section class="mobile-panel people-panel">
+			<div class="card-top">
+				<div>
+					<div class="section-label chrome">people memory</div>
+					<div class="panel-summary">{known.length} profiles with carried context</div>
+				</div>
+				<button class="mini-action chrome" onclick={() => logbook.set({ kind: 'store', store: 'memory', known, atlas })}>
+					all
+				</button>
+			</div>
+			<div class="people-strip" aria-label="people in memory">
+				{#each knownPeople as handle (handle)}
+					<button class="person-chip" onclick={() => logbook.set({ kind: 'handle', handle, engaged: true, payload: { handle } })}>
+						{#if avatarFor(handle)}
+							<img src={avatarFor(handle) ?? ''} alt="" />
+						{:else}
+							<span class="avatar-fallback"></span>
+						{/if}
+						<span>{compactHandle(handle)}</span>
+					</button>
+				{:else}
+					<div class="empty-row chrome">memory graph pending</div>
+				{/each}
+			</div>
+		</section>
+
+		<section class="mobile-panel split-panel">
+			<div>
+				<div class="section-label chrome">intent</div>
+				<div class="stack-list compact">
+					{#each goalPreview as goal (goal.rkey)}
+						<button class="list-row" onclick={() => logbook.set({ kind: 'goal', goal })}>
+							<span class="row-body">{goal.title}</span>
+						</button>
+					{:else}
+						<div class="empty-row chrome">no goals loaded</div>
+					{/each}
+				</div>
+			</div>
+			<div>
+				<div class="section-label chrome">publication pressure</div>
+				<div class="stack-list compact">
+					{#each docketPreview as candidate (candidate.id)}
+						<button
+							class="list-row warm"
+							onclick={() => {
+								if (docket) logbook.set({ kind: 'docket-list', docket });
+							}}
+						>
+							<span class="row-body">{candidate.title}</span>
+						</button>
+					{:else}
+						<div class="empty-row chrome">docket pending</div>
+					{/each}
+				</div>
+			</div>
+		</section>
+	</div>
+
 	{#if W > 0 && H > 0}
 		{@const atlasHit = atlasMiniRect()}
 		<button
@@ -898,6 +1126,11 @@
 		inset: 0;
 	}
 
+	.desktop-field {
+		position: absolute;
+		inset: 0;
+	}
+
 	canvas {
 		display: block;
 		touch-action: manipulation;
@@ -918,5 +1151,323 @@
 	.canvas-hit:focus-visible {
 		outline: 1px solid var(--hud-hot);
 		outline-offset: 2px;
+	}
+
+	.mobile-mind {
+		display: none;
+	}
+
+	@media (max-width: 760px) {
+		.desktop-field,
+		.canvas-hit {
+			display: none;
+		}
+
+		.mobile-mind {
+			position: absolute;
+			inset: 0;
+			display: flex;
+			flex-direction: column;
+			gap: 12px;
+			padding: 126px 14px calc(74px + env(safe-area-inset-bottom));
+			overflow-y: auto;
+			-webkit-overflow-scrolling: touch;
+			scrollbar-width: none;
+		}
+
+		.mobile-mind::-webkit-scrollbar {
+			display: none;
+		}
+
+		.mobile-panel,
+		.atlas-card {
+			width: 100%;
+			border: 1px solid rgba(74, 139, 154, 0.28);
+			background:
+				linear-gradient(180deg, rgba(18, 24, 34, 0.84), rgba(5, 8, 14, 0.9)),
+				var(--bg-void);
+			box-shadow:
+				inset 0 1px 0 rgba(126, 192, 212, 0.06),
+				0 18px 42px rgba(0, 0, 0, 0.18);
+			clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+		}
+
+		.mobile-panel {
+			padding: 14px;
+		}
+
+		.overview {
+			border-color: rgba(224, 144, 96, 0.28);
+			background:
+				radial-gradient(circle at 80% 0%, rgba(224, 144, 96, 0.14), transparent 42%),
+				linear-gradient(180deg, rgba(18, 24, 34, 0.88), rgba(5, 8, 14, 0.92));
+		}
+
+		.section-label {
+			color: var(--text-dim);
+			font-size: 10px;
+			letter-spacing: 0.18em;
+		}
+
+		.overview-copy {
+			margin-top: 8px;
+		}
+
+		.overview-title {
+			color: var(--hud-hot);
+			font-size: 22px;
+			line-height: 1;
+			letter-spacing: 0.12em;
+		}
+
+		.overview-sub,
+		.panel-summary {
+			margin-top: 5px;
+			color: var(--text-mid);
+			font-size: 13px;
+			line-height: 1.35;
+		}
+
+		.metric-grid {
+			display: grid;
+			grid-template-columns: repeat(4, minmax(0, 1fr));
+			gap: 8px;
+			margin-top: 14px;
+		}
+
+		.metric {
+			min-width: 0;
+			min-height: 64px;
+			padding: 10px 6px;
+			border: 1px solid rgba(74, 139, 154, 0.26);
+			background: rgba(4, 7, 12, 0.52);
+			color: var(--text);
+			text-align: left;
+		}
+
+		.metric-warm {
+			border-color: rgba(224, 144, 96, 0.34);
+		}
+
+		.metric-value {
+			display: block;
+			color: var(--scan-hot);
+			font-size: 18px;
+			line-height: 1;
+		}
+
+		.metric-label {
+			display: block;
+			margin-top: 8px;
+			color: var(--text-dim);
+			font-size: 9px;
+			line-height: 1.05;
+		}
+
+		.atlas-card {
+			display: flex;
+			flex-direction: column;
+			min-height: 300px;
+			padding: 0;
+			color: inherit;
+			text-align: left;
+			cursor: pointer;
+			overflow: hidden;
+		}
+
+		.card-top {
+			display: flex;
+			align-items: flex-start;
+			justify-content: space-between;
+			gap: 12px;
+			padding: 14px 14px 10px;
+		}
+
+		.card-title {
+			margin-top: 4px;
+			color: var(--text);
+			font-size: 18px;
+			line-height: 1.15;
+		}
+
+		.card-meta {
+			color: var(--scan-hot);
+			font-size: 11px;
+			white-space: nowrap;
+		}
+
+		.atlas-phone-map {
+			position: relative;
+			height: 214px;
+			margin: 0 10px 10px;
+			overflow: hidden;
+			border: 1px solid rgba(74, 139, 154, 0.26);
+			background:
+				linear-gradient(135deg, rgba(126, 192, 212, 0.055) 0 1px, transparent 1px 18px),
+				radial-gradient(circle at 68% 48%, rgba(224, 144, 96, 0.16), transparent 36%),
+				#050912;
+		}
+
+		.atlas-pixel {
+			position: absolute;
+			width: 2px;
+			height: 2px;
+			transform: translate(-50%, -50%);
+			background: var(--dot);
+			border-radius: 50%;
+			opacity: 0.58;
+			box-shadow: 0 0 5px color-mix(in srgb, var(--dot) 55%, transparent);
+		}
+
+		.atlas-pixel.promoted {
+			width: 3px;
+			height: 3px;
+			opacity: 0.95;
+		}
+
+		.cluster-label {
+			position: absolute;
+			max-width: 132px;
+			transform: translate(-50%, -50%);
+			color: rgba(214, 210, 201, 0.78);
+			font-size: 9px;
+			line-height: 1;
+			text-align: center;
+			text-shadow: 0 1px 5px #000;
+		}
+
+		.atlas-empty {
+			position: absolute;
+			inset: 0;
+			display: grid;
+			place-items: center;
+			color: var(--text-dim);
+			font-size: 10px;
+		}
+
+		.stack-list {
+			display: flex;
+			flex-direction: column;
+			gap: 8px;
+			margin-top: 12px;
+		}
+
+		.stack-list.compact {
+			margin-top: 8px;
+		}
+
+		.list-row,
+		.person-chip,
+		.mini-action {
+			border: 1px solid rgba(74, 139, 154, 0.22);
+			background: rgba(4, 7, 12, 0.42);
+			color: inherit;
+			font: inherit;
+			text-align: left;
+			cursor: pointer;
+		}
+
+		.list-row {
+			display: grid;
+			grid-template-columns: 3px 1fr;
+			gap: 10px;
+			min-height: 48px;
+			padding: 10px 11px;
+		}
+
+		.list-row.warm {
+			border-color: rgba(224, 144, 96, 0.28);
+		}
+
+		.row-rule {
+			width: 3px;
+			min-height: 100%;
+			background: var(--scan-mid);
+			box-shadow: 0 0 8px rgba(126, 192, 212, 0.28);
+		}
+
+		.row-body {
+			min-width: 0;
+			color: var(--text);
+			font-size: 13px;
+			line-height: 1.35;
+			display: -webkit-box;
+			line-clamp: 2;
+			-webkit-line-clamp: 2;
+			-webkit-box-orient: vertical;
+			overflow: hidden;
+		}
+
+		.people-panel {
+			padding-bottom: 10px;
+		}
+
+		.people-strip {
+			display: flex;
+			gap: 9px;
+			margin: 12px -14px 0;
+			padding: 0 14px 4px;
+			overflow-x: auto;
+			scrollbar-width: none;
+			-webkit-overflow-scrolling: touch;
+		}
+
+		.people-strip::-webkit-scrollbar {
+			display: none;
+		}
+
+		.person-chip {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			min-width: 142px;
+			max-width: 168px;
+			min-height: 44px;
+			padding: 7px 9px;
+			color: var(--text-mid);
+			font-size: 12px;
+		}
+
+		.person-chip img,
+		.avatar-fallback {
+			width: 28px;
+			height: 28px;
+			flex: 0 0 28px;
+			border-radius: 50%;
+			border: 1px solid rgba(214, 210, 201, 0.55);
+			background: var(--text-dim);
+		}
+
+		.person-chip span:last-child {
+			min-width: 0;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
+		.mini-action {
+			min-width: 44px;
+			min-height: 32px;
+			padding: 6px 10px;
+			color: var(--scan-hot);
+			font-size: 10px;
+			text-align: center;
+		}
+
+		.split-panel {
+			display: grid;
+			grid-template-columns: 1fr;
+			gap: 14px;
+		}
+
+		.empty-row {
+			min-height: 44px;
+			display: grid;
+			place-items: center start;
+			padding: 0 11px;
+			border: 1px dashed rgba(74, 139, 154, 0.2);
+			color: var(--text-dim);
+			font-size: 10px;
+		}
 	}
 </style>
