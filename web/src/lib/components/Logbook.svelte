@@ -41,6 +41,14 @@
 		return parts[0] ?? PHI_DID;
 	}
 
+	function bskyPostUrl(uri: string): string | null {
+		const collection = collectionFromUri(uri);
+		const repo = repoFromUri(uri);
+		const rkey = rkeyFromUri(uri);
+		if (collection !== 'app.bsky.feed.post' || !repo || !rkey) return null;
+		return `https://bsky.app/profile/${repo}/post/${rkey}`;
+	}
+
 	function atlasKindCounts(atlas: Atlas | null | undefined): [string, number][] {
 		const counts = new Map<string, number>();
 		for (const point of atlas?.points ?? []) {
@@ -269,13 +277,6 @@
 					</div>
 				{/if}
 
-				{#if userView.summary}
-					<div class="block">
-						<div class="block-label chrome">my impression</div>
-						<div class="content">{userView.summary.content}</div>
-					</div>
-				{/if}
-
 				{#if userView.recent_observations.length > 0}
 					<div class="block">
 						<div class="block-label chrome">recent notes</div>
@@ -292,10 +293,26 @@
 												>{relativeWhen(obs.created_at)}</span
 											>
 										{/if}
+										{#if obs.source_uris.length > 0}
+											{@const sourceUrl = bskyPostUrl(obs.source_uris[0])}
+											{#if sourceUrl}
+												<a class="source-link" href={sourceUrl} target="_blank" rel="noopener">source</a>
+											{/if}
+										{/if}
 									</div>
 								</li>
 							{/each}
 						</ul>
+					</div>
+				{/if}
+
+				{#if userView.summary}
+					<div class="block synthesis">
+						<div class="block-label chrome">synthesized impression</div>
+						<div class="content">{userView.summary.content}</div>
+						<div class="synthesis-note faint">
+							Generated from carried notes; useful as orientation, not ground truth.
+						</div>
 					</div>
 				{/if}
 			{:else}
@@ -928,6 +945,28 @@
 
 	.when {
 		color: var(--text-dim);
+	}
+
+	.source-link {
+		color: var(--scan-mid);
+		text-decoration: none;
+		border-bottom: 1px solid rgba(126, 192, 212, 0.28);
+	}
+
+	.source-link:hover {
+		color: var(--scan-hot);
+		border-bottom-color: rgba(224, 144, 96, 0.5);
+	}
+
+	.synthesis {
+		border-left-color: rgba(224, 144, 96, 0.48);
+		background: linear-gradient(90deg, rgba(184, 107, 58, 0.06), transparent 58%);
+	}
+
+	.synthesis-note {
+		margin-top: 8px;
+		font-size: 10px;
+		line-height: 1.4;
 	}
 
 	.extlink {

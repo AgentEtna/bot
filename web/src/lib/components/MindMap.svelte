@@ -2,6 +2,7 @@
 	import { onDestroy, onMount } from 'svelte';
 	import { PHI_HANDLE } from '$lib/api';
 	import { hudReadout, logbook } from '$lib/state.svelte';
+	import AtlasOverlay from './AtlasOverlay.svelte';
 	import type {
 		Atlas,
 		AtlasPoint,
@@ -33,6 +34,7 @@
 	let hovered = $state<Hotspot | null>(null);
 	let hotspots = $state<Hotspot[]>([]);
 	let points = $state<AtlasPoint[]>([]);
+	let atlasExpanded = $state(false);
 
 	const imageCache = new Map<string, HTMLImageElement>();
 	const imageLoading = new Set<string>();
@@ -45,6 +47,7 @@
 		label: string;
 		readout: string;
 		entry?: LogbookEntry;
+		action?: 'atlas';
 		point?: AtlasPoint;
 	};
 
@@ -632,8 +635,8 @@
 		hotspots.push({
 			...r,
 			label: 'semantic atlas',
-			readout: `semantic atlas · ${atlas.points.length} points · ${promoted} promoted · click to inspect clusters`,
-			entry: { kind: 'store', store: 'atlas', atlas } as LogbookEntry
+			readout: `semantic atlas · ${atlas.points.length} points · ${promoted} promoted · click to expand map`,
+			action: 'atlas'
 		});
 	}
 
@@ -788,7 +791,7 @@
 		if (h !== hovered) {
 			hovered = h;
 			hudReadout.set(h ? h.readout : '');
-			canvas.style.cursor = h?.entry ? 'pointer' : 'default';
+			canvas.style.cursor = h?.entry || h?.action ? 'pointer' : 'default';
 			scheduleFrame();
 		}
 	}
@@ -796,6 +799,10 @@
 	function onClick(e: MouseEvent) {
 		const rect = canvas.getBoundingClientRect();
 		const h = hit(e.clientX - rect.left, e.clientY - rect.top);
+		if (h?.action === 'atlas') {
+			atlasExpanded = true;
+			return;
+		}
 		if (h?.entry) logbook.set(h.entry);
 	}
 
@@ -837,6 +844,9 @@
 		}}
 		onclick={onClick}
 	></canvas>
+	{#if atlasExpanded && atlas}
+		<AtlasOverlay {atlas} onClose={() => (atlasExpanded = false)} />
+	{/if}
 </div>
 
 <style>
