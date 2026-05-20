@@ -666,7 +666,7 @@
 			{
 				title: 'people memory',
 				value: `${known.length} profiles with carried context`,
-				entry: { kind: 'store', store: 'memory', known } as LogbookEntry
+				entry: { kind: 'store', store: 'memory', known, atlas } as LogbookEntry
 			},
 			{
 				title: 'public candidates',

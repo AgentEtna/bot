@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { logbook } from '$lib/state.svelte';
 	import { relativeWhen, whenTooltip } from '$lib/time';
-	import { PHI_HANDLE, PHI_DID, getUserView } from '$lib/api';
+	import { PHI_HANDLE, PHI_DID, OWNER_HANDLE, getUserView } from '$lib/api';
 	import ViewIn from './ViewIn.svelte';
 	import type {
 		Goal,
@@ -15,6 +15,17 @@
 		Atlas,
 		UserView
 	} from '$lib/types';
+
+	type MemoryCandidate = {
+		handle: string;
+		point?: Atlas['points'][number];
+		weight: number;
+		clusterLabel?: string;
+	};
+
+	type MemoryPreview = MemoryCandidate & {
+		view: UserView | null;
+	};
 
 	// Resolve an at-uri or a record reference into the bits ViewIn needs.
 	function rkeyFromUri(uri: string): string {
@@ -37,6 +48,63 @@
 			counts.set(kind, (counts.get(kind) ?? 0) + 1);
 		}
 		return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+	}
+
+	function atlasPointHandle(point: Atlas['points'][number]): string | null {
+		const refs = point.refs as { handle?: string; observation_count?: number } | undefined;
+		if (refs?.handle) return refs.handle.replace(/^@/, '');
+		if (point.label) return point.label.replace(/^@/, '');
+		return null;
+	}
+
+	function atlasObservationCount(point: Atlas['points'][number]): number {
+		const refs = point.refs as { observation_count?: number } | undefined;
+		return refs?.observation_count ?? 0;
+	}
+
+	function isPublicPersonHandle(handle: string): boolean {
+		const h = handle.replace(/^@/, '').toLowerCase();
+		return (
+			!h.includes('example') &&
+			h !== PHI_HANDLE &&
+			h !== OWNER_HANDLE &&
+			!h.startsWith('zzstoatzz')
+		);
+	}
+
+	function clusterLabel(atlas: Atlas | null | undefined, point: Atlas['points'][number]): string | undefined {
+		const fine = atlas?.clusters_fine.find((c) => c.id === point.cluster_fine);
+		if (fine?.label) return fine.label;
+		const coarse = atlas?.clusters_coarse.find((c) => c.id === point.cluster_coarse);
+		return coarse?.label;
+	}
+
+	function memoryCandidates(store: {
+		known?: GraphNode[];
+		atlas?: Atlas | null;
+	}): MemoryCandidate[] {
+		const byHandle = new Map<string, MemoryCandidate>();
+		for (const point of store.atlas?.points ?? []) {
+			if (point.kind !== 'handle-engaged') continue;
+			const handle = atlasPointHandle(point);
+			if (!handle) continue;
+			if (!isPublicPersonHandle(handle)) continue;
+			byHandle.set(handle, {
+				handle,
+				point,
+				weight: atlasObservationCount(point),
+				clusterLabel: clusterLabel(store.atlas, point)
+			});
+		}
+		for (const node of store.known ?? []) {
+			const handle = node.label.replace(/^@/, '');
+			if (!isPublicPersonHandle(handle)) continue;
+			if (!byHandle.has(handle)) {
+				byHandle.set(handle, { handle, weight: 0 });
+			}
+		}
+		return [...byHandle.values()]
+			.sort((a, b) => b.weight - a.weight || a.handle.localeCompare(b.handle));
 	}
 
 	const entry = $derived(logbook.value);
@@ -66,6 +134,9 @@
 	let userView = $state<UserView | null>(null);
 	let userViewLoading = $state(false);
 	let lastFetchedHandle: string | null = null;
+	let memoryPreview = $state<MemoryPreview[]>([]);
+	let memoryPreviewLoading = $state(false);
+	let lastMemoryPreviewKey: string | null = null;
 
 	$effect(() => {
 		if (!entry) {
@@ -95,6 +166,39 @@
 			}
 		});
 	});
+
+	$effect(() => {
+		if (!entry || entry.kind !== 'store' || entry.store !== 'memory') {
+			memoryPreview = [];
+			memoryPreviewLoading = false;
+			lastMemoryPreviewKey = null;
+			return;
+		}
+		const store = entry as {
+			kind: 'store';
+			store: 'memory';
+			known?: GraphNode[];
+			atlas?: Atlas | null;
+		};
+		const candidates = memoryCandidates(store).slice(0, 12);
+		const key = candidates.map((c) => `${c.handle}:${c.weight}`).join('|');
+		if (key === lastMemoryPreviewKey) return;
+		lastMemoryPreviewKey = key;
+		memoryPreview = candidates.map((c) => ({ ...c, view: null }));
+		memoryPreviewLoading = candidates.length > 0;
+		Promise.allSettled(candidates.map((c) => getUserView(c.handle))).then((results) => {
+			if (key !== lastMemoryPreviewKey) return;
+			memoryPreview = candidates.map((candidate, i) => ({
+				...candidate,
+				view: results[i].status === 'fulfilled' ? results[i].value : null
+			}));
+			memoryPreviewLoading = false;
+		});
+	});
+
+	function openPerson(handle: string) {
+		logbook.set({ kind: 'handle', handle, engaged: true, payload: { handle } });
+	}
 </script>
 
 {#if entry}
@@ -387,35 +491,65 @@
 			{:else if store.store === 'memory'}
 				<h1>people memory</h1>
 				<p class="muted">
-					Turbopuffer-backed carried context about people phi has noticed, replied to, or
-					remembered.
+					Relationship memory carried per person: impressions, active observations, and traces of
+					exchange.
 				</p>
 				<div class="hist">
 					<div class="hist-cell">
-						<div class="hist-num mono">{store.known?.length ?? 0}</div>
+						<div class="hist-num mono">
+							{Math.max(store.known?.length ?? 0, memoryCandidates(store).length)}
+						</div>
 						<div class="hist-lbl chrome">people</div>
 					</div>
 					<div class="hist-cell">
-						<div class="hist-num mono">TPUF</div>
-						<div class="hist-lbl chrome">source</div>
+						<div class="hist-num mono">{memoryPreview.reduce((n, p) => n + (p.view?.counts.observation ?? p.weight), 0)}</div>
+						<div class="hist-lbl chrome">notes</div>
 					</div>
 					<div class="hist-cell">
-						<div class="hist-num mono">graph</div>
-						<div class="hist-lbl chrome">view</div>
+						<div class="hist-num mono">{memoryPreview.filter((p) => p.view?.summary).length}</div>
+						<div class="hist-lbl chrome">impressions</div>
 					</div>
 				</div>
-				{#if store.known && store.known.length > 0}
+				{#if memoryPreviewLoading}
+					<p class="muted">recalling relationship index…</p>
+				{/if}
+				{#if memoryPreview.length > 0}
 					<div class="block">
-						<div class="block-label chrome">sample</div>
-						<ul class="obs-list">
-							{#each store.known.slice(0, 18) as node (node.id)}
-								<li class="obs">
-									<div class="obs-text">{node.label}</div>
-									<div class="obs-meta faint">click their point in the field for the full memory drawer</div>
-								</li>
+						<div class="block-label chrome">strongest carried people</div>
+						<div class="person-grid">
+							{#each memoryPreview as person (person.handle)}
+								<button class="person-card" onclick={() => openPerson(person.handle)}>
+									<div class="person-top">
+										<span class="person-handle mono">@{person.handle}</span>
+										<span class="person-count mono">
+											{person.view?.counts.observation ?? person.weight} obs · {person.view?.counts.interaction ?? 0} exch
+										</span>
+									</div>
+									{#if person.view?.summary}
+										<div class="person-summary">{person.view.summary.content}</div>
+									{:else if person.view?.recent_observations?.[0]}
+										<div class="person-summary">{person.view.recent_observations[0].content}</div>
+									{:else if person.clusterLabel}
+										<div class="person-summary">near {person.clusterLabel}</div>
+									{:else}
+										<div class="person-summary faint">carried in the relationship graph</div>
+									{/if}
+									<div class="person-meta faint">
+										{#if person.clusterLabel}
+											<span>{person.clusterLabel}</span>
+										{/if}
+										{#if person.view?.last_seen}
+											<span title={whenTooltip(person.view.last_seen)}
+												>{relativeWhen(person.view.last_seen)}</span
+											>
+										{/if}
+									</div>
+								</button>
 							{/each}
-						</ul>
+						</div>
 					</div>
+				{:else if !memoryPreviewLoading}
+					<p class="muted">No people memory loaded for this pass.</p>
 				{/if}
 			{:else}
 				<h1>atlas</h1>
@@ -826,6 +960,71 @@
 
 	.sample-meta {
 		font-size: 10px;
+	}
+
+	.person-grid {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 8px;
+	}
+
+	.person-card {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		text-align: left;
+		text-transform: none;
+		letter-spacing: 0;
+		padding: 10px 12px;
+		background:
+			linear-gradient(120deg, rgba(74, 139, 154, 0.07), transparent 44%),
+			rgba(7, 9, 15, 0.46);
+		border: 1px solid var(--line-dim);
+		border-radius: 4px;
+		color: var(--text);
+		cursor: pointer;
+	}
+
+	.person-card:hover {
+		border-color: var(--scan-mid);
+		background:
+			linear-gradient(120deg, rgba(74, 139, 154, 0.12), transparent 48%),
+			rgba(7, 9, 15, 0.62);
+	}
+
+	.person-top,
+	.person-meta {
+		display: flex;
+		justify-content: space-between;
+		gap: 10px;
+		align-items: baseline;
+	}
+
+	.person-handle {
+		font-size: 11px;
+		color: var(--scan-hot);
+		text-transform: none;
+	}
+
+	.person-count {
+		font-size: 9px;
+		color: var(--text-dim);
+		white-space: nowrap;
+	}
+
+	.person-summary {
+		font-size: 12px;
+		line-height: 1.45;
+		color: var(--text);
+		line-clamp: 3;
+		display: -webkit-box;
+		-webkit-line-clamp: 3;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+	}
+
+	.person-meta {
+		font-size: 9px;
 	}
 
 	footer {
