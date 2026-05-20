@@ -199,6 +199,22 @@ export interface Docket {
 	candidates: DocketCandidate[];
 }
 
+// --- /api/atlas ---
+
+export interface AtlasCluster {
+	id: number;
+	label?: string;
+	count?: number;
+	[key: string]: unknown;
+}
+
+export interface Atlas {
+	generated_at: string;
+	points: { kind?: string; promotion_status?: string; [key: string]: unknown }[];
+	clusters_coarse: AtlasCluster[];
+	clusters_fine: AtlasCluster[];
+}
+
 // --- cockpit / hud ---
 
 /**
@@ -232,6 +248,7 @@ export type LogbookEntry =
 	| { kind: 'handle'; handle: string; did?: string; engaged: boolean; payload: unknown }
 	| { kind: 'observation'; observation: Observation }
 	| { kind: 'goal'; goal: Goal }
+	| { kind: 'docket'; candidate: DocketCandidate }
 	| { kind: 'activity'; item: ActivityItem }
 	| { kind: 'blog'; doc: BlogDoc }
 	| { kind: 'discovery'; entry: DiscoveryEntry };

@@ -5,6 +5,7 @@
 
 import type {
 	ActivityItem,
+	Atlas,
 	BlogDoc,
 	BskyFeedItem,
 	Capability,
@@ -152,6 +153,13 @@ export async function getDocket(): Promise<Docket | null> {
 	const res = await fetch('/api/docket');
 	if (res.status === 404) return null;
 	if (!res.ok) throw new Error(`docket: ${res.status}`);
+	return await res.json();
+}
+
+export async function getAtlas(): Promise<Atlas | null> {
+	const res = await fetch('/api/atlas');
+	if (res.status === 404) return null;
+	if (!res.ok) throw new Error(`atlas: ${res.status}`);
 	return await res.json();
 }
 

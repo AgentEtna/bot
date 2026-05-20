@@ -8,6 +8,7 @@
 		Observation,
 		ActivityItem,
 		BlogDoc,
+		DocketCandidate,
 		DiscoveryEntry,
 		UserView
 	} from '$lib/types';
@@ -95,7 +96,7 @@
 	<aside class="drawer scroll" aria-label="logbook entry">
 		<header>
 			<div class="kind chrome">
-				{#if entry.kind === 'handle'}{entry.engaged ? 'in my memory' : 'on my radar'}{:else if entry.kind === 'observation'}attention{:else if entry.kind === 'goal'}goal{:else if entry.kind === 'activity'}emission · {entry.item.type}{:else if entry.kind === 'blog'}long form{:else if entry.kind === 'discovery'}on my radar{/if}
+				{#if entry.kind === 'handle'}{entry.engaged ? 'in my memory' : 'on my radar'}{:else if entry.kind === 'observation'}attention{:else if entry.kind === 'goal'}goal{:else if entry.kind === 'docket'}promotion pressure{:else if entry.kind === 'activity'}emission · {entry.item.type}{:else if entry.kind === 'blog'}long form{:else if entry.kind === 'discovery'}on my radar{/if}
 			</div>
 			<button class="close chrome" onclick={close} aria-label="close">close · esc</button>
 		</header>
@@ -236,6 +237,46 @@
 					rkey={goalE.goal.rkey}
 				/>
 			</div>
+		{:else if entry.kind === 'docket'}
+			{@const docket = entry as {
+				kind: 'docket';
+				candidate: DocketCandidate;
+			}}
+			<h1>{docket.candidate.title}</h1>
+			<p class="content">{docket.candidate.rationale}</p>
+			<div class="hist">
+				<div class="hist-cell">
+					<div class="hist-num mono">{docket.candidate.private_evidence.length}</div>
+					<div class="hist-lbl chrome">private</div>
+				</div>
+				<div class="hist-cell">
+					<div class="hist-num mono">{docket.candidate.existing_public_anchors.length}</div>
+					<div class="hist-lbl chrome">public</div>
+				</div>
+				<div class="hist-cell">
+					<div class="hist-num mono">{docket.candidate.suggested_shape}</div>
+					<div class="hist-lbl chrome">shape</div>
+				</div>
+			</div>
+			{#if docket.candidate.private_evidence.length > 0}
+				<div class="block">
+					<div class="block-label chrome">private evidence</div>
+					<ul class="obs-list">
+						{#each docket.candidate.private_evidence as ev (ev.atlas_point_id)}
+							<li class="obs">
+								<div class="obs-text">{ev.snippet}</div>
+								<div class="obs-meta faint mono">{ev.kind} · {ev.atlas_point_id}</div>
+							</li>
+						{/each}
+					</ul>
+				</div>
+			{/if}
+			{#if docket.candidate.related_tags.length > 0}
+				<div class="block">
+					<div class="block-label chrome">tags</div>
+					<div class="tags mono">{docket.candidate.related_tags.join(' · ')}</div>
+				</div>
+			{/if}
 		{:else if entry.kind === 'activity'}
 			{@const act = entry as { kind: 'activity'; item: ActivityItem }}
 			{@const kindLabel =
