@@ -27,8 +27,8 @@
 	let { goals, observations, known, candidates, avatars, docket, atlas }: Props = $props();
 
 	let canvas: HTMLCanvasElement;
-	let W = 0;
-	let H = 0;
+	let W = $state(0);
+	let H = $state(0);
 	let dpr = 1;
 	let frameRequested = false;
 	let hovered = $state<Hotspot | null>(null);
@@ -525,6 +525,47 @@
 		return [r.x + nx * r.w, r.y + (1 - ny) * r.h];
 	}
 
+	function atlasMiniRect(): Rect {
+		const p = sidePanel();
+		return {
+			x: p.x + 14,
+			y: p.y + (mobile() ? 36 : 64),
+			w: p.w - 28,
+			h: mobile() ? 78 : Math.min(218, p.h * 0.44)
+		};
+	}
+
+	function storeRowRects(): { rect: Rect; entry?: LogbookEntry; title: string; value: string }[] {
+		const p = sidePanel();
+		const atlasRect = atlasMiniRect();
+		const docketCount = docket?.candidates.length ?? 0;
+		const rows = [
+			{
+				title: 'PDS state',
+				value: `${goals.length} goals · ${observations.length} observations`,
+				entry: { kind: 'store', store: 'pds', goals, observations } as LogbookEntry
+			},
+			{
+				title: 'people memory',
+				value: `${known.length} profiles with carried context`,
+				entry: { kind: 'store', store: 'memory', known, atlas } as LogbookEntry
+			},
+			{
+				title: 'public candidates',
+				value: `${docketCount} candidates from private evidence`,
+				entry: docket ? ({ kind: 'docket-list', docket } as LogbookEntry) : undefined
+			}
+		];
+		const rowH = mobile() ? 28 : 46;
+		const gap = mobile() ? 8 : 10;
+		let y = atlasRect.y + atlasRect.h + (mobile() ? 10 : 12);
+		return rows.map((row) => {
+			const rect = { x: p.x + 14, y, w: p.w - 28, h: rowH };
+			y += rowH + gap;
+			return { ...row, rect };
+		});
+	}
+
 	function drawAtlasMini(ctx: CanvasRenderingContext2D, r: Rect) {
 		rounded(ctx, r, 6);
 		ctx.save();
@@ -659,37 +700,11 @@
 			label(ctx, 'private state, memory, and publication pressure', p.x + 14, p.y + 45, p.w - 28, '--text-dim', 11);
 		}
 
-		const atlasRect = {
-			x: p.x + 14,
-			y: p.y + (mobile() ? 36 : 64),
-			w: p.w - 28,
-			h: mobile() ? 78 : Math.min(218, p.h * 0.44)
-		};
+		const atlasRect = atlasMiniRect();
 		drawAtlasMini(ctx, atlasRect);
 
-		const docketCount = docket?.candidates.length ?? 0;
-		const rows = [
-			{
-				title: 'PDS state',
-				value: `${goals.length} goals · ${observations.length} observations`,
-				entry: { kind: 'store', store: 'pds', goals, observations } as LogbookEntry
-			},
-			{
-				title: 'people memory',
-				value: `${known.length} profiles with carried context`,
-				entry: { kind: 'store', store: 'memory', known, atlas } as LogbookEntry
-			},
-			{
-				title: 'public candidates',
-				value: `${docketCount} candidates from private evidence`,
-				entry: docket ? ({ kind: 'docket-list', docket } as LogbookEntry) : undefined
-			}
-		];
-		const rowH = mobile() ? 28 : 46;
-		const gap = mobile() ? 8 : 10;
-		let y = atlasRect.y + atlasRect.h + (mobile() ? 10 : 12);
-		for (const row of rows) {
-			const r = { x: p.x + 14, y, w: p.w - 28, h: rowH };
+		for (const row of storeRowRects()) {
+			const r = row.rect;
 			rounded(ctx, r, 5);
 			ctx.fillStyle = 'rgba(4, 7, 12, 0.42)';
 			ctx.fill();
@@ -703,7 +718,6 @@
 				readout: `${row.title} · ${row.value}`,
 				entry: row.entry
 			});
-			y += rowH + gap;
 		}
 		ctx.restore();
 	}
@@ -852,6 +866,27 @@
 		}}
 		onclick={onClick}
 	></canvas>
+	{#if W > 0 && H > 0}
+		{@const atlasHit = atlasMiniRect()}
+		<button
+			class="canvas-hit"
+			style={`left:${atlasHit.x}px;top:${atlasHit.y}px;width:${atlasHit.w}px;height:${atlasHit.h}px;`}
+			aria-label="open semantic atlas"
+			onclick={() => {
+				if (atlas) atlasExpanded = true;
+			}}
+		></button>
+		{#each storeRowRects() as row (row.title)}
+			<button
+				class="canvas-hit"
+				style={`left:${row.rect.x}px;top:${row.rect.y}px;width:${row.rect.w}px;height:${row.rect.h}px;`}
+				aria-label={row.title}
+				onclick={() => {
+					if (row.entry) logbook.set(row.entry);
+				}}
+			></button>
+		{/each}
+	{/if}
 	{#if atlasExpanded && atlas}
 		<AtlasOverlay {atlas} onClose={() => (atlasExpanded = false)} />
 	{/if}
@@ -866,5 +901,22 @@
 	canvas {
 		display: block;
 		touch-action: manipulation;
+	}
+
+	.canvas-hit {
+		position: absolute;
+		display: block;
+		margin: 0;
+		padding: 0;
+		border: 0;
+		background: transparent;
+		color: transparent;
+		cursor: pointer;
+		touch-action: manipulation;
+	}
+
+	.canvas-hit:focus-visible {
+		outline: 1px solid var(--hud-hot);
+		outline-offset: 2px;
 	}
 </style>
