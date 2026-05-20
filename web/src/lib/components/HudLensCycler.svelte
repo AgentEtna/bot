@@ -88,7 +88,7 @@
 		color: var(--hud-mid);
 	}
 
-	@media (max-width: 640px) {
+	@media (max-width: 760px) {
 		.cycler {
 			width: 100%;
 			align-items: stretch;
@@ -98,6 +98,13 @@
 		}
 		.row {
 			width: 100%;
+			border-color: rgba(126, 192, 212, 0.24);
+			background:
+				linear-gradient(180deg, rgba(22, 30, 43, 0.72), rgba(7, 10, 17, 0.72)),
+				rgba(7, 9, 15, 0.86);
+			box-shadow:
+				inset 0 1px 0 rgba(214, 210, 201, 0.05),
+				0 8px 30px rgba(0, 0, 0, 0.26);
 		}
 		.opt {
 			flex: 1;
@@ -105,6 +112,13 @@
 			padding: 8px 10px;
 			font-size: 12px;
 			min-height: 36px;
+			color: var(--text-mid);
+		}
+		.opt.active {
+			background:
+				radial-gradient(circle at 50% 0%, rgba(224, 144, 96, 0.2), transparent 72%),
+				rgba(184, 107, 58, 0.1);
+			color: var(--hud-hot);
 		}
 		.num {
 			display: none;

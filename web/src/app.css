@@ -194,7 +194,7 @@ a:hover {
 
 /* ---------- mobile: corner-hud collapses into header + footer strips ---------- */
 
-@media (max-width: 640px) {
+@media (max-width: 760px) {
 	.viewport {
 		height: 100dvh;
 	}
@@ -205,15 +205,22 @@ a:hover {
 		right: 0;
 		padding: 10px 14px 9px;
 		background:
-			linear-gradient(to bottom, rgba(7, 9, 15, 0.98) 0%, rgba(7, 9, 15, 0.86) 72%, transparent 100%),
+			linear-gradient(to bottom, rgba(7, 9, 15, 0.99) 0%, rgba(7, 9, 15, 0.98) 78%, rgba(7, 9, 15, 0.9) 100%),
 			var(--bg-void);
 		border-bottom: 1px solid var(--line-dim);
 	}
 
 	.hud-tr {
-		top: 76px;
-		left: 14px;
-		right: 14px;
+		top: 68px;
+		left: 0;
+		right: 0;
+		padding: 8px 14px 11px;
+		background:
+			linear-gradient(180deg, rgba(7, 9, 15, 0.97), rgba(7, 9, 15, 0.9)),
+			radial-gradient(circle at 50% 0%, rgba(126, 192, 212, 0.08), transparent 64%);
+		border-bottom: 1px solid rgba(74, 139, 154, 0.18);
+		backdrop-filter: blur(16px) saturate(1.15);
+		-webkit-backdrop-filter: blur(16px) saturate(1.15);
 	}
 
 	.hud-bl {

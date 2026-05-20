@@ -1068,7 +1068,7 @@
 				<div class="section-label chrome">intent</div>
 				<div class="stack-list compact">
 					{#each goalPreview as goal (goal.rkey)}
-						<button class="list-row" onclick={() => logbook.set({ kind: 'goal', goal })}>
+						<button class="list-row simple" onclick={() => logbook.set({ kind: 'goal', goal })}>
 							<span class="row-body">{goal.title}</span>
 						</button>
 					{:else}
@@ -1171,7 +1171,7 @@
 			display: flex;
 			flex-direction: column;
 			gap: 12px;
-			padding: 126px 14px calc(74px + env(safe-area-inset-bottom));
+			padding: 128px 14px calc(74px + env(safe-area-inset-bottom));
 			overflow-y: auto;
 			-webkit-overflow-scrolling: touch;
 			scrollbar-width: none;
@@ -1387,7 +1387,12 @@
 		}
 
 		.list-row.warm {
+			grid-template-columns: 1fr;
 			border-color: rgba(224, 144, 96, 0.28);
+		}
+
+		.list-row.simple {
+			grid-template-columns: 1fr;
 		}
 
 		.row-rule {
@@ -1415,9 +1420,9 @@
 
 		.people-strip {
 			display: flex;
-			gap: 9px;
+			gap: 10px;
 			margin: 12px -14px 0;
-			padding: 0 14px 4px;
+			padding: 0 14px 6px;
 			overflow-x: auto;
 			scrollbar-width: none;
 			-webkit-overflow-scrolling: touch;
@@ -1429,31 +1434,49 @@
 
 		.person-chip {
 			display: flex;
-			align-items: center;
-			gap: 8px;
-			min-width: 142px;
-			max-width: 168px;
-			min-height: 44px;
-			padding: 7px 9px;
+			flex-direction: column;
+			justify-content: space-between;
+			align-items: flex-start;
+			gap: 11px;
+			min-width: 104px;
+			max-width: 104px;
+			min-height: 112px;
+			padding: 10px;
 			color: var(--text-mid);
-			font-size: 12px;
+			font-size: 11px;
+			border-color: rgba(126, 192, 212, 0.22);
+			background:
+				linear-gradient(180deg, rgba(18, 24, 34, 0.68), rgba(4, 7, 12, 0.7)),
+				radial-gradient(circle at 50% 0%, rgba(126, 192, 212, 0.12), transparent 58%);
+			box-shadow: inset 0 1px 0 rgba(214, 210, 201, 0.04);
+			clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
 		}
 
 		.person-chip img,
 		.avatar-fallback {
-			width: 28px;
-			height: 28px;
-			flex: 0 0 28px;
+			width: 42px;
+			height: 42px;
+			flex: 0 0 42px;
 			border-radius: 50%;
-			border: 1px solid rgba(214, 210, 201, 0.55);
-			background: var(--text-dim);
+			border: 1px solid rgba(214, 210, 201, 0.62);
+			background:
+				radial-gradient(circle at 35% 28%, rgba(214, 210, 201, 0.8), rgba(90, 85, 74, 0.65)),
+				var(--text-dim);
+			box-shadow:
+				0 0 0 3px rgba(4, 7, 12, 0.9),
+				0 0 18px rgba(126, 192, 212, 0.16);
 		}
 
 		.person-chip span:last-child {
+			display: -webkit-box;
 			min-width: 0;
+			width: 100%;
 			overflow: hidden;
-			text-overflow: ellipsis;
-			white-space: nowrap;
+			line-clamp: 2;
+			-webkit-line-clamp: 2;
+			-webkit-box-orient: vertical;
+			line-height: 1.16;
+			overflow-wrap: anywhere;
 		}
 
 		.mini-action {

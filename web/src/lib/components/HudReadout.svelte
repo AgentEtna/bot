@@ -66,7 +66,7 @@
 		letter-spacing: 0.18em;
 	}
 
-	@media (max-width: 640px) {
+	@media (max-width: 760px) {
 		.readout {
 			justify-content: flex-start;
 			min-height: 20px;

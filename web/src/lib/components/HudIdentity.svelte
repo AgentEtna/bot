@@ -135,7 +135,7 @@
 		}
 	}
 
-	@media (max-width: 640px) {
+	@media (max-width: 760px) {
 		.ident {
 			gap: 10px;
 			align-items: flex-start;
@@ -203,7 +203,7 @@
 		text-overflow: ellipsis;
 	}
 
-	@media (max-width: 640px) {
+	@media (max-width: 760px) {
 		.bio {
 			max-width: calc(100vw - 70px);
 			font-size: 11px;
