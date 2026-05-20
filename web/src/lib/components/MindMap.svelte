@@ -247,20 +247,22 @@
 		const mx = mobile() ? 18 : 62;
 		const top = mobile() ? 136 : 112;
 		const bottom = mobile() ? 244 : 68;
-		return { x: mx, y: top, w: W - mx * 2, h: H - top - bottom };
+		if (mobile()) return { x: mx, y: top, w: W - mx * 2, h: H - top - bottom };
+		const panel = sidePanel();
+		return { x: mx, y: top, w: panel.x - mx - 58, h: H - top - bottom };
 	}
 
 	function center(): { x: number; y: number } {
 		const f = field();
 		return {
-			x: mobile() ? f.x + f.w / 2 : f.x + f.w * 0.44,
+			x: mobile() ? f.x + f.w / 2 : f.x + f.w * 0.52,
 			y: f.y + f.h * (mobile() ? 0.5 : 0.46)
 		};
 	}
 
 	function unit(): number {
 		const f = field();
-		return Math.min(f.w, f.h) * (mobile() ? 0.37 : 0.43);
+		return Math.min(f.w, f.h) * (mobile() ? 0.37 : 0.42);
 	}
 
 	function worldToScreen(x: number, y: number): [number, number] {
@@ -270,12 +272,18 @@
 	}
 
 	function sidePanel(): Rect {
-		const f = field();
 		if (mobile()) {
+			const f = { x: 18, y: 136, w: W - 36, h: H - 136 - 244 };
 			const y = Math.min(H - 292, f.y + f.h + 22);
 			return { x: 14, y, w: W - 28, h: 220 };
 		}
-		return { x: f.x + f.w * 0.72, y: f.y + 26, w: Math.min(360, f.w * 0.24), h: f.h - 64 };
+		const w = Math.min(460, Math.max(380, W * 0.25));
+		return {
+			x: W - w - 62,
+			y: 118,
+			w,
+			h: Math.min(540, Math.max(420, H - 196))
+		};
 	}
 
 	function chrome(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size = 10) {
@@ -469,44 +477,6 @@
 			ctx.lineTo(x, y);
 			ctx.stroke();
 		}
-	}
-
-	function drawCycle(ctx: CanvasRenderingContext2D) {
-		if (mobile()) return;
-		const c = center();
-		const u = unit();
-		const y = c.y + u * 0.72;
-		const steps = mobile()
-			? [
-					{ x: c.x - u * 0.42, label: 'signals' },
-					{ x: c.x, label: 'pass' },
-					{ x: c.x + u * 0.42, label: 'memory' }
-				]
-			: [
-					{ x: c.x - u * 0.72, label: 'signals' },
-					{ x: c.x - u * 0.24, label: 'attend' },
-					{ x: c.x + u * 0.24, label: 'remember' },
-					{ x: c.x + u * 0.72, label: 'publish' }
-				];
-		ctx.save();
-		ctx.strokeStyle = 'rgba(224, 144, 96, 0.24)';
-		ctx.fillStyle = 'rgba(7, 9, 15, 0.66)';
-		for (let i = 0; i < steps.length; i++) {
-			if (i > 0) {
-				ctx.beginPath();
-				ctx.moveTo(steps[i - 1].x + 28, y);
-				ctx.lineTo(steps[i].x - 28, y);
-				ctx.stroke();
-			}
-			const r = { x: steps[i].x - 30, y: y - 15, w: 60, h: 30 };
-			rounded(ctx, r, 4);
-			ctx.fillStyle = 'rgba(7, 9, 15, 0.66)';
-			ctx.fill();
-			ctx.strokeStyle = 'rgba(224, 144, 96, 0.24)';
-			ctx.stroke();
-			chrome(ctx, steps[i].label, r.x + 10, r.y + 19, 9);
-		}
-		ctx.restore();
 	}
 
 	function atlasBounds() {
@@ -788,6 +758,23 @@
 				entry: row.entry
 			});
 		}
+		if (!mobile()) {
+			const y = p.y + p.h - 44;
+			ctx.strokeStyle = 'rgba(74, 139, 154, 0.12)';
+			ctx.beginPath();
+			ctx.moveTo(p.x + 16, y);
+			ctx.lineTo(p.x + p.w - 16, y);
+			ctx.stroke();
+			label(
+				ctx,
+				'click atlas, state, memory, or candidates to inspect',
+				p.x + 16,
+				y + 24,
+				p.w - 32,
+				'--text-dim',
+				10
+			);
+		}
 		ctx.restore();
 	}
 
@@ -862,7 +849,6 @@
 		drawSpokes(ctx);
 		for (const p of points) drawPoint(ctx, p);
 		drawRingLabels(ctx);
-		drawCycle(ctx);
 		drawStores(ctx);
 		if (hovered) drawReticle(ctx, hovered);
 		ctx.restore();
