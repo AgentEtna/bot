@@ -249,6 +249,15 @@ export type LogbookEntry =
 	| { kind: 'observation'; observation: Observation }
 	| { kind: 'goal'; goal: Goal }
 	| { kind: 'docket'; candidate: DocketCandidate }
+	| { kind: 'docket-list'; docket: Docket }
+	| {
+			kind: 'store';
+			store: 'pds' | 'memory' | 'atlas';
+			goals?: Goal[];
+			observations?: Observation[];
+			known?: GraphNode[];
+			atlas?: Atlas | null;
+	  }
 	| { kind: 'activity'; item: ActivityItem }
 	| { kind: 'blog'; doc: BlogDoc }
 	| { kind: 'discovery'; entry: DiscoveryEntry };

@@ -8,7 +8,8 @@
 		getActiveObservations,
 		getGoals,
 		getDocket,
-		getAtlas
+		getAtlas,
+		PHI_HANDLE
 	} from '$lib/api';
 	import type { GraphNode, DiscoveryEntry, Observation, Goal, Docket, Atlas } from '$lib/types';
 
@@ -16,10 +17,36 @@
 	let observations = $state<Observation[]>([]);
 	let known = $state<GraphNode[]>([]);
 	let candidates = $state<DiscoveryEntry[]>([]);
+	let avatars = $state<Record<string, string>>({});
 	let docket = $state<Docket | null>(null);
 	let atlas = $state<Atlas | null>(null);
 	let loaded = $state(false);
 	let err = $state<string | null>(null);
+
+	async function fetchAvatars(handles: string[]): Promise<void> {
+		const filtered = handles.filter((h) => h && !h.includes('example'));
+		const chunks: string[][] = [];
+		for (let i = 0; i < filtered.length; i += 25) {
+			chunks.push(filtered.slice(i, i + 25));
+		}
+		await Promise.allSettled(
+			chunks.map(async (chunk) => {
+				const params = chunk.map((h) => `actors=${encodeURIComponent(h)}`).join('&');
+				try {
+					const res = await fetch(
+						`https://typeahead.waow.tech/xrpc/app.bsky.actor.getProfiles?${params}`
+					);
+					if (!res.ok) return;
+					const data: { profiles: { handle: string; avatar?: string }[] } = await res.json();
+					const updates: Record<string, string> = {};
+					for (const p of data.profiles) if (p.avatar) updates[p.handle] = p.avatar;
+					if (Object.keys(updates).length > 0) avatars = { ...avatars, ...updates };
+				} catch {
+					/* best-effort public avatars */
+				}
+			})
+		);
+	}
 
 	onMount(() => {
 		// Render the MindMap as soon as data trickles in — don't block on the
@@ -28,14 +55,14 @@
 		// Goals + observations are PDS reads, usually fastest; they unblock
 		// `loaded` so the user sees the map immediately. Memory graph,
 		// discovery, atlas, and docket layer in after.
-		getMemoryGraph()
+		const graphP = getMemoryGraph()
 			.then((r) => {
 				known = r.nodes.filter((n) => n.type === 'user') as GraphNode[];
 			})
 			.catch((e: Error) => {
 				err = err ?? e.message;
 			});
-		getDiscoveryPool()
+		const discP = getDiscoveryPool()
 			.then((r) => {
 				candidates = r;
 			})
@@ -65,6 +92,13 @@
 		Promise.allSettled([obsP, goalsP]).then(() => {
 			loaded = true;
 		});
+
+		Promise.allSettled([graphP, discP]).then(() => {
+			const handles = new Set<string>([PHI_HANDLE]);
+			for (const n of known) handles.add(n.label.replace(/^@/, ''));
+			for (const c of candidates) handles.add(c.handle);
+			fetchAvatars([...handles]);
+		});
 	});
 </script>
 
@@ -78,7 +112,7 @@
 	{:else if err}
 		<div class="overlay chrome muted">connection lost · {err}</div>
 	{:else}
-		<MindMap {goals} {observations} {known} {candidates} {docket} {atlas} />
+		<MindMap {goals} {observations} {known} {candidates} {avatars} {docket} {atlas} />
 	{/if}
 </div>
 

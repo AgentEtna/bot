@@ -1,10 +1,12 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
+	import { PHI_HANDLE } from '$lib/api';
 	import { hudReadout, logbook } from '$lib/state.svelte';
 	import type {
 		Atlas,
-		Docket,
+		AtlasPoint,
 		DiscoveryEntry,
+		Docket,
 		Goal,
 		GraphNode,
 		LogbookEntry,
@@ -16,11 +18,12 @@
 		observations: Observation[];
 		known: GraphNode[];
 		candidates: DiscoveryEntry[];
+		avatars: Record<string, string>;
 		docket: Docket | null;
 		atlas: Atlas | null;
 	}
 
-	let { goals, observations, known, candidates, docket, atlas }: Props = $props();
+	let { goals, observations, known, candidates, avatars, docket, atlas }: Props = $props();
 
 	let canvas: HTMLCanvasElement;
 	let W = 0;
@@ -29,35 +32,135 @@
 	let frameRequested = false;
 	let hovered = $state<Hotspot | null>(null);
 	let hotspots = $state<Hotspot[]>([]);
+	let points = $state<AtlasPoint[]>([]);
 
-	type Tone = 'run' | 'prompt' | 'memory' | 'trigger' | 'action' | 'docket';
+	const imageCache = new Map<string, HTMLImageElement>();
+	const imageLoading = new Set<string>();
+	const imageFailed = new Set<string>();
+
 	type Rect = { x: number; y: number; w: number; h: number };
+	type Ring = 'self' | 'goals' | 'attention' | 'people' | 'horizon';
 	type Hotspot = Rect & {
 		label: string;
 		readout: string;
-		tone: Tone;
 		entry?: LogbookEntry;
+		point?: AtlasPoint;
 	};
 
-	const promptStrata = [
-		'identity / time / relays',
-		'goals + active observations',
-		'recent operations + discovery',
-		'author memory + episodic recall',
-		'atlas + docket + public memory'
+	const rings: { key: Ring; r: number; label: string; metric: () => number }[] = [
+		{ key: 'goals', r: 0.18, label: 'intent', metric: () => goals.length },
+		{ key: 'attention', r: 0.32, label: 'attention', metric: () => observations.length },
+		{ key: 'people', r: 0.55, label: 'people carried', metric: () => known.length },
+		{ key: 'horizon', r: 0.82, label: 'horizon', metric: () => candidates.length }
 	];
 
 	function resolve(name: string): string {
 		return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888';
 	}
 
-	function tone(t: Tone): string {
-		if (t === 'run') return resolve('--hud-hot');
-		if (t === 'prompt') return resolve('--warn');
-		if (t === 'memory') return resolve('--scan-mid');
-		if (t === 'trigger') return resolve('--text-mid');
-		if (t === 'action') return resolve('--text');
-		return resolve('--hud-mid');
+	function loadImage(url: string) {
+		if (imageCache.has(url) || imageLoading.has(url) || imageFailed.has(url)) return;
+		imageLoading.add(url);
+		const img = new Image();
+		img.onload = () => {
+			imageCache.set(url, img);
+			imageLoading.delete(url);
+			scheduleFrame();
+		};
+		img.onerror = () => {
+			imageFailed.add(url);
+			imageLoading.delete(url);
+		};
+		img.src = url;
+	}
+
+	function hashAngle(s: string): number {
+		let h = 2166136261;
+		for (let i = 0; i < s.length; i++) {
+			h ^= s.charCodeAt(i);
+			h = Math.imul(h, 16777619);
+		}
+		return (((h >>> 0) % 10000) / 10000) * Math.PI * 2;
+	}
+
+	function place(): AtlasPoint[] {
+		const out: AtlasPoint[] = [
+			{
+				id: 'phi',
+				kind: 'phi',
+				label: 'phi',
+				x: 0,
+				y: 0,
+				avatar: avatars[PHI_HANDLE] ?? null,
+				payload: {}
+			}
+		];
+
+		const sortedGoals = [...goals].sort((a, b) => a.created_at.localeCompare(b.created_at));
+		for (let i = 0; i < sortedGoals.length; i++) {
+			const goal = sortedGoals[i];
+			const angle = -Math.PI / 2 + (i / Math.max(sortedGoals.length, 1)) * Math.PI * 2;
+			out.push({
+				id: `goal-${goal.rkey}`,
+				kind: 'goal',
+				label: goal.title,
+				x: Math.cos(angle) * 0.18,
+				y: Math.sin(angle) * 0.18,
+				payload: goal
+			});
+		}
+
+		const sortedObs = [...observations].sort((a, b) => a.rkey.localeCompare(b.rkey));
+		for (let i = 0; i < sortedObs.length; i++) {
+			const obs = sortedObs[i];
+			const angle = -Math.PI / 2 + (i / Math.max(sortedObs.length, 1)) * Math.PI * 2;
+			out.push({
+				id: `obs-${obs.rkey}`,
+				kind: 'observation',
+				label: obs.content,
+				x: Math.cos(angle) * 0.32,
+				y: Math.sin(angle) * 0.32,
+				payload: obs
+			});
+		}
+
+		const knownEntries = known.filter((n) => n.type === 'user');
+		for (const node of knownEntries) {
+			const handle = node.label.replace(/^@/, '');
+			const angle =
+				node.x != null && node.y != null && (node.x !== 0 || node.y !== 0)
+					? Math.atan2(node.y, node.x)
+					: hashAngle(handle);
+			out.push({
+				id: node.id,
+				kind: 'handle-engaged',
+				label: node.label,
+				x: Math.cos(angle) * 0.55,
+				y: Math.sin(angle) * 0.55,
+				avatar: avatars[handle] ?? null,
+				payload: { handle }
+			});
+		}
+
+		const knownHandles = new Set(knownEntries.map((n) => n.label.replace(/^@/, '')));
+		const fresh = [...candidates]
+			.filter((c) => !knownHandles.has(c.handle))
+			.sort((a, b) => b.last_liked_at.localeCompare(a.last_liked_at));
+		for (let i = 0; i < fresh.length; i++) {
+			const candidate = fresh[i];
+			const angle = -Math.PI / 2 + (i / Math.max(fresh.length, 1)) * Math.PI * 2;
+			out.push({
+				id: `cand-${candidate.did}`,
+				kind: 'handle-candidate',
+				label: `@${candidate.handle}`,
+				x: Math.cos(angle) * 0.82,
+				y: Math.sin(angle) * 0.82,
+				avatar: avatars[candidate.handle] ?? null,
+				payload: { handle: candidate.handle, did: candidate.did, entry: candidate }
+			});
+		}
+
+		return out;
 	}
 
 	function scheduleFrame() {
@@ -72,90 +175,67 @@
 		void observations;
 		void known;
 		void candidates;
+		void avatars;
 		void docket;
 		void atlas;
+		const next = place();
+		for (const p of next) if (p.avatar) loadImage(p.avatar);
+		points = next;
 		scheduleFrame();
 	});
 
-	function bounds() {
-		const mobile = W < 720;
-		const padX = mobile ? 22 : 52;
-		const top = mobile ? 116 : 110;
-		const bottom = mobile ? 74 : 62;
+	function mobile(): boolean {
+		return W < 760;
+	}
+
+	function field(): Rect {
+		const mx = mobile() ? 24 : 62;
+		const top = mobile() ? 126 : 112;
+		const bottom = mobile() ? 92 : 68;
+		return { x: mx, y: top, w: W - mx * 2, h: H - top - bottom };
+	}
+
+	function center(): { x: number; y: number } {
+		const f = field();
 		return {
-			mobile,
-			x: padX,
-			y: top,
-			w: Math.max(320, W - padX * 2),
-			h: Math.max(420, H - top - bottom)
+			x: mobile() ? f.x + f.w / 2 : f.x + f.w * 0.44,
+			y: f.y + f.h * (mobile() ? 0.4 : 0.46)
 		};
 	}
 
-	function runRect(): Rect {
-		const b = bounds();
-		const w = b.mobile ? b.w * 0.78 : Math.min(420, b.w * 0.36);
-		const h = b.mobile ? 82 : 110;
-		return {
-			x: b.x + (b.w - w) / 2,
-			y: b.y + b.h * (b.mobile ? 0.38 : 0.36),
-			w,
-			h
-		};
+	function unit(): number {
+		const f = field();
+		return Math.min(f.w, f.h) * (mobile() ? 0.41 : 0.43);
 	}
 
-	function promptRect(): Rect {
-		const b = bounds();
-		const r = runRect();
-		return {
-			x: b.mobile ? b.x : r.x - 34,
-			y: b.y,
-			w: b.mobile ? b.w : r.w + 68,
-			h: b.mobile ? 142 : 154
-		};
+	function worldToScreen(x: number, y: number): [number, number] {
+		const c = center();
+		const u = unit();
+		return [c.x + x * u, c.y + y * u];
 	}
 
-	function memoryRect(): Rect {
-		const b = bounds();
-		const r = runRect();
-		return {
-			x: b.mobile ? b.x : r.x - 80,
-			y: r.y + r.h + (b.mobile ? 34 : 56),
-			w: b.mobile ? b.w : r.w + 160,
-			h: b.mobile ? 118 : 132
-		};
+	function sidePanel(): Rect {
+		const f = field();
+		if (mobile()) return { x: f.x, y: f.y + f.h - 160, w: f.w, h: 138 };
+		return { x: f.x + f.w * 0.72, y: f.y + 26, w: Math.min(360, f.w * 0.24), h: f.h - 64 };
 	}
 
-	function triggerPoints() {
-		const b = bounds();
-		const r = runRect();
-		const x = b.mobile ? b.x + 40 : b.x + Math.min(150, b.w * 0.13);
-		const baseY = b.mobile ? r.y + 18 : r.y - 18;
-		const gap = b.mobile ? (r.h - 36) / 2 : 50;
-		return [
-			{ label: 'notifications', x, y: baseY, readout: 'notifications · unread batch every poll cycle' },
-			{ label: 'cycle', x, y: baseY + gap, readout: 'cycle · scheduled integrated musing/relay/workflow pass' },
-			{ label: 'reflection', x, y: baseY + gap * 2, readout: 'reflection · daily memory and service-health pass' }
-		];
+	function chrome(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size = 10) {
+		ctx.font = `${size}px "Saira Condensed", sans-serif`;
+		ctx.fillStyle = resolve('--text-dim');
+		ctx.fillText(text.toUpperCase(), x, y);
 	}
 
-	function actionPoints() {
-		const b = bounds();
-		const r = runRect();
-		const x = b.mobile ? b.x + b.w - 40 : b.x + b.w - Math.min(150, b.w * 0.13);
-		const baseY = b.mobile ? r.y + 18 : r.y - 18;
-		const gap = b.mobile ? (r.h - 36) / 2 : 50;
-		return [
-			{ label: 'post', x, y: baseY, readout: 'posting tools · reply, like, repost, top-level post' },
-			{ label: 'state', x, y: baseY + gap, readout: 'state tools · observe, recall, goals, owner-gated mutations' },
-			{ label: 'mcp', x, y: baseY + gap * 2, readout: 'MCP tools · PDS records, publication search, prefect detail' }
-		];
+	function label(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxW: number, color = '--text-mid', size = 12) {
+		ctx.font = `${size}px "Inter", system-ui, sans-serif`;
+		ctx.fillStyle = resolve(color);
+		let out = text;
+		while (ctx.measureText(out).width > maxW && out.length > 5) out = out.slice(0, -2);
+		if (out !== text) out = `${out.slice(0, -1)}…`;
+		ctx.fillText(out, x, y);
 	}
 
-	function addHotspot(rect: Rect, toneName: Tone, label: string, readout: string, entry?: LogbookEntry) {
-		hotspots.push({ ...rect, tone: toneName, label, readout, entry });
-	}
-
-	function rounded(ctx: CanvasRenderingContext2D, r: Rect, radius = 8) {
+	function rounded(ctx: CanvasRenderingContext2D, r: Rect, radius = 7) {
 		const rr = Math.min(radius, r.w / 2, r.h / 2);
 		ctx.beginPath();
 		ctx.moveTo(r.x + rr, r.y);
@@ -170,221 +250,316 @@
 		ctx.closePath();
 	}
 
-	function chrome(ctx: CanvasRenderingContext2D, label: string, x: number, y: number, size = 10) {
-		ctx.font = `${size}px "Saira Condensed", sans-serif`;
-		ctx.fillStyle = resolve('--text-dim');
-		ctx.fillText(label.toUpperCase(), x, y);
-	}
-
-	function label(ctx: CanvasRenderingContext2D, value: string, x: number, y: number, maxW: number, color = '--text-mid', size = 12) {
-		ctx.font = `${size}px "Inter", system-ui, sans-serif`;
-		ctx.fillStyle = resolve(color);
-		let out = value;
-		while (ctx.measureText(out).width > maxW && out.length > 4) out = out.slice(0, -2);
-		if (out !== value) out = `${out.slice(0, -1)}…`;
-		ctx.fillText(out, x, y);
-	}
-
-	function drawBeam(ctx: CanvasRenderingContext2D, from: { x: number; y: number }, to: { x: number; y: number }, toneName: Tone, dashed = false) {
-		ctx.save();
-		ctx.strokeStyle = tone(toneName);
-		ctx.globalAlpha = toneName === 'run' ? 0.5 : 0.28;
-		ctx.lineWidth = toneName === 'run' ? 1.4 : 1;
-		if (dashed) ctx.setLineDash([5, 7]);
-		ctx.beginPath();
-		const dx = (to.x - from.x) * 0.45;
-		ctx.moveTo(from.x, from.y);
-		ctx.bezierCurveTo(from.x + dx, from.y, to.x - dx, to.y, to.x, to.y);
-		ctx.stroke();
-		ctx.restore();
-	}
-
-	function drawNode(ctx: CanvasRenderingContext2D, x: number, y: number, nodeLabel: string, toneName: Tone, readout: string, entry?: LogbookEntry) {
-		const r = bounds().mobile ? 16 : 19;
-		ctx.save();
-		ctx.strokeStyle = tone(toneName);
-		ctx.fillStyle = 'rgba(13, 17, 25, 0.9)';
-		ctx.lineWidth = 1.2;
-		ctx.beginPath();
-		for (let i = 0; i < 6; i++) {
-			const a = -Math.PI / 2 + (i * Math.PI) / 3;
-			const px = x + Math.cos(a) * r;
-			const py = y + Math.sin(a) * r;
-			if (i === 0) ctx.moveTo(px, py);
-			else ctx.lineTo(px, py);
-		}
-		ctx.closePath();
-		ctx.fill();
-		ctx.stroke();
-		if (!bounds().mobile) chrome(ctx, nodeLabel, x + r + 8, y + 4, 10);
-		ctx.restore();
-		addHotspot({ x: x - r, y: y - r, w: r * 2, h: r * 2 }, toneName, nodeLabel, readout, entry);
-	}
-
-	function drawPrompt(ctx: CanvasRenderingContext2D) {
-		const p = promptRect();
-		ctx.save();
-		rounded(ctx, p, 10);
-		ctx.fillStyle = 'rgba(201, 160, 90, 0.035)';
-		ctx.fill();
-		ctx.strokeStyle = 'rgba(201, 160, 90, 0.42)';
-		ctx.stroke();
-		chrome(ctx, 'prompt compositor', p.x + 14, p.y + 22, 11);
-		label(ctx, 'dynamic blocks condense into one context surface', p.x + 14, p.y + 42, p.w - 28, '--text-dim', 11);
-
-		const gap = 8;
-		const barH = Math.max(13, (p.h - 64 - gap * (promptStrata.length - 1)) / promptStrata.length);
-		let y = p.y + 56;
-		for (let i = 0; i < promptStrata.length; i++) {
-			const inset = 12 + i * 8;
-			const bar = { x: p.x + inset, y, w: p.w - inset * 2, h: barH };
-			rounded(ctx, bar, 3);
-			ctx.fillStyle = `rgba(201, 160, 90, ${0.05 + i * 0.018})`;
-			ctx.fill();
-			ctx.strokeStyle = 'rgba(201, 160, 90, 0.34)';
-			ctx.stroke();
-			if (!bounds().mobile || i % 2 === 0) {
-				label(ctx, promptStrata[i], bar.x + 9, bar.y + bar.h - 4, bar.w - 18, '--text-mid', 10);
-			}
-			addHotspot(bar, 'prompt', promptStrata[i], `[${promptStrata[i]}] prompt stratum`);
-			y += barH + gap;
-		}
-		ctx.restore();
-	}
-
-	function drawRun(ctx: CanvasRenderingContext2D) {
-		const r = runRect();
-		ctx.save();
-		const glow = ctx.createRadialGradient(r.x + r.w / 2, r.y + r.h / 2, 10, r.x + r.w / 2, r.y + r.h / 2, r.w * 0.7);
-		glow.addColorStop(0, 'rgba(224, 144, 96, 0.2)');
-		glow.addColorStop(1, 'rgba(224, 144, 96, 0)');
-		ctx.fillStyle = glow;
-		ctx.fillRect(r.x - r.w * 0.35, r.y - r.h, r.w * 1.7, r.h * 3);
-		rounded(ctx, r, 12);
-		ctx.fillStyle = 'rgba(184, 107, 58, 0.12)';
-		ctx.fill();
-		ctx.strokeStyle = resolve('--hud-hot');
-		ctx.lineWidth = 1.6;
-		ctx.stroke();
-		chrome(ctx, 'agent.run()', r.x + 18, r.y + 30, 15);
-		label(ctx, 'one loop, path-specific deps, tool calls inside the pass', r.x + 18, r.y + 58, r.w - 36, '--text-mid', 12);
-		if (!bounds().mobile) {
-			label(ctx, 'summary string only returns after the work is done', r.x + 18, r.y + 78, r.w - 36, '--text-dim', 11);
-		}
-		ctx.restore();
-		addHotspot(r, 'run', 'agent.run', 'same agent loop; entry points differ by prompt and deps');
-	}
-
-	function drawMemory(ctx: CanvasRenderingContext2D) {
-		const m = memoryRect();
-		ctx.save();
-		rounded(ctx, m, 10);
-		ctx.fillStyle = 'rgba(74, 139, 154, 0.045)';
-		ctx.fill();
-		ctx.strokeStyle = 'rgba(74, 139, 154, 0.42)';
-		ctx.stroke();
-		chrome(ctx, 'memory substrate', m.x + 14, m.y + 22, 11);
-		const parts = [
-			{ name: 'PDS', value: `${goals.length} goals · ${observations.length} observations`, entry: goals[0] ? ({ kind: 'goal', goal: goals[0] } as LogbookEntry) : undefined },
-			{ name: 'TPUF', value: `${known.length} people carried`, entry: known[0] ? ({ kind: 'handle', handle: known[0].label.replace(/^@/, ''), engaged: true, payload: {} } as LogbookEntry) : undefined },
-			{ name: 'ATLAS', value: atlas ? `${atlas.points.length} points · ${atlas.clusters_fine.length} fine` : 'pending', entry: undefined }
-		];
-		const gap = 12;
-		const cellW = (m.w - 28 - gap * (parts.length - 1)) / parts.length;
-		for (let i = 0; i < parts.length; i++) {
-			const cell = { x: m.x + 14 + i * (cellW + gap), y: m.y + 44, w: cellW, h: m.h - 58 };
-			rounded(ctx, cell, 6);
-			ctx.fillStyle = 'rgba(7, 9, 15, 0.38)';
-			ctx.fill();
-			ctx.strokeStyle = i === 2 ? 'rgba(184, 107, 58, 0.4)' : 'rgba(74, 139, 154, 0.28)';
-			ctx.stroke();
-			chrome(ctx, parts[i].name, cell.x + 10, cell.y + 21, 10);
-			label(ctx, parts[i].value, cell.x + 10, cell.y + 44, cell.w - 20, '--text-mid', 11);
-			addHotspot(cell, i === 2 ? 'docket' : 'memory', parts[i].name, `${parts[i].name} · ${parts[i].value}`, parts[i].entry);
-		}
-		ctx.restore();
-	}
-
-	function drawDocket(ctx: CanvasRenderingContext2D) {
-		const b = bounds();
-		const m = memoryRect();
-		const count = docket?.candidates.length ?? 0;
-		const r = {
-			x: b.mobile ? m.x + m.w - 112 : m.x + m.w + 22,
-			y: b.mobile ? m.y + 12 : m.y + 10,
-			w: 98,
-			h: 72
-		};
-		ctx.save();
-		rounded(ctx, r, 8);
-		ctx.fillStyle = 'rgba(184, 107, 58, 0.08)';
-		ctx.fill();
-		ctx.strokeStyle = 'rgba(224, 144, 96, 0.45)';
-		ctx.stroke();
-		chrome(ctx, 'docket', r.x + 12, r.y + 22, 11);
-		ctx.font = '24px "JetBrains Mono", monospace';
-		ctx.fillStyle = resolve('--hud-hot');
-		ctx.fillText(String(count), r.x + 12, r.y + 52);
-		label(ctx, 'pressure', r.x + 46, r.y + 49, 44, '--text-dim', 10);
-		ctx.restore();
-		const first = docket?.candidates[0];
-		addHotspot(
-			r,
-			'docket',
-			'docket',
-			first ? `docket · ${count} candidates · ${first.title}` : 'docket · no candidates loaded',
-			first ? { kind: 'docket', candidate: first } : undefined
-		);
-	}
-
-	function drawActors(ctx: CanvasRenderingContext2D) {
-		const r = runRect();
-		for (const p of triggerPoints()) {
-			drawBeam(ctx, { x: p.x + 20, y: p.y }, { x: r.x, y: r.y + r.h / 2 }, 'trigger', true);
-			drawNode(ctx, p.x, p.y, p.label, 'trigger', p.readout);
-		}
-		for (const p of actionPoints()) {
-			drawBeam(ctx, { x: r.x + r.w, y: r.y + r.h / 2 }, { x: p.x - 20, y: p.y }, 'action');
-			drawNode(ctx, p.x, p.y, p.label, 'action', p.readout);
-		}
-	}
-
-	function drawFeedback(ctx: CanvasRenderingContext2D) {
-		const p = promptRect();
-		const r = runRect();
-		const m = memoryRect();
-		drawBeam(ctx, { x: p.x + p.w / 2, y: p.y + p.h }, { x: r.x + r.w / 2, y: r.y }, 'prompt');
-		drawBeam(ctx, { x: r.x + r.w / 2, y: r.y + r.h }, { x: m.x + m.w / 2, y: m.y }, 'memory');
-		drawBeam(ctx, { x: m.x + m.w * 0.16, y: m.y }, { x: p.x + p.w * 0.12, y: p.y + p.h * 0.68 }, 'memory', true);
-	}
-
-	function drawHeader(ctx: CanvasRenderingContext2D) {
-		const b = bounds();
-		chrome(ctx, 'phi cognitive circuit', b.x, b.y - 24, 12);
-		const stats = [
-			`${goals.length} goals`,
-			`${observations.length} observations`,
-			`${known.length} people`,
-			`${candidates.length} horizon`,
-			`${docket?.candidates.length ?? 0} docket`,
-			atlas ? `${atlas.points.length} atlas points` : 'atlas pending'
-		];
-		label(ctx, stats.join(' · '), b.x, b.y - 5, b.w, '--scan-mid', 12);
-	}
-
 	function drawBackdrop(ctx: CanvasRenderingContext2D) {
-		const b = bounds();
-		const cx = b.x + b.w / 2;
-		const cy = b.y + b.h * 0.45;
+		const c = center();
+		const u = unit();
 		ctx.save();
 		ctx.strokeStyle = resolve('--grid');
 		ctx.lineWidth = 1;
-		for (let i = 1; i <= 4; i++) {
+		for (const ring of rings) {
 			ctx.beginPath();
-			ctx.ellipse(cx, cy, (b.w * i) / 8, (b.h * i) / 9, -0.08, 0, Math.PI * 2);
+			ctx.arc(c.x, c.y, ring.r * u, 0, Math.PI * 2);
+			ctx.stroke();
+		}
+		ctx.globalAlpha = 0.45;
+		ctx.beginPath();
+		ctx.moveTo(c.x - u * 0.9, c.y);
+		ctx.lineTo(c.x + u * 0.9, c.y);
+		ctx.moveTo(c.x, c.y - u * 0.9);
+		ctx.lineTo(c.x, c.y + u * 0.9);
+		ctx.stroke();
+		ctx.restore();
+	}
+
+	function drawHeader(ctx: CanvasRenderingContext2D) {
+		const f = field();
+		chrome(ctx, 'living memory field', f.x, f.y - 24, 12);
+		const stats = [
+			`${goals.length} intent`,
+			`${observations.length} attention`,
+			`${known.length} people`,
+			`${candidates.length} horizon`,
+			`${docket?.candidates.length ?? 0} public candidates`,
+			atlas ? `${atlas.points.length} atlas points` : 'atlas pending'
+		];
+		label(ctx, stats.join(' · '), f.x, f.y - 5, f.w, '--scan-mid', 12);
+	}
+
+	function drawRingLabels(ctx: CanvasRenderingContext2D) {
+		const c = center();
+		const u = unit();
+		ctx.textAlign = 'left';
+		ctx.textBaseline = 'middle';
+		for (const ring of rings) {
+			const y = c.y - ring.r * u;
+			ctx.strokeStyle = resolve('--hud-mid');
+			ctx.beginPath();
+			ctx.moveTo(c.x - 4, y);
+			ctx.lineTo(c.x + 4, y);
+			ctx.stroke();
+			chrome(ctx, `${ring.label} ${ring.metric()}`, c.x + 10, y + 1, 9);
+		}
+		ctx.textBaseline = 'alphabetic';
+	}
+
+	function radiusFor(p: AtlasPoint): number {
+		if (p.kind === 'phi') return mobile() ? 23 : 29;
+		if (p.kind === 'handle-engaged') return mobile() ? 8 : 10;
+		if (p.kind === 'handle-candidate') return mobile() ? 5 : 6;
+		if (p.kind === 'goal') return mobile() ? 7 : 8;
+		return mobile() ? 5 : 6;
+	}
+
+	function drawHexPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number) {
+		ctx.beginPath();
+		for (let i = 0; i < 6; i++) {
+			const a = -Math.PI / 2 + (i * Math.PI) / 3;
+			const x = cx + Math.cos(a) * r;
+			const y = cy + Math.sin(a) * r;
+			if (i === 0) ctx.moveTo(x, y);
+			else ctx.lineTo(x, y);
+		}
+		ctx.closePath();
+	}
+
+	function drawPhi(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, p: AtlasPoint) {
+		const glow = ctx.createRadialGradient(cx, cy, r * 0.4, cx, cy, r * 2.3);
+		glow.addColorStop(0, 'rgba(224, 144, 96, 0.35)');
+		glow.addColorStop(1, 'rgba(224, 144, 96, 0)');
+		ctx.fillStyle = glow;
+		ctx.beginPath();
+		ctx.arc(cx, cy, r * 2.3, 0, Math.PI * 2);
+		ctx.fill();
+
+		const img = p.avatar ? imageCache.get(p.avatar) : null;
+		if (img) {
+			ctx.save();
+			drawHexPath(ctx, cx, cy, r);
+			ctx.clip();
+			ctx.drawImage(img, cx - r, cy - r, r * 2, r * 2);
+			ctx.restore();
+		} else {
+			ctx.fillStyle = resolve('--hud-hot');
+			drawHexPath(ctx, cx, cy, r);
+			ctx.fill();
+		}
+		ctx.strokeStyle = resolve('--hud-hot');
+		ctx.lineWidth = 1.5;
+		drawHexPath(ctx, cx, cy, r);
+		ctx.stroke();
+		chrome(ctx, 'phi', cx - 8, cy + r + 18, 11);
+	}
+
+	function drawPoint(ctx: CanvasRenderingContext2D, p: AtlasPoint) {
+		const [cx, cy] = worldToScreen(p.x, p.y);
+		const r = radiusFor(p);
+		if (p.kind === 'phi') {
+			drawPhi(ctx, cx, cy, r, p);
+		} else if (p.kind === 'handle-engaged') {
+			const img = p.avatar ? imageCache.get(p.avatar) : null;
+			ctx.save();
+			ctx.beginPath();
+			ctx.arc(cx, cy, r, 0, Math.PI * 2);
+			if (img) {
+				ctx.clip();
+				ctx.drawImage(img, cx - r, cy - r, r * 2, r * 2);
+			} else {
+				ctx.fillStyle = resolve('--text-mid');
+				ctx.fill();
+			}
+			ctx.restore();
+			ctx.strokeStyle = img ? resolve('--text') : resolve('--text-mid');
+			ctx.lineWidth = 1.1;
+			ctx.beginPath();
+			ctx.arc(cx, cy, r, 0, Math.PI * 2);
+			ctx.stroke();
+		} else if (p.kind === 'handle-candidate') {
+			ctx.strokeStyle = resolve('--text-dim');
+			ctx.setLineDash([2, 2]);
+			ctx.beginPath();
+			ctx.arc(cx, cy, r, 0, Math.PI * 2);
+			ctx.stroke();
+			ctx.setLineDash([]);
+		} else {
+			ctx.fillStyle = resolve(p.kind === 'goal' ? '--warn' : '--scan-mid');
+			drawHexPath(ctx, cx, cy, r);
+			ctx.fill();
+		}
+		hotspots.push({
+			x: cx - r - 7,
+			y: cy - r - 7,
+			w: (r + 7) * 2,
+			h: (r + 7) * 2,
+			label: p.label,
+			readout: readoutFor(p),
+			entry: entryFor(p) ?? undefined,
+			point: p
+		});
+	}
+
+	function drawSpokes(ctx: CanvasRenderingContext2D) {
+		const c = center();
+		ctx.strokeStyle = resolve('--line-dim');
+		ctx.lineWidth = 1;
+		for (const p of points) {
+			if (p.kind !== 'goal' && p.kind !== 'observation') continue;
+			const [x, y] = worldToScreen(p.x, p.y);
+			ctx.beginPath();
+			ctx.moveTo(c.x, c.y);
+			ctx.lineTo(x, y);
+			ctx.stroke();
+		}
+	}
+
+	function drawCycle(ctx: CanvasRenderingContext2D) {
+		const c = center();
+		const u = unit();
+		const y = c.y + u * 0.72;
+		const steps = mobile()
+			? [
+					{ x: c.x - u * 0.42, label: 'signals' },
+					{ x: c.x, label: 'pass' },
+					{ x: c.x + u * 0.42, label: 'memory' }
+				]
+			: [
+					{ x: c.x - u * 0.72, label: 'signals' },
+					{ x: c.x - u * 0.24, label: 'attend' },
+					{ x: c.x + u * 0.24, label: 'remember' },
+					{ x: c.x + u * 0.72, label: 'publish' }
+				];
+		ctx.save();
+		ctx.strokeStyle = 'rgba(224, 144, 96, 0.24)';
+		ctx.fillStyle = 'rgba(7, 9, 15, 0.66)';
+		for (let i = 0; i < steps.length; i++) {
+			if (i > 0) {
+				ctx.beginPath();
+				ctx.moveTo(steps[i - 1].x + 28, y);
+				ctx.lineTo(steps[i].x - 28, y);
+				ctx.stroke();
+			}
+			const r = { x: steps[i].x - 30, y: y - 15, w: 60, h: 30 };
+			rounded(ctx, r, 4);
+			ctx.fillStyle = 'rgba(7, 9, 15, 0.66)';
+			ctx.fill();
+			ctx.strokeStyle = 'rgba(224, 144, 96, 0.24)';
+			ctx.stroke();
+			chrome(ctx, steps[i].label, r.x + 10, r.y + 19, 9);
+		}
+		ctx.restore();
+	}
+
+	function drawStores(ctx: CanvasRenderingContext2D) {
+		const p = sidePanel();
+		ctx.save();
+		rounded(ctx, p, 8);
+		ctx.fillStyle = 'rgba(9, 13, 20, 0.66)';
+		ctx.fill();
+		ctx.strokeStyle = 'rgba(74, 139, 154, 0.32)';
+		ctx.stroke();
+		chrome(ctx, 'under the field', p.x + 14, p.y + 24, 11);
+		label(ctx, 'click a store to inspect what it carries', p.x + 14, p.y + 45, p.w - 28, '--text-dim', 11);
+
+		const docketCount = docket?.candidates.length ?? 0;
+		const rows = [
+			{
+				title: 'PDS state',
+				value: `${goals.length} goals · ${observations.length} observations`,
+				entry: { kind: 'store', store: 'pds', goals, observations } as LogbookEntry
+			},
+			{
+				title: 'people memory',
+				value: `${known.length} profiles with carried context`,
+				entry: { kind: 'store', store: 'memory', known } as LogbookEntry
+			},
+			{
+				title: 'atlas',
+				value: atlas ? `${atlas.points.length} points · ${atlas.clusters_fine.length} fine clusters` : 'pending',
+				entry: { kind: 'store', store: 'atlas', atlas } as LogbookEntry
+			},
+			{
+				title: 'public candidates',
+				value: `${docketCount} candidates from private evidence`,
+				entry: docket ? ({ kind: 'docket-list', docket } as LogbookEntry) : undefined
+			}
+		];
+		const rowH = mobile() ? 22 : 52;
+		const gap = mobile() ? 7 : 10;
+		let y = p.y + (mobile() ? 58 : 66);
+		for (const row of rows) {
+			const r = { x: p.x + 14, y, w: p.w - 28, h: rowH };
+			rounded(ctx, r, 5);
+			ctx.fillStyle = 'rgba(4, 7, 12, 0.42)';
+			ctx.fill();
+			ctx.strokeStyle = row.title === 'public candidates' ? 'rgba(224, 144, 96, 0.42)' : 'rgba(74, 139, 154, 0.22)';
+			ctx.stroke();
+			chrome(ctx, row.title, r.x + 10, r.y + (mobile() ? 15 : 18), 9);
+			if (!mobile()) label(ctx, row.value, r.x + 10, r.y + 38, r.w - 20, '--text-mid', 11);
+			hotspots.push({
+				...r,
+				label: row.title,
+				readout: `${row.title} · ${row.value}`,
+				entry: row.entry
+			});
+			y += rowH + gap;
+		}
+		ctx.restore();
+	}
+
+	function drawReticle(ctx: CanvasRenderingContext2D, h: Hotspot) {
+		ctx.save();
+		if (h.point) {
+			const [cx, cy] = worldToScreen(h.point.x, h.point.y);
+			const r = radiusFor(h.point) + 6;
+			const arm = 7;
+			ctx.strokeStyle = resolve('--hud-hot');
+			ctx.lineWidth = 1.2;
+			for (const [sx, sy] of [
+				[-1, -1],
+				[1, -1],
+				[-1, 1],
+				[1, 1]
+			]) {
+				const x = cx + sx * r;
+				const y = cy + sy * r;
+				ctx.beginPath();
+				ctx.moveTo(x, y - sy * arm);
+				ctx.lineTo(x, y);
+				ctx.lineTo(x - sx * arm, y);
+				ctx.stroke();
+			}
+		} else {
+			rounded(ctx, h, 6);
+			ctx.strokeStyle = resolve('--hud-hot');
+			ctx.lineWidth = 1.4;
 			ctx.stroke();
 		}
 		ctx.restore();
+	}
+
+	function readoutFor(p: AtlasPoint): string {
+		const labels: Record<string, string> = {
+			phi: 'self',
+			'handle-engaged': 'person in memory',
+			'handle-candidate': 'person on horizon',
+			goal: 'intent',
+			observation: 'active attention'
+		};
+		return `${labels[p.kind] ?? p.kind} · ${p.label}`;
+	}
+
+	function entryFor(p: AtlasPoint): LogbookEntry | null {
+		if (p.kind === 'phi') return null;
+		if (p.kind === 'handle-engaged') {
+			const payload = p.payload as { handle: string };
+			return { kind: 'handle', handle: payload.handle, engaged: true, payload };
+		}
+		if (p.kind === 'handle-candidate') {
+			const payload = p.payload as { entry: DiscoveryEntry };
+			return { kind: 'discovery', entry: payload.entry };
+		}
+		if (p.kind === 'goal') return { kind: 'goal', goal: p.payload as Goal };
+		if (p.kind === 'observation') return { kind: 'observation', observation: p.payload as Observation };
+		return null;
 	}
 
 	function draw() {
@@ -398,22 +573,12 @@
 		ctx.clearRect(0, 0, W, H);
 		drawBackdrop(ctx);
 		drawHeader(ctx);
-		drawPrompt(ctx);
-		drawMemory(ctx);
-		drawRun(ctx);
-		drawFeedback(ctx);
-		drawActors(ctx);
-		drawDocket(ctx);
-		if (hovered) drawHover(ctx, hovered);
-		ctx.restore();
-	}
-
-	function drawHover(ctx: CanvasRenderingContext2D, h: Hotspot) {
-		ctx.save();
-		rounded(ctx, h, 8);
-		ctx.strokeStyle = resolve('--hud-hot');
-		ctx.lineWidth = 1.5;
-		ctx.stroke();
+		drawSpokes(ctx);
+		for (const p of points) drawPoint(ctx, p);
+		drawRingLabels(ctx);
+		drawCycle(ctx);
+		drawStores(ctx);
+		if (hovered) drawReticle(ctx, hovered);
 		ctx.restore();
 	}
 

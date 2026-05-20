@@ -9,7 +9,10 @@
 		ActivityItem,
 		BlogDoc,
 		DocketCandidate,
+		Docket,
 		DiscoveryEntry,
+		GraphNode,
+		Atlas,
 		UserView
 	} from '$lib/types';
 
@@ -97,6 +100,7 @@
 		<header>
 			<div class="kind chrome">
 				{#if entry.kind === 'handle'}{entry.engaged ? 'in my memory' : 'on my radar'}{:else if entry.kind === 'observation'}attention{:else if entry.kind === 'goal'}goal{:else if entry.kind === 'docket'}promotion pressure{:else if entry.kind === 'activity'}emission · {entry.item.type}{:else if entry.kind === 'blog'}long form{:else if entry.kind === 'discovery'}on my radar{/if}
+				{#if entry.kind === 'docket-list'}public candidates{:else if entry.kind === 'store'}memory store{/if}
 			</div>
 			<button class="close chrome" onclick={close} aria-label="close">close · esc</button>
 		</header>
@@ -255,9 +259,12 @@
 				</div>
 				<div class="hist-cell">
 					<div class="hist-num mono">{docket.candidate.suggested_shape}</div>
-					<div class="hist-lbl chrome">shape</div>
+					<div class="hist-lbl chrome">form</div>
 				</div>
 			</div>
+			<p class="muted">
+				Form is the suggested way this private pattern might become public work.
+			</p>
 			{#if docket.candidate.private_evidence.length > 0}
 				<div class="block">
 					<div class="block-label chrome">private evidence</div>
@@ -276,6 +283,164 @@
 					<div class="block-label chrome">tags</div>
 					<div class="tags mono">{docket.candidate.related_tags.join(' · ')}</div>
 				</div>
+			{/if}
+		{:else if entry.kind === 'docket-list'}
+			{@const docketList = entry as { kind: 'docket-list'; docket: Docket }}
+			<h1>public candidates</h1>
+			<p class="muted">
+				Private atlas evidence that may be ready to become public work. The form is a suggestion
+				for how to publish it, such as a thread, note, reply, or longer piece.
+			</p>
+			<div class="hist">
+				<div class="hist-cell">
+					<div class="hist-num mono">{docketList.docket.candidates.length}</div>
+					<div class="hist-lbl chrome">candidates</div>
+				</div>
+				<div class="hist-cell">
+					<div class="hist-num mono">{docketList.docket.atlas_point_count}</div>
+					<div class="hist-lbl chrome">atlas points</div>
+				</div>
+				<div class="hist-cell">
+					<div class="hist-num mono">{docketList.docket.generated_at.slice(5, 10)}</div>
+					<div class="hist-lbl chrome">generated</div>
+				</div>
+			</div>
+			<div class="block">
+				<div class="block-label chrome">ranked work</div>
+				<ul class="obs-list">
+					{#each docketList.docket.candidates as candidate (candidate.id)}
+						<li class="obs">
+							<div class="obs-text">{candidate.title}</div>
+							<div class="obs-meta faint">
+								<span>{candidate.private_evidence.length} private</span>
+								<span>{candidate.existing_public_anchors.length} public</span>
+								<span>form: {candidate.suggested_shape}</span>
+							</div>
+						</li>
+					{/each}
+				</ul>
+			</div>
+		{:else if entry.kind === 'store'}
+			{@const store = entry as {
+				kind: 'store';
+				store: 'pds' | 'memory' | 'atlas';
+				goals?: Goal[];
+				observations?: Observation[];
+				known?: GraphNode[];
+				atlas?: Atlas | null;
+			}}
+			{#if store.store === 'pds'}
+				<h1>PDS state</h1>
+				<p class="muted">
+					Small durable records that phi carries into future runs: explicit goals and active
+					observations.
+				</p>
+				<div class="hist">
+					<div class="hist-cell">
+						<div class="hist-num mono">{store.goals?.length ?? 0}</div>
+						<div class="hist-lbl chrome">goals</div>
+					</div>
+					<div class="hist-cell">
+						<div class="hist-num mono">{store.observations?.length ?? 0}</div>
+						<div class="hist-lbl chrome">attention</div>
+					</div>
+					<div class="hist-cell">
+						<div class="hist-num mono">PDS</div>
+						<div class="hist-lbl chrome">source</div>
+					</div>
+				</div>
+				{#if store.goals && store.goals.length > 0}
+					<div class="block">
+						<div class="block-label chrome">intent</div>
+						<ul class="obs-list">
+							{#each store.goals as goal (goal.rkey)}
+								<li class="obs">
+									<div class="obs-text">{goal.title}</div>
+									<div class="obs-meta faint">{goal.description}</div>
+								</li>
+							{/each}
+						</ul>
+					</div>
+				{/if}
+				{#if store.observations && store.observations.length > 0}
+					<div class="block">
+						<div class="block-label chrome">attention</div>
+						<ul class="obs-list">
+							{#each store.observations as obs (obs.rkey)}
+								<li class="obs">
+									<div class="obs-text">{obs.content}</div>
+									<div class="obs-meta faint">{obs.reasoning}</div>
+								</li>
+							{/each}
+						</ul>
+					</div>
+				{/if}
+			{:else if store.store === 'memory'}
+				<h1>people memory</h1>
+				<p class="muted">
+					Turbopuffer-backed carried context about people phi has noticed, replied to, or
+					remembered.
+				</p>
+				<div class="hist">
+					<div class="hist-cell">
+						<div class="hist-num mono">{store.known?.length ?? 0}</div>
+						<div class="hist-lbl chrome">people</div>
+					</div>
+					<div class="hist-cell">
+						<div class="hist-num mono">TPUF</div>
+						<div class="hist-lbl chrome">source</div>
+					</div>
+					<div class="hist-cell">
+						<div class="hist-num mono">graph</div>
+						<div class="hist-lbl chrome">view</div>
+					</div>
+				</div>
+				{#if store.known && store.known.length > 0}
+					<div class="block">
+						<div class="block-label chrome">sample</div>
+						<ul class="obs-list">
+							{#each store.known.slice(0, 18) as node (node.id)}
+								<li class="obs">
+									<div class="obs-text">{node.label}</div>
+									<div class="obs-meta faint">click their point in the field for the full memory drawer</div>
+								</li>
+							{/each}
+						</ul>
+					</div>
+				{/if}
+			{:else}
+				<h1>atlas</h1>
+				<p class="muted">
+					The large daily blob: clustered private points used to find patterns and promote
+					candidates into public work.
+				</p>
+				<div class="hist">
+					<div class="hist-cell">
+						<div class="hist-num mono">{store.atlas?.points.length ?? 0}</div>
+						<div class="hist-lbl chrome">points</div>
+					</div>
+					<div class="hist-cell">
+						<div class="hist-num mono">{store.atlas?.clusters_coarse.length ?? 0}</div>
+						<div class="hist-lbl chrome">coarse</div>
+					</div>
+					<div class="hist-cell">
+						<div class="hist-num mono">{store.atlas?.clusters_fine.length ?? 0}</div>
+						<div class="hist-lbl chrome">fine</div>
+					</div>
+				</div>
+				{#if store.atlas?.clusters_fine?.length}
+					<div class="block">
+						<div class="block-label chrome">largest fine clusters</div>
+						<ul class="obs-list">
+							{#each [...store.atlas.clusters_fine].sort((a, b) => (b.count ?? 0) - (a.count ?? 0)).slice(0, 12) as cluster (cluster.id)}
+								<li class="obs">
+									<div class="obs-text">{cluster.label ?? `cluster ${cluster.id}`}</div>
+									<div class="obs-meta faint">{cluster.count ?? 0} points</div>
+								</li>
+							{/each}
+						</ul>
+					</div>
+				{/if}
 			{/if}
 		{:else if entry.kind === 'activity'}
 			{@const act = entry as { kind: 'activity'; item: ActivityItem }}
