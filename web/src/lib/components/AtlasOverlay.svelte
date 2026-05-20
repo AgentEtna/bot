@@ -26,8 +26,15 @@
 	let selected = $state<Point | null>(null);
 	let dragging = false;
 	let dragStart = { x: 0, y: 0, panX: 0, panY: 0 };
+	let pinchStart: {
+		distance: number;
+		zoom: number;
+		focalX: number;
+		focalY: number;
+	} | null = null;
 	let moved = false;
 	let ro: ResizeObserver | null = null;
+	const activePointers = new Map<number, { x: number; y: number }>();
 
 	const minZoom = 0.72;
 	const maxZoom = 18;
@@ -98,9 +105,9 @@
 
 	function updateScale() {
 		if (!bounds) return;
-		const sidePad = W < 760 ? 28 : 76;
-		const topPad = W < 760 ? 92 : 74;
-		const bottomPad = W < 760 ? 178 : 92;
+		const sidePad = W < 760 ? 18 : 76;
+		const topPad = W < 760 ? 78 : 74;
+		const bottomPad = W < 760 ? 112 : 92;
 		scale = Math.min(
 			(W - sidePad * 2) / (bounds.maxX - bounds.minX),
 			(H - topPad - bottomPad) / (bounds.maxY - bounds.minY)
@@ -247,8 +254,8 @@
 				drawn++;
 			}
 		};
-		drawSet(atlas.clusters_coarse, coarseAlpha, W < 760 ? 10 : 13, W < 760 ? 8 : 18);
-		drawSet(atlas.clusters_fine, fineAlpha, W < 760 ? 9 : 11, W < 760 ? 14 : 34);
+		drawSet(atlas.clusters_coarse, coarseAlpha, W < 760 ? 9 : 13, W < 760 ? 4 : 18);
+		drawSet(atlas.clusters_fine, fineAlpha, W < 760 ? 8 : 11, W < 760 ? 8 : 34);
 	}
 
 	function drawPointLabels(ctx: CanvasRenderingContext2D) {
@@ -326,7 +333,8 @@
 	function nearest(x: number, y: number): Point | null {
 		let best: Point | null = null;
 		let bestD = Infinity;
-		const maxD = Math.max(10, 18 / Math.max(0.6, view.zoom));
+		const coarseTouch = W < 760 ? 24 : 10;
+		const maxD = Math.max(coarseTouch, (W < 760 ? 34 : 18) / Math.max(0.6, view.zoom));
 		for (const p of atlas.points) {
 			if (typeof p.x !== 'number' || typeof p.y !== 'number') continue;
 			const [sx, sy] = dataToScreen(p.x, p.y);
@@ -353,15 +361,70 @@
 		scheduleFrame();
 	}
 
+	function pointerMidpoint(): { x: number; y: number } | null {
+		const pointers = [...activePointers.values()];
+		if (pointers.length < 2) return null;
+		return {
+			x: (pointers[0].x + pointers[1].x) / 2,
+			y: (pointers[0].y + pointers[1].y) / 2
+		};
+	}
+
+	function pointerDistance(): number {
+		const pointers = [...activePointers.values()];
+		if (pointers.length < 2) return 0;
+		return Math.hypot(pointers[0].x - pointers[1].x, pointers[0].y - pointers[1].y);
+	}
+
+	function startPinch() {
+		const mid = pointerMidpoint();
+		if (!mid) return;
+		const [focalX, focalY] = screenToData(mid.x, mid.y);
+		pinchStart = {
+			distance: Math.max(1, pointerDistance()),
+			zoom: view.zoom,
+			focalX,
+			focalY
+		};
+		dragging = false;
+	}
+
+	function focusDataAtScreen(dataX: number, dataY: number, screenX: number, screenY: number) {
+		if (!bounds) return;
+		view.panX = (screenX - W / 2) / (scale * view.zoom) + bounds.cx - dataX;
+		view.panY = -(screenY - H / 2) / (scale * view.zoom) + bounds.cy - dataY;
+	}
+
 	function onPointerDown(e: PointerEvent) {
+		e.preventDefault();
 		canvas.setPointerCapture(e.pointerId);
-		dragging = true;
+		const rect = canvas.getBoundingClientRect();
+		activePointers.set(e.pointerId, { x: e.clientX - rect.left, y: e.clientY - rect.top });
 		moved = false;
+		if (activePointers.size >= 2) {
+			startPinch();
+			return;
+		}
+		dragging = true;
 		dragStart = { x: e.clientX, y: e.clientY, panX: view.panX, panY: view.panY };
 	}
 
 	function onPointerMove(e: PointerEvent) {
 		const rect = canvas.getBoundingClientRect();
+		if (activePointers.has(e.pointerId)) {
+			activePointers.set(e.pointerId, { x: e.clientX - rect.left, y: e.clientY - rect.top });
+		}
+		if (activePointers.size >= 2 && pinchStart) {
+			const mid = pointerMidpoint();
+			const distance = pointerDistance();
+			if (!mid || distance <= 0) return;
+			view.zoom = Math.max(minZoom, Math.min(maxZoom, pinchStart.zoom * (distance / pinchStart.distance)));
+			focusDataAtScreen(pinchStart.focalX, pinchStart.focalY, mid.x, mid.y);
+			moved = true;
+			hover = null;
+			scheduleFrame();
+			return;
+		}
 		if (dragging) {
 			const dx = e.clientX - dragStart.x;
 			const dy = e.clientY - dragStart.y;
@@ -381,10 +444,25 @@
 
 	function onPointerUp(e: PointerEvent) {
 		if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
-		dragging = false;
+		activePointers.delete(e.pointerId);
+		if (activePointers.size >= 2) {
+			startPinch();
+			return;
+		}
+		pinchStart = null;
+		dragging = activePointers.size === 1;
 		const rect = canvas.getBoundingClientRect();
 		const p = nearest(e.clientX - rect.left, e.clientY - rect.top);
 		if (!moved && p) selected = p;
+		if (dragging) {
+			const remaining = [...activePointers.values()][0];
+			dragStart = {
+				x: remaining.x + rect.left,
+				y: remaining.y + rect.top,
+				panX: view.panX,
+				panY: view.panY
+			};
+		}
 		scheduleFrame();
 	}
 
@@ -420,6 +498,7 @@
 
 	onDestroy(() => {
 		ro?.disconnect();
+		activePointers.clear();
 		window.removeEventListener('keydown', handleKey);
 	});
 </script>
@@ -433,7 +512,7 @@
 		onpointerup={onPointerUp}
 		onpointercancel={onPointerUp}
 		onpointerleave={() => {
-			if (!dragging) {
+			if (!dragging && activePointers.size === 0) {
 				hover = null;
 				scheduleFrame();
 			}
@@ -447,7 +526,7 @@
 				{atlas.points.length} points · {atlas.clusters_coarse.length} regions · {atlas.clusters_fine.length} clusters · {view.zoom.toFixed(1)}x
 			</div>
 		</div>
-		<button class="close chrome" onclick={onClose}>close · esc</button>
+		<button class="close chrome" onclick={onClose}>close<span class="esc-hint"> · esc</span></button>
 	</header>
 
 	<div class="legend" aria-label="atlas point kinds">
@@ -486,6 +565,8 @@
 		background: #020408;
 		color: var(--text);
 		animation: bloom 180ms ease-out;
+		overflow: hidden;
+		overscroll-behavior: none;
 	}
 
 	canvas {
@@ -601,22 +682,66 @@
 
 	@media (max-width: 760px) {
 		.atlas-hud {
-			top: 14px;
-			left: 14px;
-			right: 14px;
+			top: max(10px, env(safe-area-inset-top));
+			left: 10px;
+			right: 10px;
+			align-items: center;
+			gap: 10px;
+		}
+
+		.chrome {
+			font-size: 10px;
+			letter-spacing: 0.13em;
+		}
+
+		.meta {
+			font-size: 10px;
+			max-width: 230px;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+
+		.close {
+			min-width: 44px;
+			min-height: 36px;
+			padding: 6px 9px;
+		}
+
+		.esc-hint {
+			display: none;
 		}
 
 		.legend {
-			left: 14px;
-			right: 14px;
-			bottom: 14px;
+			left: 10px;
+			right: 10px;
+			bottom: max(10px, env(safe-area-inset-bottom));
 			max-width: none;
+			flex-wrap: nowrap;
+			overflow-x: auto;
+			overflow-y: hidden;
+			padding: 8px 10px;
+			scrollbar-width: none;
+			-webkit-overflow-scrolling: touch;
+		}
+
+		.legend::-webkit-scrollbar {
+			display: none;
 		}
 
 		.readout {
-			right: 14px;
-			bottom: 96px;
-			width: calc(100vw - 28px);
+			left: 10px;
+			right: 10px;
+			bottom: calc(max(10px, env(safe-area-inset-bottom)) + 48px);
+			width: auto;
+			max-height: min(34vh, 220px);
+			overflow: auto;
+			padding: 12px 13px;
+		}
+
+		.readout-title {
+			font-size: 13px;
+			line-height: 1.35;
 		}
 	}
 
