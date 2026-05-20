@@ -224,7 +224,8 @@
 
 	function drawClusterLabels(ctx: CanvasRenderingContext2D) {
 		const coarseAlpha = Math.max(0, 1 - Math.max(0, view.zoom - 1.55) / 0.8);
-		const fineAlpha = Math.min(1, Math.max(0, (view.zoom - 1.55) / 0.8)) * Math.max(0, 1 - Math.max(0, view.zoom - 5) / 1.2);
+		const fineStart = W < 760 ? 2.35 : 1.55;
+		const fineAlpha = Math.min(1, Math.max(0, (view.zoom - fineStart) / 0.8)) * Math.max(0, 1 - Math.max(0, view.zoom - 5) / 1.2);
 		const placed: { x: number; y: number; w: number; h: number }[] = [];
 		const canPlace = (x: number, y: number, w: number, h: number) => {
 			const box = { x: x - w / 2, y: y - h / 2, w, h };
@@ -246,16 +247,18 @@
 				if (drawn >= max) break;
 				if (!cl.label || typeof cl.x !== 'number' || typeof cl.y !== 'number') continue;
 				const [x, y] = dataToScreen(cl.x, cl.y);
-				if (x < 28 || x > W - 28 || y < 56 || y > H - 140) continue;
-				const text = cl.label.toUpperCase();
+				if (x < 28 || x > W - 28 || y < (W < 760 ? 94 : 56) || y > H - 140) continue;
+				const maxChars = W < 760 ? 22 : 36;
+				const raw = cl.label.toUpperCase();
+				const text = raw.length > maxChars ? `${raw.slice(0, maxChars - 1)}…` : raw;
 				const tw = ctx.measureText(text).width;
 				if (!canPlace(x, y, tw, size + 4)) continue;
-				label(ctx, text, x, y, 36);
+				label(ctx, text, x, y, maxChars);
 				drawn++;
 			}
 		};
-		drawSet(atlas.clusters_coarse, coarseAlpha, W < 760 ? 9 : 13, W < 760 ? 4 : 18);
-		drawSet(atlas.clusters_fine, fineAlpha, W < 760 ? 8 : 11, W < 760 ? 8 : 34);
+		drawSet(atlas.clusters_coarse, coarseAlpha, W < 760 ? 8 : 13, W < 760 ? 2 : 18);
+		drawSet(atlas.clusters_fine, fineAlpha, W < 760 ? 8 : 11, W < 760 ? 4 : 34);
 	}
 
 	function drawPointLabels(ctx: CanvasRenderingContext2D) {
@@ -696,10 +699,10 @@
 
 		.meta {
 			font-size: 10px;
-			max-width: 230px;
-			white-space: nowrap;
+			max-width: calc(100vw - 108px);
+			white-space: normal;
 			overflow: hidden;
-			text-overflow: ellipsis;
+			line-height: 1.3;
 		}
 
 		.close {
