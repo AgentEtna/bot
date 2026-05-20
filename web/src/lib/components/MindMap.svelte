@@ -1005,15 +1005,17 @@
 							style={`left:${p.sx}%;top:${p.sy}%;--dot:${p.color};`}
 						></span>
 					{/each}
-					{#each atlasClusterPreview as cl (cl.id)}
-						<span class="cluster-label chrome" style={`left:${cl.sx}%;top:${cl.sy}%;`}>
-							{cl.label}
-						</span>
-					{/each}
 				{:else}
 					<div class="atlas-empty chrome">waiting for atlas</div>
 				{/if}
 			</div>
+			{#if atlasClusterPreview.length > 0}
+				<div class="cluster-chips">
+					{#each atlasClusterPreview.slice(0, 2) as cl (cl.id)}
+						<span class="cluster-chip chrome">{cl.label}</span>
+					{/each}
+				</div>
+			{/if}
 		</button>
 
 		<section class="mobile-panel">
@@ -1267,7 +1269,7 @@
 		.atlas-card {
 			display: flex;
 			flex-direction: column;
-			min-height: 300px;
+			min-height: 322px;
 			padding: 0;
 			color: inherit;
 			text-align: left;
@@ -1298,7 +1300,7 @@
 
 		.atlas-phone-map {
 			position: relative;
-			height: 214px;
+			height: 202px;
 			margin: 0 10px 10px;
 			overflow: hidden;
 			border: 1px solid rgba(74, 139, 154, 0.26);
@@ -1325,15 +1327,24 @@
 			opacity: 0.95;
 		}
 
-		.cluster-label {
-			position: absolute;
-			max-width: 132px;
-			transform: translate(-50%, -50%);
-			color: rgba(214, 210, 201, 0.78);
+		.cluster-chips {
+			display: flex;
+			gap: 7px;
+			padding: 0 10px 10px;
+			overflow: hidden;
+		}
+
+		.cluster-chip {
+			min-width: 0;
+			max-width: 50%;
+			padding: 5px 8px;
+			border: 1px solid rgba(224, 144, 96, 0.24);
+			background: rgba(4, 7, 12, 0.52);
+			color: var(--text-mid);
 			font-size: 9px;
-			line-height: 1;
-			text-align: center;
-			text-shadow: 0 1px 5px #000;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
 		}
 
 		.atlas-empty {
