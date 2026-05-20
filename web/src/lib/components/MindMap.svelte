@@ -35,10 +35,18 @@
 	let hotspots = $state<Hotspot[]>([]);
 	let points = $state<AtlasPoint[]>([]);
 	let atlasExpanded = $state(false);
+	let view = $state({ zoom: 1, panX: 0, panY: 0 });
+	let dragging = false;
+	let moved = false;
+	let dragStart = { x: 0, y: 0, panX: 0, panY: 0 };
+	let pinchStart: { distance: number; zoom: number; focalX: number; focalY: number } | null = null;
 
 	const imageCache = new Map<string, HTMLImageElement>();
 	const imageLoading = new Set<string>();
 	const imageFailed = new Set<string>();
+	const activePointers = new Map<number, { x: number; y: number }>();
+	const minZoom = 0.82;
+	const maxZoom = 5.5;
 
 	type Rect = { x: number; y: number; w: number; h: number };
 	type Ring = 'self' | 'goals' | 'attention' | 'people' | 'horizon';
@@ -244,10 +252,10 @@
 	}
 
 	function field(): Rect {
+		if (mobile()) return { x: 18, y: 18, w: W - 36, h: H - 36 };
 		const mx = mobile() ? 18 : 62;
 		const top = mobile() ? 136 : 112;
 		const bottom = mobile() ? 244 : 68;
-		if (mobile()) return { x: mx, y: top, w: W - mx * 2, h: H - top - bottom };
 		const panel = sidePanel();
 		return { x: mx, y: top, w: panel.x - mx - 58, h: H - top - bottom };
 	}
@@ -268,7 +276,27 @@
 	function worldToScreen(x: number, y: number): [number, number] {
 		const c = center();
 		const u = unit();
-		return [c.x + x * u, c.y + y * u];
+		return [c.x + (x + view.panX) * u * view.zoom, c.y + (y + view.panY) * u * view.zoom];
+	}
+
+	function screenToWorld(x: number, y: number): [number, number] {
+		const c = center();
+		const u = unit();
+		return [(x - c.x) / (u * view.zoom) - view.panX, (y - c.y) / (u * view.zoom) - view.panY];
+	}
+
+	function focusWorldAtScreen(worldX: number, worldY: number, screenX: number, screenY: number) {
+		const c = center();
+		const u = unit();
+		view.panX = (screenX - c.x) / (u * view.zoom) - worldX;
+		view.panY = (screenY - c.y) / (u * view.zoom) - worldY;
+	}
+
+	function viewCenter(): { x: number; y: number } {
+		return {
+			x: center().x + view.panX * unit() * view.zoom,
+			y: center().y + view.panY * unit() * view.zoom
+		};
 	}
 
 	function sidePanel(): Rect {
@@ -317,8 +345,8 @@
 	}
 
 	function drawBackdrop(ctx: CanvasRenderingContext2D) {
-		const c = center();
-		const u = unit();
+		const c = viewCenter();
+		const u = unit() * view.zoom;
 		ctx.save();
 		ctx.strokeStyle = resolve('--grid');
 		ctx.lineWidth = 1;
@@ -354,8 +382,8 @@
 
 	function drawRingLabels(ctx: CanvasRenderingContext2D) {
 		if (mobile()) return;
-		const c = center();
-		const u = unit();
+		const c = viewCenter();
+		const u = unit() * view.zoom;
 		ctx.textAlign = 'left';
 		ctx.textBaseline = 'middle';
 		for (const ring of rings) {
@@ -372,10 +400,11 @@
 
 	function radiusFor(p: AtlasPoint): number {
 		if (p.kind === 'phi') return mobile() ? 20 : 29;
-		if (p.kind === 'handle-engaged') return mobile() ? 6.5 : 10;
-		if (p.kind === 'handle-candidate') return mobile() ? 4 : 6;
-		if (p.kind === 'goal') return mobile() ? 6 : 8;
-		return mobile() ? 4.5 : 6;
+		const z = Math.min(1.8, Math.sqrt(view.zoom));
+		if (p.kind === 'handle-engaged') return (mobile() ? 6.5 : 10) * z;
+		if (p.kind === 'handle-candidate') return (mobile() ? 4 : 6) * z;
+		if (p.kind === 'goal') return (mobile() ? 6 : 8) * z;
+		return (mobile() ? 4.5 : 6) * z;
 	}
 
 	function drawHexPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number) {
@@ -466,14 +495,14 @@
 	}
 
 	function drawSpokes(ctx: CanvasRenderingContext2D) {
-		const c = center();
+		const [cx, cy] = worldToScreen(0, 0);
 		ctx.strokeStyle = resolve('--line-dim');
 		ctx.lineWidth = 1;
 		for (const p of points) {
 			if (p.kind !== 'goal' && p.kind !== 'observation') continue;
 			const [x, y] = worldToScreen(p.x, p.y);
 			ctx.beginPath();
-			ctx.moveTo(c.x, c.y);
+			ctx.moveTo(cx, cy);
 			ctx.lineTo(x, y);
 			ctx.stroke();
 		}
@@ -845,11 +874,11 @@
 		ctx.scale(dpr, dpr);
 		ctx.clearRect(0, 0, W, H);
 		drawBackdrop(ctx);
-		drawHeader(ctx);
+		if (!mobile()) drawHeader(ctx);
 		drawSpokes(ctx);
 		for (const p of points) drawPoint(ctx, p);
 		drawRingLabels(ctx);
-		drawStores(ctx);
+		if (!mobile()) drawStores(ctx);
 		if (hovered) drawReticle(ctx, hovered);
 		ctx.restore();
 	}
@@ -864,16 +893,115 @@
 
 	function onPointerMove(e: PointerEvent) {
 		const rect = canvas.getBoundingClientRect();
-		const h = hit(e.clientX - rect.left, e.clientY - rect.top);
+		const mx = e.clientX - rect.left;
+		const my = e.clientY - rect.top;
+		if (activePointers.has(e.pointerId)) activePointers.set(e.pointerId, { x: mx, y: my });
+		if (activePointers.size >= 2 && pinchStart) {
+			const mid = pointerMidpoint();
+			const distance = pointerDistance();
+			if (!mid || distance <= 0) return;
+			view.zoom = Math.max(minZoom, Math.min(maxZoom, pinchStart.zoom * (distance / pinchStart.distance)));
+			focusWorldAtScreen(pinchStart.focalX, pinchStart.focalY, mid.x, mid.y);
+			moved = true;
+			hovered = null;
+			scheduleFrame();
+			return;
+		}
+		if (dragging) {
+			const dx = e.clientX - dragStart.x;
+			const dy = e.clientY - dragStart.y;
+			moved = moved || Math.hypot(dx, dy) > 4;
+			view.panX = dragStart.panX + dx / (unit() * view.zoom);
+			view.panY = dragStart.panY + dy / (unit() * view.zoom);
+			hovered = null;
+			canvas.style.cursor = 'grabbing';
+			scheduleFrame();
+			return;
+		}
+		const h = hit(mx, my);
 		if (h !== hovered) {
 			hovered = h;
 			hudReadout.set(h ? h.readout : '');
-			canvas.style.cursor = h?.entry || h?.action ? 'pointer' : 'default';
+			canvas.style.cursor = h?.entry || h?.action ? 'pointer' : 'grab';
 			scheduleFrame();
 		}
 	}
 
+	function onWheel(e: WheelEvent) {
+		e.preventDefault();
+		const rect = canvas.getBoundingClientRect();
+		const mx = e.clientX - rect.left;
+		const my = e.clientY - rect.top;
+		const before = screenToWorld(mx, my);
+		const dy = e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY;
+		view.zoom = Math.max(minZoom, Math.min(maxZoom, view.zoom * Math.pow(0.995, dy)));
+		focusWorldAtScreen(before[0], before[1], mx, my);
+		scheduleFrame();
+	}
+
+	function pointerMidpoint(): { x: number; y: number } | null {
+		const pointers = [...activePointers.values()];
+		if (pointers.length < 2) return null;
+		return { x: (pointers[0].x + pointers[1].x) / 2, y: (pointers[0].y + pointers[1].y) / 2 };
+	}
+
+	function pointerDistance(): number {
+		const pointers = [...activePointers.values()];
+		if (pointers.length < 2) return 0;
+		return Math.hypot(pointers[0].x - pointers[1].x, pointers[0].y - pointers[1].y);
+	}
+
+	function startPinch() {
+		const mid = pointerMidpoint();
+		if (!mid) return;
+		const [focalX, focalY] = screenToWorld(mid.x, mid.y);
+		pinchStart = {
+			distance: Math.max(1, pointerDistance()),
+			zoom: view.zoom,
+			focalX,
+			focalY
+		};
+		dragging = false;
+	}
+
+	function onPointerDown(e: PointerEvent) {
+		canvas.setPointerCapture(e.pointerId);
+		const rect = canvas.getBoundingClientRect();
+		activePointers.set(e.pointerId, { x: e.clientX - rect.left, y: e.clientY - rect.top });
+		moved = false;
+		if (activePointers.size >= 2) {
+			startPinch();
+			return;
+		}
+		dragging = true;
+		dragStart = { x: e.clientX, y: e.clientY, panX: view.panX, panY: view.panY };
+	}
+
+	function onPointerUp(e: PointerEvent) {
+		if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+		activePointers.delete(e.pointerId);
+		if (activePointers.size >= 2) {
+			startPinch();
+			return;
+		}
+		pinchStart = null;
+		dragging = activePointers.size === 1;
+		if (!dragging) canvas.style.cursor = hovered?.entry || hovered?.action ? 'pointer' : 'grab';
+		if (dragging) {
+			const rect = canvas.getBoundingClientRect();
+			const remaining = [...activePointers.values()][0];
+			dragStart = {
+				x: remaining.x + rect.left,
+				y: remaining.y + rect.top,
+				panX: view.panX,
+				panY: view.panY
+			};
+		}
+		scheduleFrame();
+	}
+
 	function onClick(e: MouseEvent) {
+		if (moved) return;
 		const rect = canvas.getBoundingClientRect();
 		const h = hit(e.clientX - rect.left, e.clientY - rect.top);
 		if (h?.action === 'atlas') {
@@ -885,7 +1013,7 @@
 
 	let ro: ResizeObserver | null = null;
 	function resize() {
-		const host = canvas?.closest('.host') as HTMLElement | null;
+		const host = canvas?.closest('.desktop-field') as HTMLElement | null;
 		if (!canvas || !host) return;
 		const rect = host.getBoundingClientRect();
 		W = rect.width;
@@ -915,11 +1043,16 @@
 	<div class="desktop-field" aria-hidden="true">
 		<canvas
 			bind:this={canvas}
+			onwheel={onWheel}
+			onpointerdown={onPointerDown}
 			onpointermove={onPointerMove}
+			onpointerup={onPointerUp}
+			onpointercancel={onPointerUp}
 			onpointerleave={() => {
+				if (dragging || activePointers.size > 0) return;
 				hovered = null;
 				hudReadout.set('');
-				canvas.style.cursor = 'default';
+				canvas.style.cursor = 'grab';
 				scheduleFrame();
 			}}
 			onclick={onClick}
@@ -1131,7 +1264,12 @@
 
 	canvas {
 		display: block;
-		touch-action: manipulation;
+		touch-action: none;
+		cursor: grab;
+	}
+
+	canvas:active {
+		cursor: grabbing;
 	}
 
 	.canvas-hit {
@@ -1156,9 +1294,16 @@
 	}
 
 	@media (max-width: 760px) {
-		.desktop-field,
 		.canvas-hit {
 			display: none;
+		}
+
+		.desktop-field {
+			top: 126px;
+			height: 410px;
+			inset-inline: 0;
+			bottom: auto;
+			z-index: 1;
 		}
 
 		.mobile-mind {
@@ -1167,10 +1312,17 @@
 			display: flex;
 			flex-direction: column;
 			gap: 12px;
-			padding: 128px 14px calc(74px + env(safe-area-inset-bottom));
+			padding: 548px 14px calc(74px + env(safe-area-inset-bottom));
 			overflow-y: auto;
 			-webkit-overflow-scrolling: touch;
 			scrollbar-width: none;
+			pointer-events: none;
+			z-index: 2;
+		}
+
+		.mobile-panel,
+		.atlas-card {
+			pointer-events: auto;
 		}
 
 		.mobile-mind::-webkit-scrollbar {

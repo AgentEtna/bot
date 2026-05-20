@@ -237,14 +237,12 @@
 			ctx.beginPath();
 			ctx.arc(x, y, radius, 0, Math.PI * 2);
 			ctx.fill();
-			if (view.zoom < 2.4 && (cl.count ?? 0) > 20) {
-				ctx.strokeStyle = rgba(c.core, alpha * 1.45);
-				ctx.lineWidth = 0.8;
-				for (let i = 0.42; i <= 0.86; i += 0.22) {
-					ctx.beginPath();
-					ctx.ellipse(x, y, radius * i * 1.38, radius * i * 0.56, -0.18, 0, Math.PI * 2);
-					ctx.stroke();
-				}
+			if (view.zoom < 1.8 && (cl.count ?? 0) > 55) {
+				ctx.strokeStyle = rgba(c.core, alpha * 0.48);
+				ctx.lineWidth = 0.55;
+				ctx.beginPath();
+				ctx.ellipse(x, y, radius * 0.82, radius * 0.36, -0.18, 0, Math.PI * 2);
+				ctx.stroke();
 			}
 		}
 	}
