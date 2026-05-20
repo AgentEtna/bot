@@ -65,4 +65,23 @@
 		text-transform: uppercase;
 		letter-spacing: 0.18em;
 	}
+
+	@media (max-width: 640px) {
+		.readout {
+			justify-content: flex-start;
+			min-height: 20px;
+			padding: 3px 0;
+			overflow: hidden;
+		}
+
+		.t {
+			display: block;
+			min-width: 0;
+			max-width: 100%;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+			font-size: 9px;
+		}
+	}
 </style>

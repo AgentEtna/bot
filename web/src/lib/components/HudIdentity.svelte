@@ -136,12 +136,17 @@
 	}
 
 	@media (max-width: 640px) {
+		.ident {
+			gap: 10px;
+			align-items: flex-start;
+		}
 		.glyph-wrap {
-			width: 26px;
-			height: 26px;
+			width: 28px;
+			height: 28px;
+			margin-top: 2px;
 		}
 		.name {
-			font-size: 12px;
+			font-size: 16px;
 		}
 		.handle {
 			display: none;
@@ -200,9 +205,9 @@
 
 	@media (max-width: 640px) {
 		.bio {
-			max-width: calc(100vw - 100px);
-			font-size: 10px;
-			line-height: 1.3;
+			max-width: calc(100vw - 70px);
+			font-size: 11px;
+			line-height: 1.25;
 		}
 	}
 </style>

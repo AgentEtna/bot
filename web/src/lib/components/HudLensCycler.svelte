@@ -89,12 +89,21 @@
 	}
 
 	@media (max-width: 640px) {
+		.cycler {
+			width: 100%;
+			align-items: stretch;
+		}
 		.hint {
 			display: none;
 		}
+		.row {
+			width: 100%;
+		}
 		.opt {
+			flex: 1;
+			justify-content: center;
 			padding: 8px 10px;
-			font-size: 10px;
+			font-size: 12px;
 			min-height: 36px;
 		}
 		.num {

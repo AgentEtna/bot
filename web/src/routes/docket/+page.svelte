@@ -185,7 +185,7 @@
 		padding: 12px 14px;
 		border: 1px solid var(--line-dim);
 		border-left: 2px solid var(--hud-mid);
-		background: var(--bg-elevated);
+		background: var(--bg-elev);
 	}
 
 	.meta {
@@ -230,7 +230,7 @@
 	}
 
 	.card {
-		background: var(--bg-elevated);
+		background: var(--bg-elev);
 		border: 1px solid var(--line-dim);
 		padding: 14px 16px;
 		display: flex;
@@ -370,5 +370,48 @@
 		font-family: var(--font-mono);
 		font-size: 10px;
 		color: var(--text-dim);
+	}
+
+	@media (max-width: 640px) {
+		.page {
+			padding: 128px 14px 76px;
+		}
+
+		.page-header {
+			margin-bottom: 14px;
+			padding: 12px;
+		}
+
+		.meta {
+			gap: 8px 12px;
+			font-size: 10px;
+		}
+
+		.caption {
+			font-size: 12px;
+			line-height: 1.45;
+		}
+
+		.cards {
+			gap: 12px;
+		}
+
+		.card {
+			padding: 12px;
+		}
+
+		.card-header {
+			align-items: center;
+			min-height: 48px;
+		}
+
+		.title {
+			font-size: 15px;
+			line-height: 1.1;
+		}
+
+		.rationale {
+			font-size: 13px;
+		}
 	}
 </style>

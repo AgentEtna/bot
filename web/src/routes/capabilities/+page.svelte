@@ -629,18 +629,67 @@
 
 	@media (max-width: 720px) {
 		.lens {
-			padding: 64px 12px 52px;
+			padding: 128px 14px 70px;
+			overflow-y: auto;
+			-webkit-overflow-scrolling: touch;
 		}
 		.frame-wrap {
-			padding: 12px 14px 14px;
-			gap: 10px;
+			height: auto;
+			min-height: 0;
+			padding: 12px;
+			gap: 12px;
+			clip-path: polygon(
+				10px 0,
+				100% 0,
+				100% calc(100% - 10px),
+				calc(100% - 10px) 100%,
+				0 100%,
+				0 10px
+			);
+		}
+		.head {
+			gap: 6px;
+		}
+		.head-rule {
+			display: grid;
+			grid-template-columns: 1fr;
+			gap: 5px;
+			padding-bottom: 7px;
 		}
 		.title {
-			font-size: 22px;
+			font-size: 20px;
+			letter-spacing: 0.1em;
 		}
 		.panes {
 			grid-template-columns: 1fr;
-			grid-template-rows: minmax(180px, 38vh) 1fr;
+			grid-template-rows: minmax(210px, 34dvh) minmax(320px, auto);
+			gap: 10px;
+			overflow: visible;
+			min-height: 0;
+		}
+		.list {
+			max-height: 34dvh;
+		}
+		.detail {
+			min-height: 300px;
+			max-height: none;
+			padding: 14px 14px 18px;
+		}
+		.d-name {
+			font-size: 17px;
+			overflow-wrap: anywhere;
+		}
+		.d-meta {
+			flex-wrap: wrap;
+			line-height: 1.6;
+		}
+		.row {
+			min-height: 40px;
+			padding-top: 8px;
+			padding-bottom: 8px;
+		}
+		.name {
+			font-size: 11px;
 		}
 	}
 </style>

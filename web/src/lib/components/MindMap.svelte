@@ -229,9 +229,9 @@
 	}
 
 	function field(): Rect {
-		const mx = mobile() ? 24 : 62;
-		const top = mobile() ? 126 : 112;
-		const bottom = mobile() ? 92 : 68;
+		const mx = mobile() ? 18 : 62;
+		const top = mobile() ? 136 : 112;
+		const bottom = mobile() ? 244 : 68;
 		return { x: mx, y: top, w: W - mx * 2, h: H - top - bottom };
 	}
 
@@ -239,13 +239,13 @@
 		const f = field();
 		return {
 			x: mobile() ? f.x + f.w / 2 : f.x + f.w * 0.44,
-			y: f.y + f.h * (mobile() ? 0.4 : 0.46)
+			y: f.y + f.h * (mobile() ? 0.5 : 0.46)
 		};
 	}
 
 	function unit(): number {
 		const f = field();
-		return Math.min(f.w, f.h) * (mobile() ? 0.41 : 0.43);
+		return Math.min(f.w, f.h) * (mobile() ? 0.37 : 0.43);
 	}
 
 	function worldToScreen(x: number, y: number): [number, number] {
@@ -256,7 +256,10 @@
 
 	function sidePanel(): Rect {
 		const f = field();
-		if (mobile()) return { x: f.x, y: f.y + f.h - 190, w: f.w, h: 168 };
+		if (mobile()) {
+			const y = Math.min(H - 292, f.y + f.h + 22);
+			return { x: 14, y, w: W - 28, h: 220 };
+		}
 		return { x: f.x + f.w * 0.72, y: f.y + 26, w: Math.min(360, f.w * 0.24), h: f.h - 64 };
 	}
 
@@ -313,19 +316,21 @@
 
 	function drawHeader(ctx: CanvasRenderingContext2D) {
 		const f = field();
-		chrome(ctx, 'living memory field', f.x, f.y - 24, 12);
+		chrome(ctx, mobile() ? 'memory field' : 'living memory field', f.x, f.y - 24, 12);
 		const stats = [
-			`${goals.length} intent`,
-			`${observations.length} attention`,
+			mobile() ? `${goals.length} intent` : `${goals.length} intent`,
+			mobile() ? `${observations.length} attn` : `${observations.length} attention`,
 			`${known.length} people`,
-			`${candidates.length} horizon`,
-			`${docket?.candidates.length ?? 0} public candidates`,
-			atlas ? `${atlas.points.length} atlas points` : 'atlas pending'
+			mobile() ? `${docket?.candidates.length ?? 0} cand` : `${candidates.length} horizon`,
+			...(mobile()
+				? []
+				: [`${docket?.candidates.length ?? 0} public candidates`, atlas ? `${atlas.points.length} atlas points` : 'atlas pending'])
 		];
-		label(ctx, stats.join(' · '), f.x, f.y - 5, f.w, '--scan-mid', 12);
+		label(ctx, stats.join(' · '), f.x, f.y - 5, f.w, '--scan-mid', mobile() ? 11 : 12);
 	}
 
 	function drawRingLabels(ctx: CanvasRenderingContext2D) {
+		if (mobile()) return;
 		const c = center();
 		const u = unit();
 		ctx.textAlign = 'left';
@@ -343,11 +348,11 @@
 	}
 
 	function radiusFor(p: AtlasPoint): number {
-		if (p.kind === 'phi') return mobile() ? 23 : 29;
-		if (p.kind === 'handle-engaged') return mobile() ? 8 : 10;
-		if (p.kind === 'handle-candidate') return mobile() ? 5 : 6;
-		if (p.kind === 'goal') return mobile() ? 7 : 8;
-		return mobile() ? 5 : 6;
+		if (p.kind === 'phi') return mobile() ? 20 : 29;
+		if (p.kind === 'handle-engaged') return mobile() ? 6.5 : 10;
+		if (p.kind === 'handle-candidate') return mobile() ? 4 : 6;
+		if (p.kind === 'goal') return mobile() ? 6 : 8;
+		return mobile() ? 4.5 : 6;
 	}
 
 	function drawHexPath(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number) {
@@ -452,6 +457,7 @@
 	}
 
 	function drawCycle(ctx: CanvasRenderingContext2D) {
+		if (mobile()) return;
 		const c = center();
 		const u = unit();
 		const y = c.y + u * 0.72;
@@ -648,14 +654,16 @@
 		ctx.fill();
 		ctx.strokeStyle = 'rgba(74, 139, 154, 0.32)';
 		ctx.stroke();
-		chrome(ctx, 'under the field', p.x + 14, p.y + 24, 11);
-		label(ctx, 'private state, memory, and publication pressure', p.x + 14, p.y + 45, p.w - 28, '--text-dim', 11);
+		chrome(ctx, mobile() ? 'substrate' : 'under the field', p.x + 14, p.y + 24, 11);
+		if (!mobile()) {
+			label(ctx, 'private state, memory, and publication pressure', p.x + 14, p.y + 45, p.w - 28, '--text-dim', 11);
+		}
 
 		const atlasRect = {
 			x: p.x + 14,
-			y: p.y + (mobile() ? 56 : 64),
+			y: p.y + (mobile() ? 36 : 64),
 			w: p.w - 28,
-			h: mobile() ? 70 : Math.min(218, p.h * 0.44)
+			h: mobile() ? 78 : Math.min(218, p.h * 0.44)
 		};
 		drawAtlasMini(ctx, atlasRect);
 
@@ -677,9 +685,9 @@
 				entry: docket ? ({ kind: 'docket-list', docket } as LogbookEntry) : undefined
 			}
 		];
-		const rowH = mobile() ? 22 : 46;
-		const gap = mobile() ? 7 : 10;
-		let y = atlasRect.y + atlasRect.h + (mobile() ? 9 : 12);
+		const rowH = mobile() ? 28 : 46;
+		const gap = mobile() ? 8 : 10;
+		let y = atlasRect.y + atlasRect.h + (mobile() ? 10 : 12);
 		for (const row of rows) {
 			const r = { x: p.x + 14, y, w: p.w - 28, h: rowH };
 			rounded(ctx, r, 5);
@@ -687,7 +695,7 @@
 			ctx.fill();
 			ctx.strokeStyle = row.title === 'public candidates' ? 'rgba(224, 144, 96, 0.42)' : 'rgba(74, 139, 154, 0.22)';
 			ctx.stroke();
-			chrome(ctx, row.title, r.x + 10, r.y + (mobile() ? 15 : 18), 9);
+			chrome(ctx, row.title, r.x + 10, r.y + (mobile() ? 18 : 18), 9);
 			if (!mobile()) label(ctx, row.value, r.x + 10, r.y + 38, r.w - 20, '--text-mid', 11);
 			hotspots.push({
 				...r,
