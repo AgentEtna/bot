@@ -85,9 +85,12 @@ def _render(entries: list[_Entry]) -> str:
         return ""
     lines = [
         "[DISCOVERY POOL — strangers (to you) whose posts the operator has "
-        "been liking lately. high-signal attention from a trusted curator. "
-        "consider whether any are worth reaching out to or learning more "
-        "about. these are warm leads, not cold.]"
+        "been liking lately. the prose previews below are operator-attention "
+        "shadow, not your own reads — useful for identifying who to engage "
+        "with, NOT raw material to riff on. if a take here ends up in one "
+        "of your posts, cite the author. if you find yourself elaborating "
+        "an idea you only met because the operator liked it, that's an echo "
+        "— push past it, or attribute it. warm leads, not cold.]"
     ]
     for e in entries:
         likes = e.get("likes_in_window", 0)
