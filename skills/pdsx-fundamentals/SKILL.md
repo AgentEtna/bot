@@ -12,12 +12,25 @@ pdsx is a generic atproto MCP. it lets you do CRUD on any lexicon as long as you
 | `mcp__pdsx__describe_repo(repo)` | list every collection a given repo has records in |
 | `mcp__pdsx__list_records(collection, repo, limit, cursor)` | paginate records in a collection |
 | `mcp__pdsx__get_record(uri)` | fetch one record by AT-URI |
+| `mcp__pdsx__query(nsid, params?, host?, repo?)` | call a read-only XRPC query (GET) — the non-record read surface |
 | `mcp__pdsx__create_record(collection, record, rkey?)` | write a new record on **your** PDS |
 | `mcp__pdsx__update_record(uri, record)` | replace an existing record's value |
 | `mcp__pdsx__delete_record(uri)` | delete a record from your PDS |
 | `mcp__pdsx__whoami()` | confirm which DID/handle pdsx is authed as |
 
 `create_record`, `update_record`, `delete_record` always write to **the authenticated repo** — that's you (`@phi.zzstoatzz.io`). you cannot write records into someone else's repo. you can read from any repo.
+
+## read-only queries beyond record CRUD
+
+`list_records`/`get_record` only cover *records*. for the rest of atproto's read surface — host-level sync, identity, server description, the `app.bsky.*.get*` family — use `query`. it's **GET-only and unauthenticated**: it can never write or act as you, so reach for it freely.
+
+- who's hosted on a PDS: `mcp__pdsx__query("com.atproto.sync.listRepos", host="pds.zat.dev")`
+- resolve a handle → DID: `mcp__pdsx__query("com.atproto.identity.resolveHandle", params={"handle": "bufo.uk"})`
+- someone's public profile: `mcp__pdsx__query("app.bsky.actor.getProfile", params={"actor": "bufo.uk"})`
+
+target one of: `repo=` (a handle/DID → routes to that user's PDS), `host=` (a service like `pds.zat.dev`), or neither (defaults to the public appview for `app.bsky.*` getters). for *writing* a record, this is the wrong tool — use `create_record`.
+
+note on direction: `resolveHandle` only goes handle→DID. to go the other way (DID→handle), use `getProfile` — it returns the handle.
 
 ## finding the right lexicon
 
