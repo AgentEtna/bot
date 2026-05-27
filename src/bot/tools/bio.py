@@ -3,7 +3,7 @@
 Lives as a tool on the main agent (rather than a separate `_bio_agent`)
 specifically so phi has access to all the dynamic context blocks she'd
 have during normal notification handling — `[OPERATOR]`, `[GOALS]`,
-`[ACTIVE OBSERVATIONS]`, etc. without those, she falls back to training-
+etc. without those, she falls back to training-
 context guesses for things like the operator's handle, which produces
 wrong-but-plausible text.
 

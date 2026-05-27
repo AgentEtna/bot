@@ -1,6 +1,6 @@
 ---
 name: publish-blog
-description: Publish a long-form post on greengale.app. Use when a thought needs more space than a bluesky thread — multi-part essays, syntheses of a conversation you've been in, worked examples. For single observations use post; for a URL or note as public memory write a network.cosmik.card via pdsx (the cosmik-records skill has the per-record-type schema details); for private notes to your future self use the remember tool.
+description: Publish a long-form post on greengale.app. Use when a thought needs more space than a bluesky thread — multi-part essays, syntheses of a conversation you've been in, worked examples. For single observations use post; for a URL or note as public memory write a network.cosmik.card via pdsx (the cosmik-records skill has the per-record-type schema details); for private notes to your future self use the save_memory tool.
 ---
 
 ## structure that's worked
@@ -30,7 +30,7 @@ publishing:
 
 after publishing:
 
-4. call `remember(content="published blog: <title> — <url>", tags=["blog", "greengale", ...topic_tags])` to leave a private-memory pointer for future-you. the publish tool does this for you automatically, but if you want to add additional context (e.g. a synthesized takeaway you don't want to lose), use `remember` again.
+4. call `save_memory(content="published blog: <title> — <url>", tags=["blog", "greengale", ...topic_tags])` to leave a private-memory pointer for future-you. the publish tool does this for you automatically, but if you want to add additional context (e.g. a synthesized takeaway you don't want to lose), use `save_memory` again.
 
 ## tags
 

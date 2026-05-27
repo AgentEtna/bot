@@ -158,15 +158,6 @@ def _format_unified_results(results: list[dict], handle: str) -> list[str]:
         if source == "user":
             kind = r.get("kind", "unknown")
             parts.append(f"[@{handle} {kind}]{tag_str}{date_str} {content}")
-        elif source == "archive":
-            # something that was once in [ACTIVE OBSERVATIONS] and aged
-            # out (or got dropped). label it so phi knows this was prior
-            # active attention, not a normal note. include the original
-            # reasoning when present — it's the "why phi noticed".
-            reason = r.get("archival_reason", "aged out") or "aged out"
-            reasoning = r.get("reasoning", "") or ""
-            tail = f" — reasoning: {reasoning}" if reasoning else ""
-            parts.append(f"[archived observation: {reason}]{date_str} {content}{tail}")
         else:
             parts.append(f"[note]{tag_str}{date_str} {content}")
     return parts

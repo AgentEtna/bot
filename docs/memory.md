@@ -16,7 +16,7 @@ fetched via `client.get_thread(uri, depth=100)` per batch (~200ms). provides wha
 
 ## 2. private memory (TurboPuffer)
 
-**source**: extraction agent + phi's `remember` tool · **storage**: TurboPuffer vector DB (OpenAI text-embedding-3-small) · **visibility**: private to phi
+**source**: extraction agent + phi's `save_memory` tool · **storage**: TurboPuffer vector DB (OpenAI text-embedding-3-small) · **visibility**: private to phi
 
 ### namespaces
 
@@ -71,14 +71,15 @@ when phi processes a notification batch, the system prompt assembles blocks from
 
 ```
 [GOALS]                                ← intent (PDS)
-[INNER CRITIC]                         ← haiku critique of recent posts vs goals, first person
-[SELF STATE]                           ← last-follow age, queue depth
+[SELF-AWARENESS]                       ← haiku description of what recent posts have been about, first person
+[SELF STATE]                           ← last-follow age
 [NEW NOTIFICATIONS]                    ← the batch itself
-[PHI'S SYNTHESIZED IMPRESSION]         ← per-author relationship summary (low trust)
-[OBSERVATIONS ABOUT @alice]            ← per-author observations (active only)
-[BACKGROUND RESEARCH]                  ← per-author exploration notes (lowest trust)
-[PAST EXCHANGES WITH @alice]           ← per-author interaction logs (high trust)
+[PHI'S SYNTHESIZED IMPRESSION OF @alice]  ← per-author relationship summary (trust: low, may hallucinate)
+[OBSERVATIONS ABOUT @alice]            ← per-author observations (active only, trust: medium)
+[PAST EXCHANGES WITH @alice]           ← per-author interaction logs (trust: high)
+[BACKGROUND RESEARCH ON @alice]        ← per-author exploration notes (legacy, trust: lowest)
 [RELEVANT MEMORIES — synthesized for this query]   ← episodic top-K → haiku synthesis
+[ATLAS] / [DOCKET]                     ← daily mind-map + promotion candidates (PDS blobs)
 [SEMBLE]                               ← one-line cosmik state
 ```
 
@@ -88,7 +89,7 @@ see [system-prompt.md](system-prompt.md) for the full block-by-block reference (
 
 ## why episodic gets synthesized, observations don't
 
-episodic memory was getting raw top-K from the vector store dumped into the prompt — stale "pending X" notes appeared next to fresh ones with equal weight, no reconciliation against current PDS state. now `inject_episodic` fetches top-K, then a haiku pass takes phi's goals + the current query as context and produces a coherent block (deduped, recency-aware, contradictions flagged). same shape as `[INNER CRITIC]` does for posts.
+episodic memory was getting raw top-K from the vector store dumped into the prompt — stale "pending X" notes appeared next to fresh ones with equal weight, no reconciliation against current PDS state. now `inject_episodic` fetches top-K, then a haiku pass takes phi's goals + the current query as context and produces a coherent block (deduped, recency-aware, contradictions flagged). same shape as `[SELF-AWARENESS]` does for posts.
 
 per-author observation blocks aren't synthesized because they're already curated by reconciliation on write — by the time they hit the prompt they're an active set with no near-duplicates by design.
 

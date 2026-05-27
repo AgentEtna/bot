@@ -104,7 +104,7 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
 
 app = FastAPI(
     title=settings.bot_name,
-    description="phi: a bluesky bot with episodic memory and an active attention pool",
+    description="phi: a bluesky bot with episodic memory",
     lifespan=lifespan,
 )
 app.state.limiter = limiter
@@ -179,8 +179,6 @@ async def trigger_post(request: Request, background_tasks: BackgroundTasks):
     background_tasks.add_task(poller.handler.cycle)
     logger.info("cycle triggered via API")
     return {"triggered": True}
-
-
 
 
 _abilities_cache: list | None = None

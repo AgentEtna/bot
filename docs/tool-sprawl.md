@@ -9,7 +9,7 @@ the source — the UI just renders what's there.
 
 | module | tools |
 |---|---|
-| `tools/memory.py` | `recall`, `remember` |
+| `tools/memory.py` | `search_memory`, `save_memory` |
 | `tools/posting.py` | `reply_to`, `like_post`, `repost_post` |
 | `tools/search.py` | `search_posts`, `search_network`, `web_search`, `get_trending` |
 | `tools/bluesky.py` | `post`, `get_own_posts`, `check_urls`, `manage_labels`, `manage_mentionable`, `check_services`, `check_relays`, `changelog` |
@@ -26,8 +26,8 @@ shape, instead of going through per-record-type tool wrappers.
 
 1. **`post` lives in `bluesky.py` but `reply_to` / `like_post` / `repost_post` live in `posting.py`.** these are the same shape of action — write to bluesky. one of those modules can absorb the other.
 2. **`follow_user` is in `feeds.py`.** following is a graph operation, not a feed operation. it has nothing to do with the graze-feeds cluster (`create_feed` / `list_feeds` / `delete_feed` / `read_feed` / `read_timeline`). it should move.
-3. ~~**`note`, `save_url`, `create_connection` are all "create a cosmik record"**~~ — partially resolved: cosmik write tools deleted (replaced by cosmik-records skill via pdsx). `note` was actually a private-memory write to turbopuffer, not a cosmik write — that misclassification was the smell. now renamed `remember` to disambiguate from `observe`.
-4. ~~**`memory.py` has just `recall` + `note`.**~~ resolved: `note` renamed to `remember`. the recall/remember pair (read/write) is now coherent.
+3. ~~**`note`, `save_url`, `create_connection` are all "create a cosmik record"**~~ — resolved: cosmik write tools deleted (replaced by cosmik-records skill via pdsx). `note` was actually a private-memory write to turbopuffer, not a cosmik write — that misclassification was the smell. the private-memory write tool is now `save_memory` (see "the naming smell" in [skill-or-tool.md](skill-or-tool.md)).
+4. ~~**`memory.py` has just `recall` + `note`.**~~ resolved: the pair is `search_memory` (read) + `save_memory` (write) — each verb names its operation. (history: write `note` → `remember` → `save_memory`; read `recall` → `search_memory`; see "the naming smell" in [skill-or-tool.md](skill-or-tool.md).)
 5. **`manage_labels` and `manage_mentionable` are in `bluesky.py`** but they're operator-only self-management of phi's identity boundaries — they belong with `goals` / `observations` (other operator-gated identity stuff) or in their own `self.py`.
 6. **`check_urls` is in `bluesky.py`.** it's a generic URL HEAD request — nothing bluesky about it.
 7. **`check_services`, `check_relays`, `changelog` are scattered across `bluesky.py`** but they're a coherent monitoring cluster — distinct from posting.
@@ -53,7 +53,7 @@ GET /api/abilities
 
 [
   {
-    "name": "recall",
+    "name": "search_memory",
     "module": "memory",
     "doc": "search private memory for past conversations or things i know about people.",
     "operator_only": false,

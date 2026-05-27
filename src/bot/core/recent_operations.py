@@ -21,10 +21,9 @@ from bot.utils.time import relative_when
 logger = logging.getLogger("bot.recent_operations")
 
 # Collections that count as "phi did something." Excluded: profile
-# updates, blocks, plyr/2048/ken records, mcp attestation, the
-# deprecated curiosityQueue. The list is intentional — not every
-# write, just the ones that count as actions worth seeing in a
-# continuity feed.
+# updates, blocks, plyr/2048/ken records, mcp attestation. The list
+# is intentional — not every write, just the ones that count as
+# actions worth seeing in a continuity feed.
 MEANINGFUL_COLLECTIONS: tuple[str, ...] = (
     "app.bsky.feed.post",
     "app.bsky.feed.like",

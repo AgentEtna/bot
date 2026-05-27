@@ -4,7 +4,7 @@ phi is one agent loop, fired from a few different paths. notifications drive mos
 
 ## one agent, many entry points
 
-every entry point ends in the same place: `agent.run()` with a `PhiDeps` carrying whatever context the path needs. tool definitions are the same across paths; the system prompt assembles different dynamic blocks based on what's in `PhiDeps`. the agent decides AND acts inside the run via tool calls — `reply_to`, `like_post`, `post`, `remember`, `propose_goal_change`, etc. there's no separate decide-then-dispatch layer.
+every entry point ends in the same place: `agent.run()` with a `PhiDeps` carrying whatever context the path needs. tool definitions are the same across paths; the system prompt assembles different dynamic blocks based on what's in `PhiDeps`. the agent decides AND acts inside the run via tool calls — `reply_to`, `like_post`, `post`, `save_memory`, `propose_goal_change`, etc. there's no separate decide-then-dispatch layer.
 
 what changes per path is the user prompt and the deps shape, not the agent.
 
@@ -12,10 +12,11 @@ what changes per path is the user prompt and the deps shape, not the agent.
 
 | path | trigger | user prompt sketch |
 |---|---|---|
-| **notifications batch** | poll every 10s, dispatch unread as one cognitive event | "process your new notifications batch — silence is fine" |
-| **scheduled musing** | every 2h during configured hours | "you have a moment. post if you want, or don't" |
-| **daily reflection** | once per day at `DAILY_REFLECTION_HOUR` | "end of day. post a reflection if you have one" |
-| **relay check** | every ~3h | "scheduled relay check. report transitions; tag owner if `*.waow.tech` dips or fleet-wide degradation" |
+| **notifications batch** | every poll tick (`notification_poll_interval`, 10s default): unread dispatched as one cognitive event | "process your new notifications batch — silence is fine" |
+| **cycle** | each operator-local hour in `thought_post_hours`, at most once per slot per day | "you have a moment. one cycle — at most one post, or silence" |
+| **daily reflection** | first tick at/after `daily_reflection_hour` (operator-local), once per day | "end of day. post a reflection if you have one" |
+
+the **cycle** subsumes what used to be three separate scheduled jobs (musing / relay check / prefect check): one integrated read, one decision, so the operator never gets two disconnected commentaries in the same minute. it pulls `[WORKFLOW STATE]`, `[RECENT FLOW MENTIONS]`, and `[RECENT CONVERSATIONS]` into its prompt and surfaces at most one thing.
 
 ## data flow (notifications)
 
@@ -28,7 +29,7 @@ build notifications_context: per-notif fetch (post body, thread context,
   reply refs, embeds), pre-fetch stranger profiles for unfamiliar authors
   ↓
 PhiDeps assembled, system prompt composed:
-  identity / time / known relays / goals / inner critic / self state
+  identity / time / known relays / goals / self-awareness / self state
   / notifications block / per-author memory / synthesized episodic / ...
   ↓
 agent.run() — tool calls happen inside (reply_to, like_post, etc.)
@@ -40,14 +41,13 @@ see [system-prompt.md](system-prompt.md) for what each block contains and when i
 
 ## scheduling
 
-all schedules run from one `notification_poller.py` loop. on each ~10s tick:
+all schedules run from one `notification_poller.py` loop (`_poll_loop`). on each tick (`notification_poll_interval`, 10s default):
 
-1. fetch + dispatch any unread notifications
-2. if it's the daily reflection slot and we haven't fired today → run it
-3. if it's a thought-post slot we haven't fired this hour → run it
-4. if it's been ≥3h since the last relay check → run it
+1. `_check_notifications` — fetch + dispatch any unread notifications as one batch
+2. `_should_do_daily_post` — at/after `daily_reflection_hour` (operator-local) and not yet reflected today → run the daily reflection
+3. `_should_run_cycle` — operator-local hour is one of `thought_post_hours` and that slot hasn't fired today → run one cycle
 
-state for "did we already fire today" is persisted via phi's own posts on PDS — the poller seeds from history at startup so deploys don't double-post.
+schedule hours are interpreted in `operator_timezone` so posts land at human times of day for the reader. "did we already fire" state seeds from phi's own post history at startup (`_seed_schedule_from_history`) so deploys don't double-post.
 
 ## intent state on PDS
 

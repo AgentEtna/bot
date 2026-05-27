@@ -132,7 +132,7 @@ class Settings(BaseSettings):
         ),
     )
 
-    # Event-driven exploration
+    # External feeds phi can read
     saved_feeds: dict[str, str] = Field(
         default={
             "for-you": "at://did:plc:3guzzweuqraryl3rdkimjamk/app.bsky.feed.generator/for-you",

@@ -38,10 +38,20 @@ that's the wrong direction for anything load-bearing.
 
 ## the naming smell — separate from sprawl
 
-`note` was renamed → `remember` so the recall/remember pair (read verb,
-write verb) is coherent. `remember` writes to turbopuffer `phi-episodic`
-(private vector) — saved for future semantic recall, never re-surfaces
-on its own, queryable via `recall`.
+the private-memory pair is `save_memory` (write) + `search_memory` (read).
+the names were a mess before: write went `note` → `remember`, read was
+`recall`. "remember" and "recall" are synonyms — the names didn't signal
+which one writes and which reads, so the model had to memorize the mapping.
+`remember` only beat the older `note` because it had to contrast with
+`observe` (the attention pool); once `observe` was deleted that justification
+evaporated, leaving an unforced collision with `recall`. the fix: name each
+tool after its operation. `save_memory` / `search_memory` — the verb says
+write vs read, and the read side mirrors the other `search_*` tools
+(`search_network`, `search_posts`). not reused: `note` — phi also writes
+`network.cosmik.card` records of kind NOTE (public), so a `note` tool for
+private memory would just trade one confusion for another. `save_memory`
+writes to turbopuffer `phi-episodic` (private vector) — never re-surfaces on
+its own, found later via `search_memory`.
 
 ## what was deleted (last round)
 
@@ -63,7 +73,7 @@ re-read it has real enforcement:
 skill-replacing it would lose all three unless the skill teaches phi
 to do them by hand. **kept as a tool**; instead enriched the
 `publish-blog` skill body to formalize the before/after procedure
-(list existing first, remember after) so the skill and the tool
+(list existing first, save_memory after) so the skill and the tool
 reinforce each other.
 
 `list_blog_posts` is a candidate for deletion (read-only, pdsx covers
@@ -74,14 +84,16 @@ recommends it for "what should i write about next." marginal benefit;
 
 ## what was done this round
 
-1. **renamed `note` → `remember`.** the recall/remember pair makes the
-   read-vs-write distinction obvious and disambiguates from `observe`.
+1. **renamed the private-memory tools to `save_memory` (write) +
+   `search_memory` (read)** (history: write `note` → `remember` →
+   `save_memory`; read `recall` → `search_memory`). the verb now names the
+   operation; see "the naming smell" above.
 2. **excluded `run_skill_script` from the SkillsToolset.** every skill
    we ship is documentation-only (markdown + resource files); leaving
    the script-execution tool registered was extra capability surface
    phi never used. one fewer tool, free.
 3. **enriched `publish-blog` SKILL.md** with the before/after procedure
-   (list existing → publish via tool → optional remember pointer) and
+   (list existing → publish via tool → optional save_memory pointer) and
    a "why a tool plus a skill" section that names the
    tools-enforce-skills-suggest split explicitly.
 
@@ -95,7 +107,7 @@ is and the publish-blog skill carries the full procedure.
 |---|---|---|
 | posting / engagement (consent layer) | `reply_to`, `post`, `like_post`, `repost_post` | `_build_allowed_handles` consent enforcement; reply-ref construction; grapheme splitting; memory writes after interaction |
 | owner-gated (like-as-approval) | `follow_user`, `manage_mentionable`, `manage_labels`, `propose_goal_change`, `create_feed`, `delete_feed` | `_is_owner` check at runtime; can't be enforced from a skill prompt |
-| private memory | `remember`, `recall` | turbopuffer is not exposed as an MCP; pdsx can't reach it |
+| private memory | `save_memory`, `search_memory` | turbopuffer is not exposed as an MCP; pdsx can't reach it |
 | reads against external surfaces | `read_timeline`, `read_feed`, `list_feeds`, `search_posts`, `search_network`, `web_search`, `get_trending`, `pub_search`, `check_relays`, `check_services`, `check_urls`, `changelog` | external services with APIs not exposed by pdsx |
 | structural publishing | `publish_blog_post`, `list_blog_posts` | duplicate-check refusal; episodic memory write after publish |
 

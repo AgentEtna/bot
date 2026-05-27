@@ -1,4 +1,4 @@
-"""Notification poller with event-driven exploration."""
+"""Notification poller — drives the notifications batch, daily reflection, and cycle schedules."""
 
 import asyncio
 import logging

@@ -364,7 +364,7 @@ class PhiAgent:
             # Batch notifications have a real semantic seed: the posts phi is
             # reacting to. Scheduled paths have task text like "you have a
             # moment", which made vector recall noisy; let those paths call
-            # recall explicitly when they need private memory.
+            # search_memory explicitly when they need private memory.
             notifs = ctx.deps.notifications_context or {}
             if not notifs:
                 return ""
@@ -745,8 +745,7 @@ class PhiAgent:
             "anchored to [NOW]. deterministic synthesis of flow run history.\n"
             "- [RECENT FLOW MENTIONS] — what you've already said about workflow "
             "state recently, so you can avoid repeating yourself.\n"
-            "- your [ACTIVE OBSERVATIONS] and [RECENT CONVERSATIONS] sitting in "
-            "your context already.\n"
+            "- your [RECENT CONVERSATIONS] sitting in your context already.\n"
             "- your owned feeds, the timeline, the discovery pool, the network, "
             "the open web — call tools to pull more.\n"
             "- relay state via check_relays if it feels worth checking.\n\n"
@@ -767,17 +766,20 @@ class PhiAgent:
             "    * [stuck]     a run isn't being picked up (PENDING/RUNNING "
             "past expected start). tag immediately if not already covered.\n"
             "    * [degraded]  recent runs flapped but the most recent one "
-            "completed. observe() the pattern if it's newly noteworthy, but "
-            "don't tag — degraded is not broken. degraded is not stuck. don't "
-            "say 'still stuck' or 'still broken' for a degraded deployment.\n"
+            "completed. don't tag — degraded is not broken. degraded is not "
+            "stuck — but if the flap pattern is newly noteworthy, use "
+            "save_memory so a later cycle can find it with search_memory. "
+            "don't say 'still stuck' or 'still "
+            "broken' for a degraded deployment.\n"
             "    * [healthy]   silence.\n"
             "  use the classification label verbatim. don't substitute. and "
             "SCHEDULED runs with a future expected_start_time are normal "
             "scheduler calendar — never a backlog or 'queue'.\n"
             "- relay state: post about transitions only when a *.waow.tech "
             "relay is degraded or worse, OR the whole fleet is degraded or "
-            "worse. otherwise observe() the change in your voice and let a "
-            "future cycle surface it.\n"
+            "worse. otherwise use save_memory to record the change in your "
+            "own words so a later cycle can find it with search_memory, "
+            "rather than posting it.\n"
             "- silence is usually right."
         )
 

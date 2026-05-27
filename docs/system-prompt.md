@@ -1,39 +1,71 @@
 # system prompt
 
-what's actually injected into phi's context on every agent run, where it comes from, and when it refreshes.
+what's actually injected into phi's context on every agent run, where it comes from, and when it refreshes. audited against the live `src/bot/agent.py` injectors and the modules they call.
 
-phi is a [pydantic-ai](https://ai.pydantic.dev/) agent. its system prompt is composed of a static base plus a set of dynamic blocks contributed by `@agent.system_prompt(dynamic=True)` functions, all in `src/bot/agent.py`. tool definitions are surfaced separately by the framework — phi sees each tool's docstring and signature without us having to repeat them in the prompt.
+phi is a [pydantic-ai](https://ai.pydantic.dev/) agent. its context is composed of three layers:
 
-## composition
+1. a **static base** (personality + cross-cutting operational rules), set once at construction;
+2. a set of **dynamic system-prompt blocks** contributed by `@agent.system_prompt(dynamic=True)` functions — recomposed every run;
+3. **path-specific blocks** appended to the *user* message by the entry point (notifications / cycle / reflection), so they appear only on the path that needs them.
 
-| block | source | refreshes | purpose |
+tool definitions are surfaced separately by the framework — phi sees each tool's docstring and signature without us repeating them in the prompt.
+
+## 1. static base
+
+set in `PhiAgent.__init__`, refreshes on process restart only:
+
+- **personality** — `personalities/phi.md`, verbatim, prefixed "the following is your personality:".
+- **operational rules** — `_build_operational_instructions()`: cross-cutting constraints no single tool docstring can own (the posting/consent layer, the memory trust hierarchy, the mention-consent allowlist, owner-like-as-approval, and the URIs-only-from-the-notifications-block rule).
+
+tool definitions are cached at the Anthropic layer (`anthropic_cache_tool_definitions="1h"`).
+
+## 2. dynamic system-prompt blocks (every run)
+
+contributed by the `inject_*` callbacks in `agent.py`, in registration order. each returns `""` when its inputs are absent (pydantic-ai includes empty parts as zero-token slots — minor cost, zero signal).
+
+| block | injector → source | refreshes | purpose |
 |---|---|---|---|
-| **personality + operational rules** | static (`personalities/phi.md` + `_build_operational_instructions()`) | process restart | who phi is + cross-cutting rules (consent, ownership, memory trust hierarchy, posting tools) |
-| **`[YOUR INFRASTRUCTURE]`** | `inject_identity` → `bot_client.client.me` | every run | handle / DID / PDS host so phi knows its own identity |
-| **`[NOW]`** | `inject_today` | every run | current UTC timestamp |
-| **`[KNOWN RELAYS]`** | `inject_known_relays` → `tools.bluesky.fetch_relay_names()` (5min TTL) | every 5min | exact relay hostnames for `check_relays(name=...)` so the LLM picks valid values |
-| **`[GOALS]`** | `get_state_block` → PDS `io.zzstoatzz.phi.goal` (5min block cache) | every 5min | phi's anchors. mutated via `propose_goal_change` (owner-gated) |
-| **`[INNER CRITIC]`** | `get_state_block` → haiku pass over recent posts + goals (1h cache, invalidated by new post) | when posts change or 1h elapses | phi's own voice turned inward — first-person critique of patterns to push against, drift from goals, jargon not earning its space. not an external audit; self-knowledge |
-| **`[SELF STATE]`** | `get_state_block` → PDS reads (5min) | every 5min | last-follow age (more pointers can be added here as needed) |
-| **`[RECENT OPERATIONS]`** | `get_operations_block` → `list_records` per meaningful collection, merged by rkey desc (5min cache) | every 5min | last 10 PDS writes across collections (post / like / follow / goal / cosmik card / cosmik connection / greengale doc), chronological. continuity signal — phi sees what it's actually been doing |
-| **`[DISCOVERY POOL]`** | `get_discovery_pool_block` → http GET to `discovery_pool_url` (hub) → filter out handles with prior interactions (5min cache) | every 5min | strangers the operator has been liking lately, with sample posts. high-signal warm leads — service-owned data (hub reads operator's likes from duckdb), phi-side filter (per-author interaction check) |
-| **`[NEW NOTIFICATIONS]`** | `inject_notifications` ← `PhiDeps.notifications_context` | per batch | the unread notifications grouped by thread |
-| **`[USER CONTEXT]` / `[PHI'S SYNTHESIZED IMPRESSION]` / `[OBSERVATIONS]` / `[PAST EXCHANGES]` / `[BACKGROUND RESEARCH]`** | `inject_user_memory` → turbopuffer `phi-users-{handle}` per author in batch | per batch | per-author memory blocks, labeled by trust level. impression is synthesized by an external prefect flow; observations are extracted by the haiku extraction agent |
-| **`[RELEVANT MEMORIES — synthesized for this query]`** | `inject_episodic` → top-K from turbopuffer `phi-episodic` → haiku synthesis given goals + query | per batch | a coherent block (deduped, recency-aware) instead of a raw similarity-ranked dump. flags stale entries when present |
-| **`[FIRST INTERACTION WITH @author]`** | `inject_author_lookups` ← `PhiDeps.author_lookups` (pre-fetched by handler) | per batch when author is unfamiliar | profile + recent posts so phi has signal on a stranger before deciding to engage |
-| **`[SEMBLE]`** | `inject_public_memory` → cosmik record count | every run | one-line reminder phi has public collections via cosmik/semble |
+| `[YOUR INFRASTRUCTURE]` | `inject_identity` → `bot_client.client.me` | every run | phi's own handle / DID / PDS host |
+| `[OPERATOR]` | `inject_operator` → `get_operator_profile` | every run | resolved owner name + handle + DID |
+| `[NOW]` / `[NOW (operator local)]` | `inject_today` | every run | UTC + operator-local clock (schedule slots are anchored to operator-local) |
+| `[OPERATIONAL HISTORY]` | `inject_pause_history` → `bot_status` | every run | the most recent pause/resume cycle, only while the resume is <24h old |
+| `[KNOWN RELAYS]` | `inject_known_relays` → `fetch_relay_names` (5min TTL) | every 5min | exact relay hostnames so `check_relays(name=...)` can't hallucinate |
+| `[GOALS]` | `inject_self_state` → `get_state_block` → PDS `io.zzstoatzz.phi.goal` (5min block cache) | every 5min | phi's anchors + a live-computed progress line for the make-friends goal |
+| `[SELF-AWARENESS]` | same `get_state_block` → haiku over recent posts + goals (1h cache, invalidated by new post URI or goal change) | when posts/goals change or 1h elapses | phi's own voice turned inward — a first-person *description* of what recent posts have been about (subjects + shape). explicitly descriptive, not prescriptive: a mirror phi draws her own conclusions from. generated by an agent still named `inner critic` internally |
+| `[SELF STATE]` | same `get_state_block` → PDS reads | every 5min | last-follow age |
+| `[RECENT OPERATIONS]` | `inject_recent_operations` → `list_records` across `MEANINGFUL_COLLECTIONS`, merged by rkey desc (5min cache) | every 5min | last N PDS writes (post / like / repost / follow / goal / cosmik card / cosmik connection / greengale doc) — continuity |
+| `[DISCOVERY POOL]` | `inject_discovery_pool` → hub GET → filter handles with prior interactions (5min cache) | every 5min | strangers the operator has been liking lately — warm leads |
+| `[NEW NOTIFICATIONS]` | `inject_notifications` ← `PhiDeps.notifications_context` | per batch | the unread batch grouped by thread. empty on scheduled paths |
+| per-author memory — up to four independent blocks, each emitted only when that data exists: `[PHI'S SYNTHESIZED IMPRESSION OF @h]`, `[OBSERVATIONS ABOUT @h]`, `[PAST EXCHANGES WITH @h]`, `[BACKGROUND RESEARCH ON @h]`; `[USER CONTEXT - @h]` ("no previous interactions") is the fallback when none apply or the lookup errors | `inject_user_memory` → `build_user_context` per author → turbopuffer `phi-users-{h}` | per batch (one set per author in the batch) | per-author memory, labeled by trust: synthesized impression (low, may hallucinate), observations (medium), exchanges (high), exploration notes (lowest, legacy). nothing when no batch authors |
+| `[RELEVANT MEMORIES — synthesized for this query]` | `inject_episodic` → `phi-episodic` top-K → haiku synthesis given goals + query | per batch | a coherent, deduped, recency-aware block instead of a raw similarity dump. only fires when a notifications seed exists |
+| `[ATLAS]` | `inject_atlas_digest` → PDS `io.zzstoatzz.phi.atlas` blob (CID-cached) | when the phi-atlas flow writes a new atlas | daily map of phi's mind: point / cluster / promotion counts. drill via `inspect_atlas` |
+| `[DOCKET]` | `inject_docket_digest` → PDS `io.zzstoatzz.phi.docket` blob (CID-cached) | when the docket flow writes a new docket | daily promotion candidates: title + `suggested_shape` only. full rationale one `get_record` away |
+| `[OWNED FEEDS]` | `inject_owned_feeds` → graze | every run | phi's curated graze feeds, by name |
+| `[SEMBLE]` | `inject_public_memory` → cosmik record counts | every run | one-line reminder phi has public collections via cosmik/semble |
+
+## 3. path-specific blocks (appended to the user message)
+
+assembled by the entry point and appended to the *task prompt*, not the system prompt — so they appear only on their path:
+
+| path | blocks | source |
+|---|---|---|
+| **notifications** | `[FIRST INTERACTION WITH @h]` per unfamiliar author, + any post images as multimodal inputs | `utils/lookup.py`, pre-fetched by the handler |
+| **cycle** | `[WORKFLOW STATE]`, `[RECENT FLOW MENTIONS]`, `[RECENT CONVERSATIONS]` | `core/workflow_state.py`, `core/recent_flow_mentions.py`, `_recent_conversations_block` |
+| **daily reflection** | `[RECENT CONVERSATIONS]`, `[SERVICE HEALTH]` | `_recent_conversations_block`, `_check_services_impl` |
+
+because `inject_notifications` / `inject_user_memory` / `inject_episodic` return `""` without a notifications context, the **cycle** and **reflection** paths run with the every-run system blocks above plus their own appended blocks — but no notifications / per-author / episodic blocks.
 
 ## design rules
 
-**docstrings, not prompt restatement.** the framework surfaces tool docstrings to the model. anything we put in the system prompt that re-describes a tool drifts when the tool changes — so we put per-tool guidance in the docstring and keep the prompt for cross-cutting rules (consent, owner gates, memory trust hierarchy).
+**docstrings, not prompt restatement.** the framework surfaces tool docstrings to the model. per-tool guidance lives in the docstring; the system prompt is for cross-cutting rules. re-describing a tool in the prompt drifts when the tool changes.
 
-**identifiers in the block.** `[KNOWN RELAYS]` puts exact hostnames in the label so phi can't hallucinate. `[GOALS]` puts the NSID + rkey in the label so phi can call `propose_goal_change(rkey=...)` correctly. mirrors the same pattern: when phi needs to reference a thing, surface the exact identifier where it'll be used.
+**identifiers in the block.** `[KNOWN RELAYS]` puts exact hostnames in the label so phi can't hallucinate. `[GOALS]` puts the rkey in the label so `propose_goal_change(rkey=...)` is correct. surface the exact identifier where it'll be used.
 
-**synthesize before injecting where shape matters.** raw top-K from a vector store ranks by cosine similarity, which doesn't reconcile contradictions or note recency. for blocks where the model needs a *coherent* view (recent posts → audit, episodic candidates → relevant memories), a small haiku pass takes the candidates plus context and produces a block phi can act on directly.
+**synthesize before injecting where shape matters.** raw top-K from a vector store ranks by cosine similarity — it doesn't reconcile contradictions or note recency. for blocks where the model needs a *coherent* view (recent posts → `[SELF-AWARENESS]`, episodic candidates → `[RELEVANT MEMORIES]`), a small haiku pass produces a block phi can act on directly. per-author observations are *not* synthesized — reconciliation already curated them on write.
 
-**cache canonical reads, not derived ones (separately).** PDS reads (goals, queue depth, last follow) are cheap-but-not-free; cache the whole `[GOALS]+[AUDIT]+[SELF STATE]` block at 5min so 10s-cadence notification polls don't hammer PDS. haiku passes that depend on phi's posts cache longer (1h) and invalidate on new-post-URI change.
+**cache canonical reads, not derived ones (separately).** PDS reads (goals, last follow) cache at 5min so 10s-cadence polls don't hammer PDS. haiku passes that depend on phi's posts cache longer (1h) and invalidate on new-post-URI change. PDS blobs (atlas, docket) cache by record CID — they only change when their flow rewrites them.
 
-**empty-when-unset.** dynamic blocks return `""` when their `PhiDeps` field is missing (e.g. `last_post_text` only set during musing/reflection). pydantic-ai includes empty parts as zero-token slots — minor cost, zero signal.
+**empty-when-unset.** dynamic blocks return `""` when their input is absent.
 
 ## audit it
 

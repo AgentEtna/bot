@@ -46,7 +46,7 @@ def register(agent):
     async def search_network(ctx: RunContext[PhiDeps], query: str) -> str:
         """Search the cosmik network for cards and bookmarks collected by people across the atmosphere.
         Use this to find what the network knows about a topic — links, notes, and resources that others have saved.
-        Different from recall (your private memory) and search_posts (live bluesky posts)."""
+        Different from search_memory (your private memory) and search_posts (live bluesky posts)."""
         try:
             async with httpx.AsyncClient(timeout=15) as client:
                 r = await client.get(

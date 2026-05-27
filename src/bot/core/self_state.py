@@ -1,11 +1,12 @@
-"""[GOALS] + [INNER CRITIC] + [SELF STATE] — phi sees its compass, its own critique, and its operational pointers.
+"""[GOALS] + [SELF-AWARENESS] + [SELF STATE] — phi sees its compass, its own critique, and its operational pointers.
 
 GOALS are intent: what phi is for. Stored on PDS as canonical state.
-INNER CRITIC is friction: phi's own voice turned inward, noticing patterns
-in her recent posts evaluated against the stated goals. Not a stranger,
-not external — her own internal critic, owning the critique. Patterns to
-push against, not maintain.
-SELF STATE is operational: last follow, queue depth.
+SELF-AWARENESS is a mirror: phi's own voice turned inward, describing what
+her recent posts have actually been about — their subjects and shape. The
+generating agent is still named the "inner critic" internally, but the live
+prompt is explicitly descriptive, not prescriptive: phi reads it and draws
+her own conclusions; it does not tell her what to fix.
+SELF STATE is operational: last follow.
 
 The haiku pass is *derived* (not duplicated state) and cached in memory:
 1h TTL, invalidated when the latest post URI changes or goals change. The
@@ -212,7 +213,7 @@ def _format_goals_block(
 async def get_state_block(
     client: BotClient, memory: NamespaceMemory | None = None
 ) -> str:
-    """Compose [GOALS] + [INNER CRITIC] + [SELF STATE].
+    """Compose [GOALS] + [SELF-AWARENESS] + [SELF STATE].
 
     Cached at the block level (5min) and audit level (1h, invalidated on
     new post or goal change). `memory` is used to live-compute the friends
