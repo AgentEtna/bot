@@ -1,9 +1,18 @@
 """[RECENT OPERATIONS] — phi's last N record writes on its own PDS.
 
-A continuity signal so phi can see what it's been doing across all
+Action continuity signal — phi can see WHAT it has been doing across
 collections (posts, likes, follows, goals, cosmik cards, blog docs)
-without having to enumerate by hand. Cached at 5min, mirroring the
-other PDS state blocks.
+without enumerating by hand.
+
+Post text is deliberately NOT shown. The block is read every run, and
+including phi's own post bodies would turn the continuity signal into
+style training data — concrete in-context examples beat abstract rules,
+so feeding phi her own recent prose teaches whatever register that prose
+happens to be in. Show actions and counts, not voice. Titles for
+intentionally-titled artifacts (goals, blog docs, URL cards) are fine —
+those are public anchor names, not posting register.
+
+Cached at 5min, mirroring the other PDS state blocks.
 
 Render is split from fetch so a future jinja migration only has to
 replace `_render`. `_summarize` carries per-NSID formatting logic.
@@ -37,7 +46,6 @@ MEANINGFUL_COLLECTIONS: tuple[str, ...] = (
 
 PER_COLLECTION_LIMIT = 10
 TOP_N = 10
-TEXT_TRUNCATE = 100
 
 _BLOCK_TTL_SECONDS = 300  # 5min, mirrors core/self_state.py
 _block_cache: dict = {"text": "", "fetched_at": 0.0}
@@ -50,19 +58,18 @@ class _Row(TypedDict):
     summary: str
 
 
-def _short(text: str, n: int = TEXT_TRUNCATE) -> str:
-    text = (text or "").strip().replace("\n", " ")
-    if len(text) <= n:
-        return text
-    return text[: n - 1].rstrip() + "…"
-
-
 def _summarize(nsid: str, value: dict) -> str:
-    """One-line salient summary of a record value, by NSID."""
+    """One-line salient summary of a record value, by NSID.
+
+    Communicates WHAT phi did, not WHAT she said — post text is deliberately
+    omitted so this block doesn't double as style training data feeding
+    phi's voice back to her.
+    """
     if nsid == "app.bsky.feed.post":
-        text = value.get("text", "")
-        kind = "reply" if value.get("reply") else "post"
-        return f"{kind}: {_short(text)!r}"
+        char_count = len(value.get("text", "") or "")
+        if value.get("reply"):
+            return f"reply ({char_count} chars)"
+        return f"top-level post ({char_count} chars)"
     if nsid == "app.bsky.feed.like":
         subject = value.get("subject") or {}
         uri = subject.get("uri", "") if isinstance(subject, dict) else ""
@@ -80,13 +87,20 @@ def _summarize(nsid: str, value: dict) -> str:
         verb = "updated" if (updated and created and updated != created) else "created"
         return f"goal {verb}: {title!r}"
     if nsid == "network.cosmik.card":
-        kind = (value.get("type") or "").lower()
-        content = value.get("content") or {}
-        if isinstance(content, dict):
-            text = content.get("text") or content.get("title") or ""
-            return (
-                f"{kind} card: {_short(text)!r}" if kind else f"card: {_short(text)!r}"
-            )
+        kind = (value.get("type") or "").upper()
+        if kind == "URL":
+            # URL card titles are intentional public anchor names, not
+            # posting register — surface the title, not the description.
+            content = value.get("content") or {}
+            title = ""
+            if isinstance(content, dict):
+                metadata = content.get("metadata") or {}
+                if isinstance(metadata, dict):
+                    title = metadata.get("title", "")
+                title = title or content.get("title", "")
+            return f"URL card: {title!r}" if title else "URL card"
+        # NOTE cards are text-bodied — show kind only so the body doesn't
+        # become voice training.
         return f"{kind} card" if kind else "card"
     if nsid == "network.cosmik.connection":
         ctype = value.get("connectionType", "")
@@ -142,8 +156,8 @@ def _render(rows: list[_Row]) -> str:
         return ""
     nsid_width = max(len(r["nsid"]) for r in rows)
     lines = [
-        "[RECENT OPERATIONS — your last writes on PDS, chronological across "
-        "collections. continuity signal: see what you've actually been doing.]"
+        "[RECENT OPERATIONS — your last writes on PDS, chronological. post "
+        "text hidden; actions only.]"
     ]
     for r in rows:
         ts = r["created_at"]

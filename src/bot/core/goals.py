@@ -62,20 +62,32 @@ async def upsert_goal(
     title: str,
     description: str,
     progress_signal: str,
+    kind: str = "goal",
 ) -> str:
-    """Create (rkey=None) or update an existing goal. Returns AT-URI."""
+    """Create (rkey=None) or update a goal's CONSTITUTIONAL fields. Returns AT-URI.
+
+    On update, the operational fields written by update_goal_progress
+    (current_state / next_step / last_step / last_step_at / blocked_by) are
+    preserved — this only touches title / description / progress_signal / kind.
+    """
+    if kind not in ("goal", "interest"):
+        raise ValueError(f"kind must be 'goal' or 'interest', got {kind!r}")
     await client.authenticate()
     assert client.client.me is not None
     now = datetime.now(UTC).isoformat()
-    record: dict = {
-        "title": title,
-        "description": description,
-        "progress_signal": progress_signal,
-        "updated_at": now,
-    }
+
     if rkey:
         existing = await get_goal(client, rkey)
-        record["created_at"] = existing.get("created_at", now) if existing else now
+        record: dict = dict(existing) if existing else {}
+        record.pop("_rkey", None)
+        record.update(
+            title=title,
+            description=description,
+            progress_signal=progress_signal,
+            kind=kind,
+            updated_at=now,
+        )
+        record.setdefault("created_at", now)
         result = client.client.com.atproto.repo.put_record(
             data={
                 "repo": client.client.me.did,
@@ -85,7 +97,14 @@ async def upsert_goal(
             }
         )
     else:
-        record["created_at"] = now
+        record = {
+            "title": title,
+            "description": description,
+            "progress_signal": progress_signal,
+            "kind": kind,
+            "created_at": now,
+            "updated_at": now,
+        }
         result = client.client.com.atproto.repo.create_record(
             data={
                 "repo": client.client.me.did,
@@ -93,4 +112,48 @@ async def upsert_goal(
                 "record": record,
             }
         )
+    return result.uri
+
+
+async def update_goal_progress(
+    client: BotClient,
+    rkey: str,
+    current_state: str,
+    next_step: str,
+    last_step: str,
+    blocked_by: str = "",
+    evidence_uris: list[str] | None = None,
+) -> str:
+    """Update a goal's OPERATIONAL fields, preserving its constitutional ones.
+
+    Not owner-gated at the tool layer — phi keeps its own goals honest (what
+    it just did, where things stand, the next concrete step). Sets
+    last_step_at to now so the [GOALS AND INTERESTS] block can show staleness.
+    """
+    await client.authenticate()
+    assert client.client.me is not None
+    existing = await get_goal(client, rkey)
+    if existing is None:
+        raise ValueError(f"no goal with rkey {rkey!r}")
+    now = datetime.now(UTC).isoformat()
+    record = dict(existing)
+    record.pop("_rkey", None)
+    record.update(
+        current_state=current_state,
+        next_step=next_step,
+        last_step=last_step,
+        last_step_at=now,
+        blocked_by=blocked_by,
+        updated_at=now,
+    )
+    if evidence_uris:
+        record["evidence_uris"] = evidence_uris
+    result = client.client.com.atproto.repo.put_record(
+        data={
+            "repo": client.client.me.did,
+            "collection": GOAL_COLLECTION,
+            "rkey": rkey,
+            "record": record,
+        }
+    )
     return result.uri

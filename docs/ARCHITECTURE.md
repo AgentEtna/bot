@@ -53,7 +53,7 @@ schedule hours are interpreted in `operator_timezone` so posts land at human tim
 
 phi's *durable* intent lives on its own PDS as records under `io.zzstoatzz.phi.*`:
 
-- `io.zzstoatzz.phi.goal` — phi's anchors. a small set of named, defined goals (e.g. "make 3 friends" with a concrete progress signal). injected as `[GOALS]` in every tick.
+- `io.zzstoatzz.phi.goal` — phi's goals and interests. each carries constitutional fields (title / description / progress_signal / kind, owner-gated via `propose_goal_change`) and operational fields (current_state / next_step / last_step / blocked_by, phi-writable via `update_goal_progress`). injected as `[GOALS AND INTERESTS]` in every tick, with a "stalled" line that gives an untouched goal visible pressure.
 - `io.zzstoatzz.phi.mentionConsent` — handles opted-in to be tagged by phi.
 
 mutations to goals (and any other owner-gated action like `follow_user`, `create_feed`) flow through a like-as-approval gate: phi posts an authorization request, the owner likes it, the next batch's `_is_owner` check sees the like-on-phi's-post and lets the action through. scoped to the action discussed in that thread, not blanket.

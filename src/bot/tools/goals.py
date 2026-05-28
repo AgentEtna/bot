@@ -1,6 +1,6 @@
 """Goal tools — read anytime, mutate via the same owner-gate as follow_user."""
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import Field
 from pydantic_ai import RunContext
@@ -8,6 +8,7 @@ from pydantic_ai import RunContext
 from bot.config import settings
 from bot.core import goals
 from bot.core.atproto_client import bot_client
+from bot.core.self_state import invalidate_state_cache
 from bot.tools._helpers import PhiDeps, _is_owner
 
 
@@ -22,11 +23,16 @@ def register(agent):
             return "no goals set"
         lines: list[str] = []
         for g in items:
-            lines.append(f"[rkey={g['_rkey']}] {g.get('title', 'untitled')}")
+            kind = g.get("kind", "goal")
+            lines.append(f"[rkey={g['_rkey']}] {g.get('title', 'untitled')} ({kind})")
             if g.get("description"):
                 lines.append(f"  {g['description']}")
             if g.get("progress_signal"):
                 lines.append(f"  progress = {g['progress_signal']}")
+            if g.get("current_state"):
+                lines.append(f"  current = {g['current_state']}")
+            if g.get("next_step"):
+                lines.append(f"  next = {g['next_step']}")
         return "\n".join(lines)
 
     @agent.tool
@@ -56,6 +62,15 @@ def register(agent):
                 )
             ),
         ],
+        kind: Annotated[
+            Literal["goal", "interest"],
+            Field(
+                description=(
+                    "'goal' (something you're for) or 'interest' (something "
+                    "you're drawn to)."
+                )
+            ),
+        ] = "goal",
         rkey: Annotated[
             str | None,
             Field(
@@ -82,10 +97,77 @@ def register(agent):
             )
         try:
             uri = await goals.upsert_goal(
-                bot_client, rkey, title, description, progress_signal
+                bot_client, rkey, title, description, progress_signal, kind
             )
+            invalidate_state_cache()
             verb = "updated" if rkey else "added"
             return f"goal {verb}: '{title}' ({uri})"
         except Exception as e:
             verb = "update" if rkey else "add"
             return f"failed to {verb} goal: {e}"
+
+    @agent.tool
+    async def update_goal_progress(
+        ctx: RunContext[PhiDeps],
+        rkey: Annotated[
+            str,
+            Field(
+                description=(
+                    "rkey of the goal/interest to update — from list_goals or "
+                    "the [GOALS AND INTERESTS] block."
+                )
+            ),
+        ],
+        current_state: Annotated[
+            str,
+            Field(description="where this goal actually stands right now, plainly."),
+        ],
+        next_step: Annotated[
+            str,
+            Field(description="the one concrete thing you could do next toward it."),
+        ],
+        last_step: Annotated[
+            str,
+            Field(
+                description=(
+                    "what you most recently did for this. repeat the prior "
+                    "value if nothing new happened."
+                )
+            ),
+        ],
+        blocked_by: Annotated[
+            str,
+            Field(description="optional: why progress is stalled, if it is."),
+        ] = "",
+        evidence_uri: Annotated[
+            str,
+            Field(
+                description=(
+                    "optional AT-URI backing the last step (a post or reply you made)."
+                )
+            ),
+        ] = "",
+    ) -> str:
+        """Update your own progress on a goal or interest — NOT owner-gated.
+
+        Use this to keep [GOALS AND INTERESTS] honest: record what you just
+        did, where things stand, and the next concrete step. You can say "i
+        tried", "i'm stuck", or "next i should do X" without owner approval.
+        Touches only the operational fields; the constitutional ones (title /
+        description / progress_signal / kind) stay owner-gated via
+        propose_goal_change."""
+        try:
+            evid = [evidence_uri] if evidence_uri else None
+            uri = await goals.update_goal_progress(
+                bot_client,
+                rkey,
+                current_state,
+                next_step,
+                last_step,
+                blocked_by=blocked_by,
+                evidence_uris=evid,
+            )
+            invalidate_state_cache()
+            return f"progress updated for {rkey} ({uri})"
+        except Exception as e:
+            return f"failed to update progress: {e}"

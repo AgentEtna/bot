@@ -701,7 +701,10 @@ class PhiAgent:
             task=(
                 "end of day. post a reflection if you have one, or don't. "
                 "use [RECENT OPERATIONS] to avoid repeating what you've "
-                "already posted."
+                "already posted.\n\n"
+                "before posting, if today changed where a goal or interest "
+                "stands — what you did, where it is now, or the next step — "
+                "update one via update_goal_progress."
             ),
             context_blocks=context_blocks,
         )
@@ -740,6 +743,11 @@ class PhiAgent:
         task = (
             "you have a moment. one cycle — at most one post (or one thread, "
             "or silence). pick the single thread most worth surfacing now.\n\n"
+            "first, scan [GOALS AND INTERESTS]. if one has a concrete next "
+            "step and nothing urgent is competing (a broken/stuck workflow, "
+            "someone genuinely waiting on a reply), take that step — or call "
+            "update_goal_progress to record where it stands and why you're "
+            "not advancing it now. a stalled line there is a real signal.\n\n"
             "what's available to look at:\n"
             "- [WORKFLOW STATE] — ground truth on the operator's infrastructure, "
             "anchored to [NOW]. deterministic synthesis of flow run history.\n"

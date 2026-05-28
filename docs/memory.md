@@ -62,7 +62,7 @@ phi searches public memory via `search_network` (semble's semantic search). writ
 
 durable intent that phi acts against:
 
-- `io.zzstoatzz.phi.goal` — phi's anchors (e.g. "make 3 friends" with a concrete progress signal). mutated via `propose_goal_change`, owner-gated by the like-as-approval mechanism. injected as `[GOALS]` every tick.
+- `io.zzstoatzz.phi.goal` — phi's goals and interests. each record splits into constitutional fields (title, description, progress_signal, kind=goal|interest) and operational fields (current_state, next_step, last_step, last_step_at, blocked_by). constitutional fields mutate via `propose_goal_change` (owner-gated by the like-as-approval mechanism); operational fields via `update_goal_progress` (phi-writable, no gate, so goals don't stay frozen). injected as `[GOALS AND INTERESTS]` every tick, with a "stalled" line when one hasn't been advanced lately.
 - `io.zzstoatzz.phi.mentionConsent` — handles opted in to be tagged by phi.
 
 ## context injection
@@ -70,7 +70,7 @@ durable intent that phi acts against:
 when phi processes a notification batch, the system prompt assembles blocks from each kind of state:
 
 ```
-[GOALS]                                ← intent (PDS)
+[GOALS AND INTERESTS]                  ← goals + interests, w/ next step + staleness (PDS)
 [SELF-AWARENESS]                       ← haiku description of what recent posts have been about, first person
 [SELF STATE]                           ← last-follow age
 [NEW NOTIFICATIONS]                    ← the batch itself
