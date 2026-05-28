@@ -19,6 +19,7 @@ import logging
 from typing import Annotated
 
 from atproto_client import models
+from atproto_client.models.utils import get_model_as_dict
 from pydantic import Field
 from pydantic_ai import RunContext
 
@@ -100,7 +101,12 @@ async def _resolve_post_ref(
     parent_cid = str(result.cid or "")
     if not parent_cid:
         return None
-    value = dict(result.value) if result.value else {}
+    # result.value is an atproto DotDict — `isinstance(..., dict)` returns
+    # False for it even though it walks/looks like a dict. Deep-convert to
+    # plain dicts so the reply.root inheritance check actually fires;
+    # otherwise every reply past the first one sets root=parent and the
+    # thread chain looks disconnected to the AppView.
+    value = get_model_as_dict(result.value) if result.value else {}
     reply = value.get("reply") if isinstance(value.get("reply"), dict) else None
     if reply and isinstance(reply.get("root"), dict):
         root_uri = str(reply["root"].get("uri") or uri)
