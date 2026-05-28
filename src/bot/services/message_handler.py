@@ -290,7 +290,7 @@ class MessageHandler:
 
                 # Expand cited posts: when a notification cites another post
                 # (link facet or quote-embed), surface that post as a sibling
-                # entry so reply_to can target it through the safe path.
+                # entry so post(in_reply_to=...) can target it through the safe path.
                 cited_added = 0
                 for src_uri, entry in list(notifications_context.items()):
                     for ref in entry.get("cited_refs") or []:

@@ -10,7 +10,7 @@ the source — the UI just renders what's there.
 | module | tools |
 |---|---|
 | `tools/memory.py` | `search_memory`, `save_memory` |
-| `tools/posting.py` | `reply_to`, `like_post`, `repost_post` |
+| `tools/posting.py` | `post` (top-level or reply via `in_reply_to`), `like_post`, `repost_post` |
 | `tools/search.py` | `search_posts`, `search_network`, `web_search`, `get_trending` |
 | `tools/bluesky.py` | `post`, `get_own_posts`, `check_urls`, `manage_labels`, `manage_mentionable`, `check_services`, `check_relays`, `changelog` |
 | `tools/feeds.py` | `create_feed`, `list_feeds`, `delete_feed`, `read_timeline`, `read_feed`, `follow_user` |
@@ -24,7 +24,7 @@ shape, instead of going through per-record-type tool wrappers.
 
 ## concrete misplacements that jump out
 
-1. **`post` lives in `bluesky.py` but `reply_to` / `like_post` / `repost_post` live in `posting.py`.** these are the same shape of action — write to bluesky. one of those modules can absorb the other.
+1. ~~**`post` lives in `bluesky.py` but `reply_to` / `like_post` / `repost_post` live in `posting.py`.**~~ resolved: `post` and `reply_to` collapsed into one `post(text, in_reply_to="")` tool in `posting.py`. top-level vs reply is one call; the URI restriction moved from prompt-rule ("must be in [NEW NOTIFICATIONS]") to tool-level verify-by-fetch, so phi can thread her own posts naturally.
 2. **`follow_user` is in `feeds.py`.** following is a graph operation, not a feed operation. it has nothing to do with the graze-feeds cluster (`create_feed` / `list_feeds` / `delete_feed` / `read_feed` / `read_timeline`). it should move.
 3. ~~**`note`, `save_url`, `create_connection` are all "create a cosmik record"**~~ — resolved: cosmik write tools deleted (replaced by cosmik-records skill via pdsx). `note` was actually a private-memory write to turbopuffer, not a cosmik write — that misclassification was the smell. the private-memory write tool is now `save_memory` (see "the naming smell" in [skill-or-tool.md](skill-or-tool.md)).
 4. ~~**`memory.py` has just `recall` + `note`.**~~ resolved: the pair is `search_memory` (read) + `save_memory` (write) — each verb names its operation. (history: write `note` → `remember` → `save_memory`; read `recall` → `search_memory`; see "the naming smell" in [skill-or-tool.md](skill-or-tool.md).)
@@ -37,10 +37,14 @@ shape, instead of going through per-record-type tool wrappers.
 ## scale
 
 30 tools is a lot. each adds JSON-schema + docstring to every prompt phi
-runs. some of these probably want consolidation (e.g. `like_post` /
-`repost_post` / `reply_to` / `follow_user` could be a single `engage` tool
-with a kind parameter, depending on whether the agent benefits from the
-parameter-shape distinction).
+runs. some still want consolidation. one resolved case: `post` + `reply_to`
+collapsed into one `post(text, in_reply_to="")` — threading falls out of
+the parameter, not a separate tool, and the URI restriction moved from a
+prompt rule ("must be in [NEW NOTIFICATIONS]") to a tool-level
+verify-by-fetch so phi can thread her own posts. `like_post` /
+`repost_post` / `follow_user` stay as distinct verbs since they're
+inherently subject-referencing actions, a different shape from
+record-create-with-optional-parent.
 
 ## what the UI actually wants from the bot
 
@@ -86,10 +90,11 @@ lens. flagging for when the catalogue grows.
    docstrings, expose `module` + `operator_only`). this unblocks the UI
    from hand-curation.
 2. consolidate the obvious misplacements above (8 specific moves).
-3. consider consolidation of fine-grained engagement tools (`like_post` /
-   `repost_post` / `reply_to` / `follow_user`) into one `engage(kind, ...)`
-   tool — only worth it if the agent isn't actively benefiting from the
-   shape distinction.
+3. ~~consider consolidation of fine-grained engagement tools into one
+   `engage(kind, ...)` tool.~~ resolved differently: `post` + `reply_to`
+   merged into one `post(text, in_reply_to="")` (threading via the
+   parameter), and verify-by-fetch at the tool layer replaces the prompt
+   rule. `like_post` / `repost_post` / `follow_user` stay distinct.
 4. resolve the `blog.py` tool/skill overlap.
 
 step 1 alone makes the UI honest. steps 2–4 reduce the surface area phi

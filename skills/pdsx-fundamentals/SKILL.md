@@ -64,7 +64,7 @@ if you want a specific rkey (e.g. for `app.bsky.actor.profile/self`), pass `rkey
 
 ## the consent / posting layer
 
-pdsx will happily let you create `app.bsky.feed.post` records — but **don't post via pdsx**. the trusted posting tools (`reply_to`, `like_post`, `repost_post`, `post`) handle mention-consent allowlisting, reply-ref construction, grapheme splitting, and memory writes. raw pdsx posting bypasses all of that. use it for everything *except* posts.
+pdsx will happily let you create `app.bsky.feed.post` records — but **don't post via pdsx**. the trusted posting tools (`post`, `like_post`, `repost_post`) handle mention-consent allowlisting, reply-ref construction (`post(text, in_reply_to=uri)` for any reply, including threading your own), grapheme splitting, and memory writes. raw pdsx posting bypasses all of that. use it for everything *except* posts.
 
 ## owner-gating for durable public actions
 

@@ -45,19 +45,6 @@ async def fetch_relay_names() -> list[str]:
 
 def register(agent):
     @agent.tool
-    async def post(ctx: RunContext[PhiDeps], text: str) -> str:
-        """Create a new top-level post on Bluesky (not a reply). Use this when you want to share something with your followers unprompted."""
-        try:
-            allowed = {settings.owner_handle, settings.bluesky_handle}
-            allowed.update(await get_mentionable_handles())
-            if ctx.deps.author_handle:
-                allowed.add(ctx.deps.author_handle)
-            await bot_client.create_post(text, allowed_handles=allowed)
-            return f"posted: {text[:100]}"
-        except Exception as e:
-            return f"failed to post: {e}"
-
-    @agent.tool
     async def get_own_posts(ctx: RunContext[PhiDeps], limit: int = 10) -> str:
         """Read your own recent top-level posts (no replies). Use this instead of list_records when you need to review what you've posted."""
         try:

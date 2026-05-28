@@ -2,8 +2,8 @@
 
 When a notification references another bluesky post — via a link facet or a
 record-embed (quote / record_with_media) — surface the referenced post as a
-structured citation alongside the notification. That lets ``reply_to`` target
-it through the safe tool path instead of forcing phi to construct URLs from
+structured citation alongside the notification. That lets ``post(in_reply_to=...)``
+target it through the safe tool path instead of forcing phi to construct URLs from
 prose text.
 
 Two pieces:
@@ -98,7 +98,7 @@ async def resolve_cited_entry(client, ref: dict, cited_by_uri: str) -> dict | No
 
     Resolves handle→DID if needed (via ``AsyncIdResolver``), fetches the post
     via ``client.get_posts`` to get cid + reply refs, and returns an entry
-    in the same shape used by ``reply_to``.
+    in the same shape used by ``post(in_reply_to=...)``.
 
     Returns ``None`` if the handle doesn't resolve or the post can't be fetched.
     """

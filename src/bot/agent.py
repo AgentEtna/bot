@@ -43,7 +43,7 @@ def _build_operational_instructions() -> str:
     or that no docstring can naturally express.
     """
     return f"""
-posting flows through reply_to / like_post / repost_post / post — raw atproto record-create tools (pdsx) bypass the consent layer.
+posting flows through post / like_post / repost_post — raw atproto record-create tools (pdsx) bypass the consent layer. top-level posts and replies are the same call: `post(text)` for a top-level, `post(text, in_reply_to=uri)` for a reply (including threading your own posts).
 
 memory blocks carry their own trust labels. when a user's current words contradict stored notes, trust the words.
 
@@ -51,7 +51,7 @@ mention-consent allowlist: @{settings.owner_handle}, yourself, conversation part
 
 owner-like-as-approval cuts across every owner-gated tool: post the authorization request, the operator's like in the next batch authorizes the specific action discussed in that thread only — never a stranger's request riding the same batch.
 
-URIs in the [NEW NOTIFICATIONS] block — both notification lines and ``cited:`` lines under them — are the only valid targets for reply_to / like_post / repost_post. when a notification cites another post and the operator says "reply there", pass the cited URI verbatim. never construct a URL from prose text or guess a canonical form.
+target URIs for in_reply_to / like_post / repost_post are verified by fetch — a hallucinated URI refuses cleanly. pass URIs verbatim (from your notifications, recent operations, get_own_posts, or search_posts); never construct one from prose text.
 """.strip()
 
 
@@ -65,7 +65,7 @@ def _format_notifications_block(notifications_context: dict) -> str:
 
     Cited posts (reason="cited") are rendered nested under the notification
     that referenced them, so phi sees them as structured, addressable refs —
-    not just URLs inside prose. reply_to accepts these URIs.
+    not just URLs inside prose. post(in_reply_to=...) accepts these URIs.
     """
     if not notifications_context:
         return ""
@@ -181,7 +181,7 @@ class PhiAgent:
         # https://github.com/pydantic/pydantic-ai/issues/2818
         #
         # output_type=str: the agent's "decision" is no longer a structured
-        # action — actions happen as tool calls during the run (reply_to,
+        # action — actions happen as tool calls during the run (post,
         # like_post, etc). The final string return is just a brief summary
         # for logging.
         # anthropic prompt caching — tool definitions are perfectly static
@@ -589,8 +589,8 @@ class PhiAgent:
 
         The unit of work is "the set of new notifications since the last poll."
         The agent looks at all of them at once, decides what (if anything) to do
-        about each, and acts via the trusted posting tools (reply_to / like_post
-        / repost_post). Side effects happen as tool calls during the run; the
+        about each, and acts via the trusted posting tools (post / like_post /
+        repost_post). Side effects happen as tool calls during the run; the
         return value is just a summary string for logging.
 
         notifications_context: dict mapping post URI -> per-notification context
@@ -626,7 +626,9 @@ class PhiAgent:
         prompt_text = (
             "process your new notifications batch. look at the [NEW NOTIFICATIONS] "
             "block in your context, decide what to do, and use the trusted posting "
-            "tools to act. you don't have to act on every item — silence is fine."
+            "tools to act — `post(text, in_reply_to=<uri>)` for replies, "
+            "`post(text)` for top-level, both with optional threading off your own "
+            "posts. you don't have to act on every item — silence is fine."
         )
         if author_lookups:
             prompt_text += "\n\n" + "\n\n".join(author_lookups.values())

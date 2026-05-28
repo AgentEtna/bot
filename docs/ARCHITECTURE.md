@@ -4,7 +4,7 @@ phi is one agent loop, fired from a few different paths. notifications drive mos
 
 ## one agent, many entry points
 
-every entry point ends in the same place: `agent.run()` with a `PhiDeps` carrying whatever context the path needs. tool definitions are the same across paths; the system prompt assembles different dynamic blocks based on what's in `PhiDeps`. the agent decides AND acts inside the run via tool calls — `reply_to`, `like_post`, `post`, `save_memory`, `propose_goal_change`, etc. there's no separate decide-then-dispatch layer.
+every entry point ends in the same place: `agent.run()` with a `PhiDeps` carrying whatever context the path needs. tool definitions are the same across paths; the system prompt assembles different dynamic blocks based on what's in `PhiDeps`. the agent decides AND acts inside the run via tool calls — `post`, `like_post`, `save_memory`, `propose_goal_change`, etc. there's no separate decide-then-dispatch layer.
 
 what changes per path is the user prompt and the deps shape, not the agent.
 
@@ -32,7 +32,7 @@ PhiDeps assembled, system prompt composed:
   identity / time / known relays / goals / self-awareness / self state
   / notifications block / per-author memory / synthesized episodic / ...
   ↓
-agent.run() — tool calls happen inside (reply_to, like_post, etc.)
+agent.run() — tool calls happen inside (post, like_post, etc.)
   ↓
 post-action: store interaction in turbopuffer for next time
 ```

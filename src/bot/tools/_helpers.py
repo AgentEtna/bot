@@ -26,7 +26,7 @@ class PhiDeps:
     thread_context: str | None = None
     # batch-of-notifications context: maps notification post URI -> per-notif data
     # populated by the message handler before calling agent.run; consumed by the
-    # trusted posting tools (reply_to / like_post / repost_post) to look up cids,
+    # trusted posting tools (post / like_post / repost_post) to look up cids,
     # parent/root refs, author handles, post text, etc, and by the dynamic system
     # prompts to format the notifications block + per-author memory blocks.
     notifications_context: dict | None = None

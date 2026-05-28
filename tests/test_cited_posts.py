@@ -2,7 +2,7 @@
 
 When a notification references another bluesky post — via a link facet, a
 quote-embed, or a record_with_media embed — the message handler surfaces it
-as a structured citation so reply_to can target it directly. These tests
+as a structured citation so post(in_reply_to=...) can target it directly. These tests
 exercise the extractor that pulls those references out of the post record.
 """
 
