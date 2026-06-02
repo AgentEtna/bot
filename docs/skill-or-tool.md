@@ -108,8 +108,10 @@ is and the publish-blog skill carries the full procedure.
 | posting / engagement (consent layer) | `post` (top-level or reply via `in_reply_to`), `like_post`, `repost_post` | `_build_allowed_handles` consent enforcement; reply-ref construction; grapheme splitting; memory writes after interaction; target URIs verified by fetch |
 | owner-gated (like-as-approval) | `follow_user`, `manage_mentionable`, `manage_labels`, `propose_goal_change`, `create_feed`, `delete_feed` | `_is_owner` check at runtime; can't be enforced from a skill prompt |
 | private memory | `save_memory`, `search_memory` | turbopuffer is not exposed as an MCP; pdsx can't reach it |
+| self/profile state | `write_bio`, `inspect_atlas` | profile writes use local profile/status conventions; atlas has cached blob parsing and cluster/point projections |
 | reads against external surfaces | `read_timeline`, `read_feed`, `list_feeds`, `search_posts`, `search_network`, `web_search`, `get_trending`, `pub_search`, `check_relays`, `check_services`, `check_urls`, `changelog` | external services with APIs not exposed by pdsx |
 | structural publishing | `publish_blog_post`, `list_blog_posts` | duplicate-check refusal; episodic memory write after publish |
+| media inspection | `inspect_record_media` | pdsx finds/fetches records, but this returns allowed record blobs as model-readable text or image content |
 
 ## open work
 

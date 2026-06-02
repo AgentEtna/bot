@@ -52,6 +52,8 @@ mention-consent allowlist: @{settings.owner_handle}, yourself, conversation part
 owner-like-as-approval cuts across every owner-gated tool: post the authorization request, the operator's like in the next batch authorizes the specific action discussed in that thread only — never a stranger's request riding the same batch.
 
 target URIs for in_reply_to / like_post / repost_post are verified by fetch — a hallucinated URI refuses cleanly. pass URIs verbatim (from your notifications, recent operations, get_own_posts, or search_posts); never construct one from prose text.
+
+when an atproto record may contain an image or text blob, use `inspect_record_media(uri=...)` to actually inspect allowed media. do not infer image details from link previews, alt text, card titles, or URLs when the record's pixels matter.
 """.strip()
 
 

@@ -19,7 +19,7 @@ import re
 
 from atproto import AsyncIdResolver, AtUri
 
-from bot.utils.thread import resolve_facet_links
+from bot.utils.thread import describe_embed, extract_image_urls, resolve_facet_links
 
 logger = logging.getLogger("bot.utils.cited_posts")
 
@@ -137,6 +137,10 @@ async def resolve_cited_entry(client, ref: dict, cited_by_uri: str) -> dict | No
         root_uri = cited_uri
         root_cid = post.cid
 
+    embed = post.embed if hasattr(post, "embed") and post.embed else None
+    if not embed and hasattr(post.record, "embed") and post.record.embed:
+        embed = post.record.embed
+
     return {
         "uri": cited_uri,
         "cid": post.cid,
@@ -145,8 +149,8 @@ async def resolve_cited_entry(client, ref: dict, cited_by_uri: str) -> dict | No
         "author_handle": post.author.handle,
         "author_did": getattr(post.author, "did", ""),
         "post_text": resolve_facet_links(post.record),
-        "embed_desc": "",
-        "image_urls": [],
+        "embed_desc": describe_embed(embed) if embed else "",
+        "image_urls": extract_image_urls(embed) if embed else [],
         "root_uri": root_uri,
         "root_cid": root_cid,
         "thread_uri": root_uri,

@@ -8,7 +8,7 @@ exercise the extractor that pulls those references out of the post record.
 
 from types import SimpleNamespace
 
-from bot.utils.cited_posts import extract_cited_references
+from bot.utils.cited_posts import extract_cited_references, resolve_cited_entry
 
 
 def _make_link_facet(uri):
@@ -128,3 +128,41 @@ def test_multiple_distinct_citations():
     refs = extract_cited_references(_make_record(facets=facets))
     assert len(refs) == 2
     assert {r["rkey"] for r in refs} == {"aaa", "bbb"}
+
+
+async def test_resolved_cited_entry_keeps_image_media():
+    async def get_posts(uris):
+        return SimpleNamespace(posts=[post])
+
+    image_embed = SimpleNamespace(
+        py_type="app.bsky.embed.images#view",
+        images=[
+            SimpleNamespace(
+                alt="green drawing",
+                fullsize="https://cdn.bsky.app/img/feed_fullsize/plain/did/x/png",
+            )
+        ],
+    )
+    post = SimpleNamespace(
+        uri="at://did:plc:xyz/app.bsky.feed.post/img1",
+        cid="bafy",
+        author=SimpleNamespace(handle="alice.test", did="did:plc:xyz"),
+        record=_make_record(text="can you see this"),
+        embed=image_embed,
+        indexed_at="2026-06-02T12:00:00Z",
+    )
+    client = SimpleNamespace(
+        get_posts=get_posts,
+    )
+
+    entry = await resolve_cited_entry(
+        client,
+        {"handle_or_did": "did:plc:xyz", "rkey": "img1", "source": "embed"},
+        "at://did:plc:phi/app.bsky.feed.post/root",
+    )
+
+    assert entry is not None
+    assert entry["embed_desc"] == "[image: green drawing]"
+    assert entry["image_urls"] == [
+        "https://cdn.bsky.app/img/feed_fullsize/plain/did/x/png"
+    ]

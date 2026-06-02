@@ -297,6 +297,8 @@ class MessageHandler:
                         cited = await resolve_cited_entry(self.client, ref, src_uri)
                         if cited and cited["uri"] not in notifications_context:
                             notifications_context[cited["uri"]] = cited
+                            if cited.get("image_urls"):
+                                image_urls_by_uri[cited["uri"]] = cited["image_urls"]
                             cited_added += 1
                 if cited_added:
                     logger.info(f"expanded {cited_added} cited posts into context")

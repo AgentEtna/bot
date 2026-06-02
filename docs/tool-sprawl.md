@@ -1,7 +1,7 @@
 # tool sprawl
 
 surfacing the agent's tool catalogue in the UI made the sprawl visible. the
-cockpit's `tools` lens currently lists ~30 tools across 9 source modules and
+cockpit's `tools` lens currently lists ~30 tools across 10 source modules and
 the categorization is incoherent. flagging this so it can be addressed at
 the source — the UI just renders what's there.
 
@@ -12,10 +12,13 @@ the source — the UI just renders what's there.
 | `tools/memory.py` | `search_memory`, `save_memory` |
 | `tools/posting.py` | `post` (top-level or reply via `in_reply_to`), `like_post`, `repost_post` |
 | `tools/search.py` | `search_posts`, `search_network`, `web_search`, `get_trending` |
-| `tools/bluesky.py` | `post`, `get_own_posts`, `check_urls`, `manage_labels`, `manage_mentionable`, `check_services`, `check_relays`, `changelog` |
+| `tools/bluesky.py` | `get_own_posts`, `check_urls`, `manage_labels`, `manage_mentionable`, `check_services`, `check_relays`, `changelog` |
 | `tools/feeds.py` | `create_feed`, `list_feeds`, `delete_feed`, `read_timeline`, `read_feed`, `follow_user` |
 | `tools/goals.py` | `list_goals`, `propose_goal_change`, `update_goal_progress` |
 | `tools/blog.py` | `list_blog_posts`, `publish_blog_post` |
+| `tools/atlas.py` | `inspect_atlas` |
+| `tools/bio.py` | `write_bio` |
+| `tools/media.py` | `inspect_record_media` |
 
 **removed**: `tools/cosmik.py` (`save_url`, `create_connection`) — these are now
 covered by the `cosmik-records` skill. phi loads it on demand and uses
@@ -36,7 +39,7 @@ shape, instead of going through per-record-type tool wrappers.
 
 ## scale
 
-30 tools is a lot. each adds JSON-schema + docstring to every prompt phi
+30 native tools is a lot. each adds JSON-schema + docstring to every prompt phi
 runs. some still want consolidation. one resolved case: `post` + `reply_to`
 collapsed into one `post(text, in_reply_to="")` — threading falls out of
 the parameter, not a separate tool, and the URI restriction moved from a
@@ -45,6 +48,10 @@ verify-by-fetch so phi can thread her own posts. `like_post` /
 `repost_post` / `follow_user` stay as distinct verbs since they're
 inherently subject-referencing actions, a different shape from
 record-create-with-optional-parent.
+
+`inspect_record_media` is intentionally narrow: pdsx remains the generic
+record CRUD/discovery surface, while this tool only turns allowed text/image
+blobs on an already-known AT-URI into model-readable text or image content.
 
 ## what the UI actually wants from the bot
 

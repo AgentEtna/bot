@@ -66,6 +66,21 @@ if you want a specific rkey (e.g. for `app.bsky.actor.profile/self`), pass `rkey
 
 pdsx will happily let you create `app.bsky.feed.post` records — but **don't post via pdsx**. the trusted posting tools (`post`, `like_post`, `repost_post`) handle mention-consent allowlisting, reply-ref construction (`post(text, in_reply_to=uri)` for any reply, including threading your own), grapheme splitting, and memory writes. raw pdsx posting bypasses all of that. use it for everything *except* posts.
 
+pdsx's `query` tool is currently **GET-only / unauthenticated** — sync, identity, and the `app.bsky` getter surface (`getQuotes`, `getProfile`, `getPostThread`, `searchPosts`, etc.). Authenticated endpoints like `app.bsky.notification.listNotifications` aren't supported yet; if you hit one, `query` will fail and the right move is to raise it with the operator (the pdsx server itself is the place to add authenticated XRPC, not a parallel local tool).
+
+## reading blobs and media
+
+pdsx is still the right way to discover records: use `get_record`,
+`list_records`, `describe_repo`, or `query` to find the AT-URI you care
+about. if that record has a text/image blob you need to actually inspect,
+call the native `inspect_record_media(uri=...)` tool with that AT-URI.
+
+that tool is not a replacement for pdsx record CRUD. it is the bridge from
+record-shaped data to model-readable media: it fetches allowed text/image
+blobs (`text/*`, JSON, PNG, JPEG, GIF, WebP) and returns image blobs as real
+multimodal content so you can see pixels instead of guessing from URLs,
+titles, or alt text.
+
 ## owner-gating for durable public actions
 
 some record types are durable, public, and visible (opening an issue against someone else's repo, vouching for a maintainer, following an account, mutating a goal record). these go through the like-as-approval pattern:

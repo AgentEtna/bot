@@ -13,6 +13,7 @@ def register_all(agent, graze_client: GrazeClient):
         bluesky,
         feeds,
         goals,
+        media,
         memory,
         posting,
         search,
@@ -27,6 +28,7 @@ def register_all(agent, graze_client: GrazeClient):
     goals.register(agent)
     posting.register(agent)
     atlas.register(agent)
+    media.register(agent)
 
 
 __all__ = ["PhiDeps", "_check_services_impl", "register_all"]
