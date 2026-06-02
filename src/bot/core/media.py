@@ -11,12 +11,26 @@ from dataclasses import dataclass
 from typing import Any
 
 import httpx
-from atproto import AtUri
+from atproto import AsyncIdResolver, AtUri
 from atproto_client.models.utils import get_model_as_dict
 
-from bot.core.atproto_client import bot_client
+_id_resolver = AsyncIdResolver()
 
-PDS_ENTRYWAY = "https://bsky.social"
+
+async def _resolve_pds(did: str) -> str:
+    """Resolve a DID to its PDS service endpoint via the DID doc."""
+    doc = await _id_resolver.did.resolve(did)
+    if not doc:
+        msg = f"could not resolve DID doc for {did}"
+        raise ValueError(msg)
+    for svc in getattr(doc, "service", None) or []:
+        sid = getattr(svc, "id", "") or ""
+        if sid.endswith("#atproto_pds"):
+            endpoint = getattr(svc, "service_endpoint", "") or ""
+            if endpoint:
+                return endpoint.rstrip("/")
+    msg = f"no #atproto_pds service entry in DID doc for {did}"
+    raise ValueError(msg)
 
 ALLOWED_TEXT_MIME_TYPES = {
     "application/json",
@@ -118,21 +132,39 @@ def find_allowed_blobs(record: Any) -> list[AtprotoBlobRef]:
     return found
 
 
-async def fetch_record(uri: str) -> dict[str, Any]:
-    """Fetch any atproto record by AT-URI as a plain dict."""
+async def fetch_record(uri: str, *, timeout: float = 30) -> dict[str, Any]:
+    """Fetch any atproto record by AT-URI as a plain dict.
+
+    Resolves the DID → PDS endpoint and calls com.atproto.repo.getRecord on
+    the authority that actually holds the record. Routing through phi's PDS
+    or bsky.social only works for bsky.social-hosted accounts and returns
+    RecordNotFound for self-hosted PDSes (pds.zzstoatzz.io, etc.).
+    """
     parsed = AtUri.from_str(uri)
     if not parsed.collection or not parsed.rkey:
         msg = f"AT-URI must include collection and rkey: {uri}"
         raise ValueError(msg)
 
-    await bot_client.authenticate()
-    result = bot_client.client.com.atproto.repo.get_record(
-        {"repo": parsed.host, "collection": parsed.collection, "rkey": parsed.rkey}
-    )
+    if parsed.host.startswith("did:"):
+        did = parsed.host
+    else:
+        did = await _id_resolver.handle.resolve(parsed.host)
+        if not did:
+            msg = f"could not resolve handle {parsed.host}"
+            raise ValueError(msg)
+
+    pds = await _resolve_pds(did)
+    async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+        resp = await client.get(
+            f"{pds}/xrpc/com.atproto.repo.getRecord",
+            params={"repo": did, "collection": parsed.collection, "rkey": parsed.rkey},
+        )
+        resp.raise_for_status()
+        data = resp.json()
     return {
-        "uri": result.uri,
-        "cid": result.cid,
-        "value": _plain(result.value),
+        "uri": data.get("uri", uri),
+        "cid": data.get("cid", ""),
+        "value": data.get("value") or {},
     }
 
 
@@ -141,12 +173,12 @@ async def fetch_blob_bytes(
     blob_cid: str,
     *,
     timeout: float = 30,
-    pds_entryway: str = PDS_ENTRYWAY,
 ) -> bytes:
-    """Fetch raw blob bytes through com.atproto.sync.getBlob."""
+    """Fetch raw blob bytes through com.atproto.sync.getBlob on the DID's PDS."""
+    pds = await _resolve_pds(did)
     async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
         resp = await client.get(
-            f"{pds_entryway}/xrpc/com.atproto.sync.getBlob",
+            f"{pds}/xrpc/com.atproto.sync.getBlob",
             params={"did": did, "cid": blob_cid},
         )
         resp.raise_for_status()
