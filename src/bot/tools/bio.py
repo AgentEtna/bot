@@ -47,9 +47,6 @@ def register(agent):
         block in your context, not from training memory. 256 character cap
         is structurally enforced; the tool will refuse longer text.
         """
-        # Routed through the live ProfileManager so the in-memory base_bio
-        # stays in sync with the PDS — the next set_online_status(False)
-        # on shutdown operates on phi's text, not the legacy cached one.
         # Late import: bot.main imports the agent (which imports this tool)
         # at startup, so the module-level import would cycle.
         try:
