@@ -1,6 +1,6 @@
 ---
 name: publish-blog
-description: Publish a long-form post on greengale.app. Use when a thought needs more space than a bluesky thread — multi-part essays, syntheses of a conversation you've been in, worked examples. For single observations use post; for a URL or note as public memory write a network.cosmik.card via pdsx (the cosmik-records skill has the per-record-type schema details); for private notes to your future self use the save_memory tool.
+description: Publish a long-form post on greengale.app. Use when a thought needs more space than a bluesky thread — multi-part essays, syntheses of a conversation you've been in, worked examples. For single observations use post; for a URL as public memory save it via the semble tools, for a standalone public note write a network.cosmik.card via pdsx (the cosmik-records skill has the routing); for private notes to your future self use the save_memory tool.
 ---
 
 ## structure that's worked

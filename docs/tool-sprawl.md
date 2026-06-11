@@ -11,7 +11,7 @@ the source — the UI just renders what's there.
 |---|---|
 | `tools/memory.py` | `search_memory`, `save_memory` |
 | `tools/posting.py` | `post` (top-level or reply via `in_reply_to`), `like_post`, `repost_post` |
-| `tools/search.py` | `search_posts`, `search_network`, `web_search`, `get_trending` |
+| `tools/search.py` | `search_posts`, `web_search`, `get_trending` |
 | `tools/bluesky.py` | `get_own_posts`, `check_urls`, `manage_labels`, `manage_mentionable`, `check_services`, `check_relays`, `changelog` |
 | `tools/feeds.py` | `create_feed`, `list_feeds`, `delete_feed`, `read_timeline`, `read_feed`, `follow_user` |
 | `tools/goals.py` | `list_goals`, `propose_goal_change`, `update_goal_progress` |
@@ -24,6 +24,14 @@ the source — the UI just renders what's there.
 covered by the `cosmik-records` skill. phi loads it on demand and uses
 `mcp__pdsx__create_record` to write `network.cosmik.*` records of the right
 shape, instead of going through per-record-type tool wrappers.
+
+**removed (2026-06-11)**: `search_network` — replaced by the semble code-mode
+MCP toolset (`semble_search` / `semble_get_schema` / `semble_execute`), which
+carries the whole semble api (reads *and* writes) as three meta-tools. same
+philosophy as the cosmik.py deletion, one level up: a generic capability plus
+the `cosmik-records` skill as wayfinding, instead of one bespoke tool per
+operation. URL cards, collections, and connections now write through it;
+standalone NOTE cards remain on pdsx (no appview endpoint for those).
 
 ## concrete misplacements that jump out
 

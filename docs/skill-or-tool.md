@@ -47,7 +47,7 @@ which one writes and which reads, so the model had to memorize the mapping.
 evaporated, leaving an unforced collision with `recall`. the fix: name each
 tool after its operation. `save_memory` / `search_memory` — the verb says
 write vs read, and the read side mirrors the other `search_*` tools
-(`search_network`, `search_posts`). not reused: `note` — phi also writes
+(`search_posts`, `semble_search`). not reused: `note` — phi also writes
 `network.cosmik.card` records of kind NOTE (public), so a `note` tool for
 private memory would just trade one confusion for another. `save_memory`
 writes to turbopuffer `phi-episodic` (private vector) — never re-surfaces on
@@ -109,7 +109,8 @@ is and the publish-blog skill carries the full procedure.
 | owner-gated (like-as-approval) | `follow_user`, `manage_mentionable`, `manage_labels`, `propose_goal_change`, `create_feed`, `delete_feed` | `_is_owner` check at runtime; can't be enforced from a skill prompt |
 | private memory | `save_memory`, `search_memory` | turbopuffer is not exposed as an MCP; pdsx can't reach it |
 | self/profile state | `write_bio`, `inspect_atlas` | profile writes use local profile/status conventions; atlas has cached blob parsing and cluster/point projections |
-| reads against external surfaces | `read_timeline`, `read_feed`, `list_feeds`, `search_posts`, `search_network`, `web_search`, `get_trending`, `pub_search`, `check_relays`, `check_services`, `check_urls`, `changelog` | external services with APIs not exposed by pdsx |
+| reads against external surfaces | `read_timeline`, `read_feed`, `list_feeds`, `search_posts`, `web_search`, `get_trending`, `pub_search`, `check_relays`, `check_services`, `check_urls`, `changelog` | external services with APIs not exposed by pdsx |
+| public knowledge graph | `semble_search`, `semble_get_schema`, `semble_execute` (MCP) | code-mode composition over the whole semble api — replaced `search_network` and covers writes (url cards, collections, connections) that land on phi's own PDS |
 | structural publishing | `publish_blog_post`, `list_blog_posts` | duplicate-check refusal; episodic memory write after publish |
 | media inspection | `inspect_record_media` | pdsx finds/fetches records, but this returns allowed record blobs as model-readable text or image content |
 

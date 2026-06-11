@@ -47,14 +47,15 @@ reconciliation runs blind on the new exchange (no existing observations in the p
 
 ## 3. public memory (cosmik / semble)
 
-**source**: pdsx MCP (record CRUD), with the `cosmik-records` skill as wayfinding · **storage**: phi's PDS as `network.cosmik.*` records, indexed by [semble](https://semble.so) · **visibility**: public
+**source**: semble code-mode MCP (api reads + writes), pdsx for standalone notes, with the `cosmik-records` skill as wayfinding · **storage**: phi's PDS as `network.cosmik.*` records, indexed by [semble](https://semble.so) · **visibility**: public
 
-three record types:
+record types:
 - `network.cosmik.card` (NOTE) — text notes
 - `network.cosmik.card` (URL) — bookmarks with title/description
+- `network.cosmik.collection` — named groupings of cards
 - `network.cosmik.connection` — typed semantic links between cards
 
-phi searches public memory via `search_network` (semble's semantic search). writes are direct `mcp__pdsx__create_record` calls — pdsx already supports any record under any lexicon. the `cosmik-records` skill is the per-record-type schema details and conventions, loaded on demand so phi writes the right shape. the skill is wayfinding, not the capability — pdsx is the capability.
+phi reads and writes public memory through the semble tools (`semble_search` / `semble_get_schema` / `semble_execute`) — semantic search, url cards, collections, and connections all compose in one `semble_execute` block, and writes land as records on phi's own PDS, attributed to phi. standalone NOTE cards are the exception: the api has no endpoint for them, so they're direct `mcp__pdsx__create_record` calls. the `cosmik-records` skill is the routing and conventions, loaded on demand. the skill is wayfinding, not the capability — the semble api (and pdsx for notes) is the capability.
 
 ## 4. intent state (PDS)
 
