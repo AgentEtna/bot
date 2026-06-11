@@ -11,6 +11,7 @@ from pydantic_ai import Agent, ImageUrl, RunContext
 from pydantic_ai.mcp import MCPServerStreamableHTTP
 from pydantic_ai.models.anthropic import AnthropicModelSettings
 from pydantic_ai_skills import SkillsToolset
+from semble import AsyncSemble
 
 from bot.config import settings
 from bot.core.atlas import get_atlas_digest
@@ -44,6 +45,8 @@ def _build_operational_instructions() -> str:
     """
     return f"""
 posting flows through post / like_post / repost_post — raw atproto record-create tools (pdsx) bypass the consent layer. top-level posts and replies are the same call: `post(text)` for a top-level, `post(text, in_reply_to=uri)` for a reply (including threading your own posts).
+
+your public knowledge graph (cosmik/semble) flows through the semble tools: semble_search to find api methods, semble_get_schema for parameter shapes, semble_execute to compose reads and writes in one block. writes there land on your own PDS, attributed to you, scoped to network.cosmik.* — no owner gate, but they're public. the one exception is standalone NOTE cards (pdsx; the cosmik-records skill has the routing).
 
 memory blocks carry their own trust labels. when a user's current words contradict stored notes, trust the words.
 
@@ -432,13 +435,30 @@ class PhiAgent:
             """One-line summary of phi's cosmik state.
 
             Just enough for phi to know it has public collections — the
-            details are available via search_network and list_records when
-            phi actually needs them.
+            details are available through the semble tools when phi
+            actually needs them. Counts come from the semble appview
+            (uncapped, reflects what's actually indexed); the raw-PDS
+            list_records path is the fallback when the appview is down.
             """
             await bot_client.authenticate()
             if not bot_client.client.me:
                 return ""
             did = bot_client.client.me.did
+            try:
+                async with AsyncSemble() as semble:
+                    profile = await semble.actors.get_profile(
+                        identifier=did, include_stats=True
+                    )
+                cards = profile.url_card_count or 0
+                cols = profile.collection_count or 0
+                conns = profile.connection_count or 0
+                if cards or cols or conns:
+                    return (
+                        f"[SEMBLE]: {cols} public collections, {cards} cards, "
+                        f"{conns} connections."
+                    )
+            except Exception as e:
+                logger.debug(f"semble appview profile fetch failed: {e}")
             try:
                 cols = bot_client.client.com.atproto.repo.list_records(
                     {
@@ -540,6 +560,18 @@ class PhiAgent:
                 url="https://pub-search-by-zzstoatzz.fastmcp.app/mcp",
                 timeout=30,
                 tool_prefix="pub",
+            ),
+            # Semble code-mode server (search/get_schema/execute). Keyless =
+            # public reads only; the header makes writes attribute to phi.
+            MCPServerStreamableHTTP(
+                url=settings.semble_mcp_url,
+                timeout=30,
+                tool_prefix="semble",
+                headers=(
+                    {"x-semble-api-key": settings.semble_api_key}
+                    if settings.semble_api_key
+                    else {}
+                ),
             ),
         ]
         # Prefect MCP — only included when auth is configured, so phi degrades

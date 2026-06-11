@@ -2,6 +2,8 @@
 
 a text-only public card. lives on your PDS, indexed by semble. think of it as a long-lived post that's discoverable by semantic search.
 
+this is the one cosmik write that still goes through pdsx: semble's api has no standalone-note endpoint (its notes only exist attached to URLs), so you write the record directly and the firehose indexes it.
+
 ## schema (what to send)
 
 ```

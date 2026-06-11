@@ -1,55 +1,51 @@
 ---
 name: cosmik-records
-description: Wayfinding for writing to cosmik (your public knowledge graph on atproto via semble). The capability — writing any network.cosmik.* record — already lives in pdsx; this skill is the per-record-type schema details and conventions so you do it well. Load when saving a URL, writing a public note, or creating a typed connection.
+description: Wayfinding for writing to cosmik (your public knowledge graph on atproto, indexed by semble). The capability lives in the semble tools (semble_search / semble_get_schema / semble_execute) for URLs, collections, and connections, and in pdsx for standalone NOTE cards. Load when saving a URL, writing a public note, creating a typed connection, or curating collections.
 ---
 
-cosmik is your public memory layer — bookmarks, notes, and typed connections, indexed by [semble](https://semble.so) and discoverable via `search_network`. records live on your PDS under `network.cosmik.*`. this skill covers the three you'll actually write.
+cosmik is your public memory layer — bookmarks, notes, collections, and typed connections. records live on your PDS under `network.cosmik.*`; [semble](https://semble.so) indexes them and the semble tools read and write that index. writes through semble land as real records on **your own PDS**, attributed to you — same protocol position as writing them by hand, with the server doing the lexicon shapes and URL metadata for you.
 
-**this skill doesn't add a capability** — pdsx already lets you write any cosmik record. you could call `mcp__pdsx__create_record(collection="network.cosmik.card", record={...})` without ever loading this skill; you'd just have to figure out the schema and conventions yourself. what's here is the wayfinding: the right shape per record type, when to reach for which, and the conventions that make a card actually useful instead of noise.
+**this skill doesn't add a capability** — the semble tools already expose the whole api surface (discover methods with `semble_search`, read parameter shapes with `semble_get_schema`, compose calls in `semble_execute`). what's here is the wayfinding: which method for which intent, the one record type that still goes through pdsx, and the conventions that make a card useful instead of noise.
 
-read `pdsx-fundamentals` first if you haven't — this skill assumes you understand `mcp__pdsx__create_record` and the consent layer. cosmik writes are **not** owner-gated; you can write notes/cards/connections freely. they're public, but they're yours.
+## routing
 
-## what's in this namespace
+| intent | how |
+|---|---|
+| save a URL (bookmark) | `semble_execute` → `cards_add_url(url=..., note=...)` — server fetches title/description itself |
+| public text-only note | `mcp__pdsx__create_record` — see `CARD-NOTE.md` (the appview has no standalone-note endpoint yet) |
+| typed connection between things | `semble_execute` → `connections_create` — see `CONNECTION.md` |
+| collections (create, add cards, reorder) | `semble_execute` → `collections_*` methods |
+| search what the network knows | `semble_execute` → `search_semantic(query=..., limit=...)` |
+| your own library / profile stats | `semble_execute` → `cards_list_mine`, `actors_get_my_profile(include_stats=True)` |
 
-| record type | purpose | resource file |
-|---|---|---|
-| `network.cosmik.card` (NOTE kind) | a public note — text-only, like a tweet that lives on your PDS instead of bsky | `CARD-NOTE.md` |
-| `network.cosmik.card` (URL kind) | a bookmark — a URL with title/description metadata | `CARD-URL.md` |
-| `network.cosmik.connection` | a typed link between two cards (e.g. SUPPORTS, OPPOSES) | `CONNECTION.md` |
+writes are public the moment they land. they're yours, and no owner approval is needed — but you're publishing, not journaling.
 
-cards and connections together form a directed graph. semble indexes both.
+## compose, don't round-trip
 
-## when to use which
+the semble tools are code-mode: one `semble_execute` block can search, branch, and write without dragging intermediate json through your context. the canonical save:
 
-- **NOTE** when the value is the *text*. a thought you want public but doesn't fit a bsky post. a synthesis of something you've been thinking about. an observation you want to be discoverable later by search rather than scrolling.
-- **URL** when the value is *what someone else made*. an article, a paper, a thread, a leaflet doc. include a short description in your own words for why it's worth reading.
-- **CONNECTION** when two cards relate in a way that's worth marking explicitly — "this paper supports that argument," "this URL contradicts that earlier note." use after creating both endpoints; you need their AT-URIs.
-
-a heuristic: if you'd want to post it on bsky, post it on bsky. if you want it on a record someone could find via semantic search later, save it as a card.
-
-## minimum example: writing a NOTE
-
-```
-mcp__pdsx__create_record(
-  collection="network.cosmik.card",
-  record={
-    "kind": "NOTE",
-    "content": {"text": "..."}
-  }
-)
+```python
+status = await call_tool("cards_get_library_status", {"url": url})
+if not status.get("inLibrary"):
+    result = await call_tool("cards_add_url", {"url": url, "note": "<why it's worth reading, in your words>"})
+return result
 ```
 
-returns `{"uri": "at://did:plc:.../network.cosmik.card/3xxxxx", "cid": "..."}`. semble's firehose subscriber picks it up automatically; no explicit indexing call needed.
+don't guess parameter names — `semble_get_schema` gives the exact shapes, and mistakes come back as precise validation errors you can fix in-loop.
 
-for full schemas and richer examples, read the per-record-type resource files (`CARD-NOTE.md`, `CARD-URL.md`, `CONNECTION.md`).
+## identifiers
+
+the api speaks uuids (`card_id`, `collection_id`); your graph speaks at-uris. reads return both — `cards_get(card_id)` includes the record's `uri`. when you need the at-uri of something you just wrote (e.g. to connect it, cite it in a blog post, or verify it with `pdsx.get_record`), fetch it back in the same execute block.
 
 ## what to avoid
 
-- duplicate cards. before saving a URL, search semble (`search_network`) to see if it's already indexed.
-- empty or vague descriptions on URL cards. "interesting article" is noise; one specific sentence about why is signal.
-- connections without a clear semantic — if the relationship is just "i thought of these together," that's weaker than the cards' co-occurrence in semantic search will already capture.
+- duplicate cards. `cards_get_library_status(url=...)` before saving — it's one call in the same block.
+- empty or vague notes on URL cards. "interesting article" is noise; one specific sentence about why is signal.
+- connections without a clear semantic — if the relationship is just "i thought of these together," semantic search already captures that.
+- dumping into the library root when a collection fits. curation is part of the value.
 
 ## related
 
-- `pdsx-fundamentals` — the underlying CRUD mechanics
-- `search_network` (registered tool) — query semble for what's already there
+- `CARD-NOTE.md` — standalone public notes (the pdsx path)
+- `CONNECTION.md` — connection semantics and types
+- `pdsx-fundamentals` — raw record CRUD for everything semble's api doesn't cover

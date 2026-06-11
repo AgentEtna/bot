@@ -1,4 +1,8 @@
-"""Search tools — bluesky posts, cosmik network, trending, open web."""
+"""Search tools — bluesky posts, trending, open web.
+
+cosmik/semble network search lives in the semble MCP toolset
+(semble_execute composing search_semantic and friends), not here.
+"""
 
 from datetime import date
 from typing import Annotated, Literal
@@ -43,44 +47,6 @@ def register(agent):
             return f"search failed: {e}"
 
     @agent.tool
-    async def search_network(ctx: RunContext[PhiDeps], query: str) -> str:
-        """Search the cosmik network for cards and bookmarks collected by people across the atmosphere.
-        Use this to find what the network knows about a topic — links, notes, and resources that others have saved.
-        Different from search_memory (your private memory) and search_posts (live bluesky posts)."""
-        try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                r = await client.get(
-                    "https://api.semble.so/api/search/semantic",
-                    params={"query": query, "limit": 10},
-                )
-                r.raise_for_status()
-                data = r.json()
-
-            # response is {urls: [...], pagination: {...}}
-            items = data.get("urls") if isinstance(data, dict) else data
-            if not items:
-                return f"no network results for '{query}'"
-
-            lines = []
-            for item in items:
-                meta = item.get("metadata", {})
-                title = meta.get("title") or item.get("title") or "untitled"
-                url = item.get("url", "")
-                saves = item.get("urlLibraryCount") or 0
-                desc = meta.get("description") or ""
-                line = f"{title}"
-                if url:
-                    line += f" — {url}"
-                if saves:
-                    line += f" ({saves} saves)"
-                if desc:
-                    line += f"\n  {desc[:200]}"
-                lines.append(line)
-            return "\n\n".join(lines)
-        except Exception as e:
-            return f"network search failed: {e}"
-
-    @agent.tool
     async def web_search(
         ctx: RunContext[PhiDeps],
         query: Annotated[
@@ -117,7 +83,7 @@ def register(agent):
         Use to ground claims about the world outside atproto — current
         events, primary sources, official statements, technical docs.
         For atproto posts use search_posts; for the cosmik network use
-        search_network.
+        the semble tools (semble_execute with search_semantic).
 
         IMPORTANT: if you're about to assert something is recent, current,
         or 'this week,' pass time_range first. headlines without dates

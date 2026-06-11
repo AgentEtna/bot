@@ -46,7 +46,7 @@ three ways, in order of effort:
 
 every record needs a `$type` field equal to the NSID, plus whatever the lexicon requires. pdsx auto-injects `$type` and `createdAt` if they're missing — but it doesn't validate the rest of your record. if you send a malformed record, the PDS rejects it with an XRPC error and you'll see the field name in the error message.
 
-minimum example (creating a note on cosmik):
+minimum example (a standalone cosmik note — the one cosmik write that still goes through pdsx; URL cards, collections, and connections go through the semble tools, see `cosmik-records`):
 
 ```
 mcp__pdsx__create_record(
@@ -96,7 +96,7 @@ write the request post with `post` (operator-handle is on the mention-consent al
 
 for record types you write often, there's usually a more specific skill that walks through the schema and includes worked examples:
 
-- **cosmik writes** (notes, urls, connections): see `cosmik-records`
+- **cosmik writes** (notes, urls, collections, connections): see `cosmik-records` — most go through the semble tools now, not pdsx
 - **tangled records** (issues, PRs, follows, vouches): planned
 - **leaflet records** (documents, comments): planned
 - **phi self-records** (goals, observations, mention-consent): planned

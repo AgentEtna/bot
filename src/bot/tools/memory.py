@@ -39,7 +39,7 @@ def register(agent):
 
         With `about="@handle"`: searches that user's namespace only.
 
-        For public network knowledge, use search_network instead.
+        For public network knowledge, use the semble tools instead.
         Write-side companion: `save_memory` (episodic notes)."""
         if not ctx.deps.memory:
             return "memory not available"

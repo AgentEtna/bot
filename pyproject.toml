@@ -16,6 +16,7 @@ dependencies = [
     "pydantic-ai>=1.9",
     "pydantic-ai-skills>=0.8.0",
     "pydantic-settings",
+    "semble-api>=0.0.2",
     "slowapi>=0.1.9",
     "turbopuffer",
     "uvicorn",

@@ -178,6 +178,21 @@ class Settings(BaseSettings):
             "x-prefect-api-auth-string header. Set via fly secret."
         ),
     )
+    # Semble — phi's public knowledge graph (network.cosmik.* records),
+    # reached through the hosted code-mode MCP. The server is stateless:
+    # identity arrives per-request via the x-semble-api-key header. Without
+    # a key phi still gets the full public read surface; the key (a fly
+    # secret, minted from phi's account at semble.so/settings/api-keys)
+    # enables writes attributed to phi.
+    semble_mcp_url: str = Field(
+        default="https://semble.fastmcp.app/mcp",
+        description="URL of the semble MCP server (fastmcp.app deployment)",
+    )
+    semble_api_key: str | None = Field(
+        default=None,
+        description="Phi's semble API key (enables writes; omit for read-only)",
+    )
+
     # Discovery pool — generic agents endpoint serving authors the operator
     # has been liking. Currently lives on hub.waow.tech as part of the
     # prefect-server side; consumers (phi here) read it as opaque JSON.
