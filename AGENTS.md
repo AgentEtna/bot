@@ -31,6 +31,8 @@ src/bot/
 └── utils/                 # thread context, text formatting
 
 personalities/             # personality definitions (public; phi.md is the live one)
+skills/                    # phi's runtime skills (loaded by the agent at run time)
+.claude/skills/            # operator-facing skills (for the human + claude code working on phi)
 evals/                     # behavioral tests
 scripts/                   # proven utility scripts
 sandbox/                   # experiments (graduate to scripts/ once proven)
@@ -46,6 +48,17 @@ sandbox/                   # experiments (graduate to scripts/ once proven)
 - owner-gated mutations (`follow_user`, `propose_goal_change`, `manage_mentionable`, `create_feed`) flow through a like-as-approval mechanism: phi posts an authorization request, owner likes it, next batch lets the action through.
 - MCP servers: pdsx (atproto record CRUD), pub-search (publication search). connected via `MCPServerStreamableHTTP`, fresh per `agent.run()`.
 - web grounding via tavily for recency claims (`web_search`).
+
+## skills
+
+two distinct namespaces — don't confuse them:
+
+- `skills/` — **phi's runtime skills.** loaded by the agent during `agent.run()`. these are things *phi* does: `publish-blog`, `cosmik-records`, `pdsx-fundamentals`, `phi-prompt-inspect`.
+- `.claude/skills/` — **operator-facing skills.** for the human + claude code working *on* phi, not phi itself. these are things *you* do to inspect or talk to phi:
+  - `phi-check` — inspect phi's health/activity via logfire, bsky, fly, PDS.
+  - `devlog-to-phi` — post a message to phi from the operator's devlog account (the pdsx MCP is already authed as devlog; it's a thin record-create recipe, no script).
+
+when you add a capability, decide which namespace it belongs to and document it here. prefer the pdsx MCP over hand-rolled scripts for any atproto write — pdsx is authenticated as the devlog account (`mcp__pdsx__whoami` to confirm).
 
 ## documentation
 
