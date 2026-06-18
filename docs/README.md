@@ -11,6 +11,7 @@ deeper dive into phi's design.
 - [testing.md](testing.md) — testing philosophy
 - [skill-or-tool.md](skill-or-tool.md) — the principle for deciding when something is a tool vs a skill, with the review trail
 - [tool-sprawl.md](tool-sprawl.md) — module-misplacement backlog from surfacing the catalogue in the UI
+- [patterns.md](patterns.md) — recurring lessons from the git history (deletion, feedback loops, DotDict, voice vs structure)
 
 ## reading order
 
@@ -21,5 +22,6 @@ deeper dive into phi's design.
 5. **testing.md** — how we verify behavior
 6. **skill-or-tool.md** — the design principle behind the tool/skill split
 7. **tool-sprawl.md** — known module misplacements to clean up over time
+8. **patterns.md** — recurring lessons; read before refactoring anything that looks accidental
 
 each doc is self-contained and can be read independently.
