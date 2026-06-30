@@ -86,7 +86,7 @@ class Settings(BaseSettings):
 
     # Model configuration
     agent_model: str = Field(
-        default="anthropic:claude-sonnet-4-6",
+        default="anthropic:claude-sonnet-5",
         description="Model for the main agent (pydantic-ai model string)",
     )
     extraction_model: str = Field(
