@@ -17,6 +17,7 @@ def register_all(agent, graze_client: GrazeClient):
         memory,
         posting,
         search,
+        topchicken,
     )
 
     memory.register(agent)
@@ -29,6 +30,7 @@ def register_all(agent, graze_client: GrazeClient):
     posting.register(agent)
     atlas.register(agent)
     media.register(agent)
+    topchicken.register(agent)
 
 
 __all__ = ["PhiDeps", "_check_services_impl", "register_all"]
