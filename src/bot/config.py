@@ -93,6 +93,10 @@ class Settings(BaseSettings):
         default="claude-haiku-4-5-20251001",
         description="Model for extracting observations from conversations",
     )
+    policy_model: str = Field(
+        default="claude-sonnet-5",
+        description="Model for the pre-action policy judge (bot.core.policy)",
+    )
 
     # Server configuration
     host: str = Field(default="0.0.0.0", description="The host for the server")

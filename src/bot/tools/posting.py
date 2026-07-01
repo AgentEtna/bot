@@ -13,6 +13,12 @@ Target URIs (for replies, likes, reposts) are verified by fetching the record;
 hallucinated URIs refuse cleanly. Posts already in the current notifications
 batch short-circuit the fetch since their cid + author + thread root are
 already loaded.
+
+``post`` additionally runs through the pre-action policy judge
+(``bot.core.policy``): an independent model reviews the proposed post plus its
+provenance (invited vs unprompted) against phi's written policies and can
+block or warn. The verdict comes back to phi as tool-result text so she can
+adapt in the same run.
 """
 
 import logging
@@ -26,6 +32,7 @@ from pydantic_ai import RunContext
 from bot.config import settings
 from bot.core.atproto_client import bot_client
 from bot.core.mentionable import get_mentionable_handles
+from bot.core.policy import check_action
 from bot.status import bot_status
 from bot.tools._helpers import PhiDeps
 
@@ -45,6 +52,101 @@ async def _build_allowed_handles(*extra: str) -> set[str]:
     except Exception as e:
         logger.warning(f"failed to load mentionable handles: {e}")
     return base | {h for h in extra if h}
+
+
+def _recent_own_posts(limit: int = 6) -> str:
+    """Phi's recent top-level posts, as judge context for tendency policies
+    (bliss-attractor needs to see the run, not just the proposed post).
+    Best-effort: empty string on any failure."""
+    try:
+        feed = bot_client.client.app.bsky.feed.get_author_feed(
+            params={
+                "actor": settings.bluesky_handle,
+                "limit": limit,
+                "filter": "posts_no_replies",
+            }
+        )
+        lines = []
+        for item in feed.feed:
+            text = getattr(item.post.record, "text", "") or ""
+            lines.append(f"- {text[:200]}")
+        return "\n".join(lines)
+    except Exception as e:
+        logger.debug(f"recent-posts fetch for policy judge failed: {e}")
+        return ""
+
+
+def _reply_provenance(uri: str, ctx_notifs: dict) -> str:
+    """Describe how phi came to hold this reply target — the judge's
+    load-bearing input. Invited (in the notification batch), self
+    (threading), operator, or uninvited stranger."""
+    entry = ctx_notifs.get(uri)
+    if entry is not None:
+        author = entry.get("author_handle", "") or "unknown"
+        reason = entry.get("reason", "") or "unknown"
+        return (
+            f"reply target is in phi's current notification batch — "
+            f"@{author} engaged phi (reason: {reason}); phi was invited "
+            "into this thread."
+        )
+    parsed = _parse_at_uri(uri)
+    did = parsed[0] if parsed else ""
+    own_did = getattr(getattr(bot_client.client, "me", None), "did", "") or ""
+    if did and did == own_did:
+        return "reply target is phi's own post (threading her own thread)."
+    handle = ""
+    try:
+        profile = bot_client.client.app.bsky.actor.get_profile({"actor": did})
+        handle = profile.handle or ""
+    except Exception as e:
+        logger.debug(f"profile resolve for policy judge failed: {e}")
+    who = f"@{handle}" if handle else f"did {did or 'unknown'}"
+    if handle and handle == settings.owner_handle:
+        return f"reply target is a post by {who} — the operator."
+    return (
+        f"reply target is a post by {who}, found outside the notification "
+        "batch (via timeline/search/feeds/discovery). nobody invited phi "
+        "into this thread — this reply is unprompted."
+    )
+
+
+async def _policy_gate(
+    action: str, provenance: str, *, unprompted: bool
+) -> tuple[str | None, str]:
+    """Run the pre-action policy judge. Returns (refusal, warn_note).
+
+    refusal is a message to return to phi instead of acting (block, or
+    fail-closed when the judge is unavailable and the action is
+    unprompted). warn_note is appended to the success result on a warn.
+    """
+    try:
+        verdict = await check_action(
+            action=action,
+            provenance=provenance,
+            recent_posts=_recent_own_posts(),
+        )
+    except Exception as e:
+        logger.warning(f"policy check unavailable: {e}")
+        if unprompted:
+            return (
+                "policy check unavailable and this action is unprompted — "
+                "refusing (fail-closed). nothing was posted. lower-stakes "
+                "moves (like_post, save_memory) are still open, or try "
+                "again next cycle.",
+                "",
+            )
+        return None, ""  # invited actions fail open
+    if verdict.verdict == "block":
+        return (
+            f"blocked by policy '{verdict.policy}': {verdict.reason}\n"
+            "nothing was posted. this is information, not punishment — "
+            "adapt rather than retry verbatim: a like, save_memory, or a "
+            "different post are all fine moves.",
+            "",
+        )
+    if verdict.verdict == "warn":
+        return None, f"\npolicy note ({verdict.policy}): {verdict.reason}"
+    return None, ""
 
 
 def _parse_at_uri(uri: str) -> tuple[str, str, str] | None:
@@ -157,13 +259,24 @@ def register(agent):
         you're replying to another author in your current notifications
         batch, and status recording.
         """
+        notifs = ctx.deps.notifications_context or {}
+        unprompted = not notifs and not ctx.deps.author_handle
+
         if not in_reply_to:
+            refusal, warn_note = await _policy_gate(
+                f"top-level post on phi's own feed: {text}",
+                "top-level post, triggered during "
+                + ("notification handling." if not unprompted else "a scheduled cycle (nobody prompted this)."),
+                unprompted=unprompted,
+            )
+            if refusal:
+                return refusal
             try:
                 allowed = await _build_allowed_handles(ctx.deps.author_handle or "")
                 await bot_client.create_post(text, allowed_handles=allowed)
                 bot_status.record_response()
                 logger.info(f"posted: {text[:80]}")
-                return f"posted: {text[:100]}"
+                return f"posted: {text[:100]}" + warn_note
             except Exception as e:
                 logger.exception(f"post failed: {e}")
                 return f"failed to post: {e}"
@@ -177,6 +290,16 @@ def register(agent):
         parent_cid, root_uri, root_cid, author_handle, post_text = ref
         if not parent_cid:
             return f"refused: could not determine cid for {in_reply_to}"
+
+        refusal, warn_note = await _policy_gate(
+            f"reply to {in_reply_to}"
+            + (f" (by @{author_handle})" if author_handle else "")
+            + f": {text}",
+            _reply_provenance(in_reply_to, ctx.deps.notifications_context or {}),
+            unprompted=unprompted,
+        )
+        if refusal:
+            return refusal
 
         parent_ref = models.ComAtprotoRepoStrongRef.Main(
             uri=in_reply_to, cid=parent_cid
@@ -217,7 +340,7 @@ def register(agent):
             except Exception as e:
                 logger.warning(f"failed to store interaction for @{author_handle}: {e}")
 
-        return f"replied to {target} at {in_reply_to}"
+        return f"replied to {target} at {in_reply_to}" + warn_note
 
     @agent.tool
     async def like_post(
