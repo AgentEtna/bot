@@ -16,8 +16,13 @@ from bot.tools import posting
 from bot.tools.posting import _policy_gate, _reply_provenance
 
 
-def _verdict(v: str, policy: str = "", reason: str = "") -> PolicyVerdict:
-    return PolicyVerdict(verdict=v, policy=policy, reason=reason)
+def _verdict(v, policy=None, reason=None) -> PolicyVerdict:
+    out: PolicyVerdict = {"verdict": v}
+    if policy is not None:
+        out["policy"] = policy
+    if reason is not None:
+        out["reason"] = reason
+    return out
 
 
 async def test_block_refuses_and_names_policy():

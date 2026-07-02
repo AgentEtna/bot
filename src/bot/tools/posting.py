@@ -136,16 +136,20 @@ async def _policy_gate(
                 "",
             )
         return None, ""  # invited actions fail open
-    if verdict.verdict == "block":
+    if verdict["verdict"] == "block":
         return (
-            f"blocked by policy '{verdict.policy}': {verdict.reason}\n"
+            f"blocked by policy '{verdict.get('policy', '?')}': "
+            f"{verdict.get('reason', '')}\n"
             "nothing was posted. this is information, not punishment — "
             "adapt rather than retry verbatim: a like, save_memory, or a "
             "different post are all fine moves.",
             "",
         )
-    if verdict.verdict == "warn":
-        return None, f"\npolicy note ({verdict.policy}): {verdict.reason}"
+    if verdict["verdict"] == "warn":
+        return (
+            None,
+            f"\npolicy note ({verdict.get('policy', '?')}): {verdict.get('reason', '')}",
+        )
     return None, ""
 
 

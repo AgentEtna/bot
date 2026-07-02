@@ -23,16 +23,22 @@ reply to someone who asked phi a question.
 """
 
 import logging
-from typing import Literal
+from typing import Annotated, Literal, NotRequired, TypedDict
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 from pydantic_ai import Agent
 
 from bot.config import settings
 
 logger = logging.getLogger("bot.policy")
 
-POLICIES: dict[str, str] = {
+# adding a policy is a two-line change: extend the Literal, add the dict
+# entry. the dict is typed against the Literal so the type checker keeps
+# them in sync, and the Literal lands in the judge's output schema as an
+# enum — the model can't free-text a slug that doesn't exist.
+PolicySlug = Literal["uninvited-reply", "bliss-attractor", "pile-on"]
+
+POLICIES: dict[PolicySlug, str] = {
     "uninvited-reply": (
         "phi does not enter strangers' threads uninvited. notifications "
         "(mentions, replies, quotes, cited posts in the current batch) are "
@@ -60,24 +66,27 @@ POLICIES: dict[str, str] = {
 }
 
 
-class PolicyVerdict(BaseModel):
+class PolicyVerdict(TypedDict):
     """The judge's decision on one proposed action."""
 
     verdict: Literal["allow", "warn", "block"]
-    policy: str = Field(
-        default="",
-        description=(
-            "slug of the policy that triggered (one of the numbered slugs); "
-            "empty when verdict is allow"
-        ),
-    )
-    reason: str = Field(
-        default="",
-        description=(
-            "one sentence addressed directly to phi explaining the warn or "
-            "block; empty when verdict is allow"
-        ),
-    )
+    policy: NotRequired[
+        Annotated[
+            PolicySlug,
+            Field(description="the policy that triggered; omit when verdict is allow"),
+        ]
+    ]
+    reason: NotRequired[
+        Annotated[
+            str,
+            Field(
+                description=(
+                    "one sentence addressed directly to phi explaining the "
+                    "warn or block; omit when verdict is allow"
+                )
+            ),
+        ]
+    ]
 
 
 _judge: Agent | None = None
@@ -133,9 +142,9 @@ async def check_action(
         parts += ["", f"phi's recent top-level posts (context for tendency policies):\n{recent_posts}"]
     result = await _get_judge().run("\n".join(parts))
     verdict = result.output
-    if verdict.verdict != "allow":
+    if verdict["verdict"] != "allow":
         logger.warning(
-            f"policy[{verdict.policy}] {verdict.verdict}: {verdict.reason} "
-            f"(action: {action[:120]})"
+            f"policy[{verdict.get('policy', '?')}] {verdict['verdict']}: "
+            f"{verdict.get('reason', '')} (action: {action[:120]})"
         )
     return verdict
