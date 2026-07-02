@@ -11,12 +11,18 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from bot.core.policy import PolicyVerdict
+from typing import Literal
+
+from bot.core.policy import PolicySlug, PolicyVerdict
 from bot.tools import posting
 from bot.tools.posting import _policy_gate, _reply_provenance
 
 
-def _verdict(v, policy=None, reason=None) -> PolicyVerdict:
+def _verdict(
+    v: Literal["allow", "warn", "block"],
+    policy: PolicySlug | None = None,
+    reason: str | None = None,
+) -> PolicyVerdict:
     out: PolicyVerdict = {"verdict": v}
     if policy is not None:
         out["policy"] = policy
