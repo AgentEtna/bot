@@ -155,16 +155,32 @@
 </main>
 
 <style>
+	/* house content-page container: body is overflow:hidden for the canvas
+	 * pages, so content pages own their scroll region below the HUD chrome
+	 * (same pattern as docket/capabilities). */
+	.page {
+		position: fixed;
+		inset: 0;
+		overflow-y: auto;
+		overflow-x: hidden;
+		padding: 96px 16px 80px;
+		-webkit-overflow-scrolling: touch;
+	}
+	.page-inner {
+		max-width: 720px;
+		margin: 0 auto;
+	}
 	.explainer {
-		opacity: 0.75;
+		color: var(--text-dim);
 		max-width: 60ch;
 		line-height: 1.5;
 	}
 	.live {
-		border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+		border: 1px solid var(--line-dim);
+		border-left: 2px solid var(--hud-mid);
+		background: var(--bg-elev);
 		padding: 0.75rem 1rem;
 		margin: 1rem 0;
-		border-radius: 4px;
 	}
 	.live-active {
 		border-color: #e0a458;
@@ -194,10 +210,9 @@
 	.editor textarea {
 		font: inherit;
 		padding: 0.5rem;
-		background: transparent;
+		background: var(--bg-elev);
 		color: inherit;
-		border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
-		border-radius: 4px;
+		border: 1px solid var(--line-dim);
 	}
 	.toggle {
 		display: flex;
@@ -225,6 +240,8 @@
 	}
 	.status {
 		margin-top: 1rem;
-		opacity: 0.8;
+		color: var(--text-dim);
+		font-family: var(--font-mono);
+		font-size: 13px;
 	}
 </style>

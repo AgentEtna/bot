@@ -17,6 +17,16 @@
 </main>
 
 <style>
+	.page {
+		position: fixed;
+		inset: 0;
+		overflow-y: auto;
+		padding: 96px 16px 80px;
+	}
+	.page-inner {
+		max-width: 720px;
+		margin: 0 auto;
+	}
 	.errorbox {
 		display: flex;
 		flex-direction: column;
