@@ -30,6 +30,9 @@ src/bot/
 ├── tools/                 # native pydantic-ai tools (posting, search, memory, goals, blog, etc.)
 └── utils/                 # thread context, text formatting
 
+web/                       # sveltekit cockpit at phi.zzstoatzz.io (internal — docs/internal/cockpit.md)
+lexicons/                  # custom io.zzstoatzz.phi.* lexicon definitions
+docs/                      # deeper reference (docs/README.md has the reading order)
 personalities/             # personality definitions (public; phi.md is the live one)
 skills/                    # phi's runtime skills (loaded by the agent at run time)
 .claude/skills/            # operator-facing skills (for the human + claude code working on phi)
@@ -41,12 +44,13 @@ sandbox/                   # experiments (graduate to scripts/ once proven)
 
 ## key architecture
 
-- one agent loop, many entry points (notifications batch, scheduled musing, daily reflection, relay check). all end in `agent.run()` with different `PhiDeps`.
+- one agent loop, many entry points (notifications batch, cycle, daily reflection). all end in `agent.run()` with different `PhiDeps`.
 - actions happen as tool calls inside the run, not via structured output. the agent's return value is a brief summary string for logging.
+- public actions are gated (docs/safety.md): written policies + an independent judge on every `post` (`core/policy.py`), a structural guard refusing raw `app.bsky.feed.*` writes via pdsx (`core/mcp_guard.py`), and an operator override — an `io.zzstoatzz.phi.override` record on the *operator's* repo that makes post/like/repost refuse while active (`core/override.py`, editable at the cockpit's `/operator`).
 - personality is separate from operational rules. tool docstrings carry per-tool guidance, not the system prompt.
 - memory: turbopuffer namespaces (`phi-users-{handle}`, `phi-episodic`). intent state on PDS under `io.zzstoatzz.phi.*` (goals, mention consent, legacy queue).
 - owner-gated mutations (`follow_user`, `propose_goal_change`, `manage_mentionable`, `create_feed`) flow through a like-as-approval mechanism: phi posts an authorization request, owner likes it, next batch lets the action through.
-- MCP servers: pdsx (atproto record CRUD), pub-search (publication search). connected via `MCPServerStreamableHTTP`, fresh per `agent.run()`.
+- MCP servers: pdsx (atproto record CRUD, feed-writes guarded), pub-search (publication search), semble (code-mode public knowledge graph), prefect (workflow state; only when auth configured). connected via `MCPServerStreamableHTTP`, fresh per `agent.run()`.
 - web grounding via tavily for recency claims (`web_search`).
 
 ## skills
@@ -67,7 +71,11 @@ deeper reference in `docs/`:
 - `memory.md` — the four kinds of state and how they compose
 - `system-prompt.md` — block-by-block reference for what's in phi's context
 - `mcp.md` — MCP integration
+- `safety.md` — the policy judge, the pdsx feed-write guard, the operator override, and the incident that shaped them
 - `testing.md` — testing philosophy
+- `internal/cockpit.md` — the web UI (internal, operator-facing)
+
+`docs/system-prompt.md` is drift-checked: `tests/test_docs_sync.py` fails if an `inject_*` prompt function or a policy slug isn't mentioned there. add the row, don't weaken the test.
 
 ## deployment
 

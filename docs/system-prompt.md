@@ -16,6 +16,7 @@ set in `PhiAgent.__init__`, refreshes on process restart only:
 
 - **personality** — `personalities/phi.md`, verbatim, prefixed "the following is your personality:".
 - **operational rules** — `_build_operational_instructions()`: cross-cutting constraints no single tool docstring can own (the posting/consent layer, the memory trust hierarchy, the mention-consent allowlist, owner-like-as-approval, and the URIs-only-from-the-notifications-block rule).
+- **policies** — the same function renders phi's written policies from `bot.core.policy.POLICIES` (`uninvited-reply`, `bliss-attractor`, `pile-on`), plus a note that an independent judge reviews every `post` call against them before it executes. one source: the judge and the prompt read the same dict. see [safety.md](safety.md).
 
 tool definitions are cached at the Anthropic layer (`anthropic_cache_tool_definitions="1h"`).
 
@@ -26,6 +27,7 @@ contributed by the `inject_*` callbacks in `agent.py`, in registration order. ea
 | block | injector → source | refreshes | purpose |
 |---|---|---|---|
 | `[YOUR INFRASTRUCTURE]` | `inject_identity` → `bot_client.client.me` | every run | phi's own handle / DID / PDS host |
+| `[OPERATOR OVERRIDE]` | `inject_operator_override` → `core/override.py` → `io.zzstoatzz.phi.override` record on the *operator's* repo (60s TTL) | every run while active; renders nothing when inactive | safe mode banner: the operator's message verbatim, what's refused (post/like/repost), and the channel back (PDS notes). rendered up front so phi learns about the override before bumping into tool refusals. see [safety.md](safety.md) |
 | `[OPERATOR]` | `inject_operator` → `get_operator_profile` | every run | resolved owner name + handle + DID |
 | `[NOW]` / `[NOW (operator local)]` | `inject_today` | every run | UTC + operator-local clock (schedule slots are anchored to operator-local) |
 | `[OPERATIONAL HISTORY]` | `inject_pause_history` → `bot_status` | every run | the most recent pause/resume cycle, only while the resume is <24h old |

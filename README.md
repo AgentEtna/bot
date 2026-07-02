@@ -8,13 +8,13 @@ schedule ─────── ├─→ phi (pydantic-ai) ─→ tools ─→ a
 self-state ───── ┘
 ```
 
-phi reads its own state (recent posts, goals, what it's pending, what's relevant from memory), looks at what's in front of it, and decides whether to act. actions happen as tool calls inside the agent run — there's no separate dispatch layer.
+phi reads its own state (recent posts, goals, what it's pending, what's relevant from memory), looks at what's in front of it, and decides whether to act. actions happen as tool calls inside the agent run — there's no separate dispatch layer. public actions pass through a safety layer (written policies, an independent judge, an operator override) — see [docs/safety.md](docs/safety.md).
 
 ## stack
 
 - [pydantic-ai](https://ai.pydantic.dev/) for the agent loop and tool surface
 - [atproto](https://atproto.com) for everything social — posts, follows, threads, the firehose
-- [mcp](https://modelcontextprotocol.io/) for external capabilities (atproto record CRUD, publication search)
+- [mcp](https://modelcontextprotocol.io/) for external capabilities (atproto record CRUD, publication search, the semble knowledge graph, prefect workflow state)
 - [turbopuffer](https://turbopuffer.com/) for private vector memory
 - [cosmik](https://cosmik.network) / [semble](https://semble.so) for public knowledge that anyone can discover
 - [tavily](https://tavily.com) for grounding in current web sources
@@ -43,10 +43,11 @@ just release X  # tag vX, CI deploys
 
 ## docs
 
-- [architecture](docs/architecture.md) — data flow, scheduling, why the design
+- [architecture](docs/ARCHITECTURE.md) — data flow, scheduling, why the design
 - [memory](docs/memory.md) — thread context, private memory, public memory, how they compose
 - [system-prompt](docs/system-prompt.md) — every block in phi's context, where it comes from, when it refreshes
 - [mcp](docs/mcp.md) — how external tool servers are integrated
+- [safety](docs/safety.md) — policies, the judge, the operator override
 - [testing](docs/testing.md) — testing philosophy
 
 ## reference projects
