@@ -59,23 +59,43 @@ def register(agent):
         e.g. the handle of whoever is asking for advice. Their specific positions (which
         chickens they hold) are private and not visible; say so if asked for sell advice.
         """
-        params = {}
-        if handle:
-            params["handle"] = handle.lstrip("@")
         try:
-            data = await _get_json(RECOMMEND_URL, params=params)
+            market = await _get_json(MARKET_URL)
         except Exception as e:
             logger.warning(f"chicken market fetch failed: {e}")
-            return "the chicken market is unreachable right now (it runs on a Raspberry Pi 🥧) — try again in a bit"
+            return "the chicken market is unreachable right now — try again in a bit"
 
-        lines = list(data.get("advice", []))
-        board = data.get("board", [])
-        if board:
+        round_ = market.get("round") or {}
+        contenders = round_.get("contenders", [])
+        lines = [
+            f"round {round_.get('id')} · {round_.get('status')} · {len(contenders)} contenders"
+        ]
+        if contenders:
             top = ", ".join(
-                f"@{c['handle']} {c['likes']}L ({c['ask_c']}¢)" for c in board[:5]
+                f"@{c['handle']} {c['likes']}L (p={c.get('p') or 0:.2f}, ask {c['ask_subc'] / 100:.1f}¢)"
+                for c in sorted(
+                    contenders, key=lambda c: c.get("p") or 0, reverse=True
+                )[:5]
             )
-            lines.append(f"Board: {top}")
-        return "\n".join(lines) if lines else "no market data available"
+            lines.append(f"board (top 5 by win-probability): {top}")
+
+        # bisk's strategy advice is garnish on top of the live board — its tracker
+        # can desync (empty board, "@undefined" leader), so only relay it when it
+        # agrees with the market about whether there's a field at all
+        params = {"handle": handle.lstrip("@")} if handle else {}
+        try:
+            rec = await _get_json(RECOMMEND_URL, params=params)
+            if contenders and not rec.get("board"):
+                logger.warning(
+                    "bisk recommend board is empty while the market has "
+                    f"{len(contenders)} contenders — dropping its advice as stale"
+                )
+            else:
+                lines.extend(rec.get("advice", []))
+        except Exception as e:
+            logger.warning(f"bisk recommend fetch failed: {e}")
+
+        return "\n".join(lines)
 
     @agent.tool
     async def check_chicken_portfolio(ctx: RunContext[PhiDeps]) -> str:

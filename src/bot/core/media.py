@@ -32,6 +32,7 @@ async def _resolve_pds(did: str) -> str:
     msg = f"no #atproto_pds service entry in DID doc for {did}"
     raise ValueError(msg)
 
+
 ALLOWED_TEXT_MIME_TYPES = {
     "application/json",
     "application/ld+json",
@@ -183,4 +184,3 @@ async def fetch_blob_bytes(
         )
         resp.raise_for_status()
         return resp.content
-

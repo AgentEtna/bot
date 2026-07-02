@@ -21,7 +21,6 @@ class TestToolUsage:
         if settings.anthropic_api_key:
             os.environ["ANTHROPIC_API_KEY"] = settings.anthropic_api_key
 
-    @pytest.mark.asyncio
     async def test_agent_uses_tools(self):
         """Test that the agent actually calls tools when appropriate"""
 
@@ -59,7 +58,6 @@ class TestToolUsage:
             f"Tool result not in response: {result.output.text}"
         )
 
-    @pytest.mark.asyncio
     async def test_search_tool_usage(self):
         """Test that search tool is called for appropriate queries"""
 
@@ -98,7 +96,6 @@ class TestToolUsage:
         except ModelHTTPError:
             pytest.skip("Anthropic API unavailable")
 
-    @pytest.mark.asyncio
     async def test_multiple_tool_calls(self):
         """Test that agent can call tools multiple times in one request"""
 

@@ -11,7 +11,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
-import pytest
 
 from bot.tools import topchicken
 
@@ -58,6 +57,7 @@ OPEN_MARKET = {
                 "did": "did:plc:goose",
                 "handle": "goose.art",
                 "likes": 246,
+                "p": 0.34,
                 "ask_subc": 3468,
                 "bid_subc": 3332,
             }
@@ -66,33 +66,65 @@ OPEN_MARKET = {
 }
 
 
-@pytest.mark.asyncio
-async def test_relays_advice_and_board():
+def _patch_get_json(responses):
+    """Patch _get_json to answer by URL (market vs bisk recommend)."""
+
+    async def fake(url, params=None):
+        result = responses[url]
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    return patch("bot.tools.topchicken._get_json", side_effect=fake)
+
+
+async def test_board_comes_from_the_market_with_bisk_advice_as_garnish():
     fn = _register()["check_chicken_market"]
-    payload = {
-        "advice": ["Round 2026-06-30 · early · locks in 16h.", "Mind the 2% spread."],
-        "board": [
-            {"handle": "eikopf.com", "likes": 114, "ask_c": 2.7},
-            {"handle": "philpax.me", "likes": 111, "ask_c": 2.6},
-        ],
+    rec = {
+        "advice": ["Mind the 2% spread."],
+        "board": [{"handle": "goose.art", "likes": 246, "ask_c": 34.7}],
     }
-    ctx_mgr, client = _mock_client(payload)
-    with patch("bot.tools.topchicken.httpx.AsyncClient", return_value=ctx_mgr):
+    with _patch_get_json(
+        {topchicken.MARKET_URL: OPEN_MARKET, topchicken.RECOMMEND_URL: rec}
+    ):
         out = await fn(SimpleNamespace(), handle="@zzstoatzz.io")
 
+    assert "round 2026-07-02 · open · 1 contenders" in out
+    assert "@goose.art 246L (p=0.34, ask 34.7¢)" in out
     assert "Mind the 2% spread" in out
-    assert "@eikopf.com 114L (2.7¢)" in out
-    # the @ prefix is stripped before querying
-    assert client.get.call_args.kwargs["params"]["handle"] == "zzstoatzz.io"
 
 
-@pytest.mark.asyncio
-async def test_unreachable_is_handled_gracefully():
+async def test_stale_bisk_advice_is_dropped_when_market_has_contenders():
+    """Regression: bisk's tracker desynced (empty board, '0 contenders' advice)
+    while the real market had 129 contenders; phi relayed the fiction verbatim."""
     fn = _register()["check_chicken_market"]
-    ctx_mgr, _ = _mock_client(raise_exc=httpx.ConnectError("boom"))
-    with patch("bot.tools.topchicken.httpx.AsyncClient", return_value=ctx_mgr):
+    rec = {"advice": ["Wide open with 0 contenders."], "board": []}
+    with _patch_get_json(
+        {topchicken.MARKET_URL: OPEN_MARKET, topchicken.RECOMMEND_URL: rec}
+    ):
+        out = await fn(SimpleNamespace())
+
+    assert "0 contenders" not in out
+    assert "@goose.art" in out
+
+
+async def test_market_unreachable_is_handled_gracefully():
+    fn = _register()["check_chicken_market"]
+    with _patch_get_json({topchicken.MARKET_URL: httpx.ConnectError("boom")}):
         out = await fn(SimpleNamespace())
     assert "unreachable" in out.lower()
+
+
+async def test_bisk_unreachable_still_returns_the_board():
+    fn = _register()["check_chicken_market"]
+    with _patch_get_json(
+        {
+            topchicken.MARKET_URL: OPEN_MARKET,
+            topchicken.RECOMMEND_URL: httpx.ConnectError("pi is down"),
+        }
+    ):
+        out = await fn(SimpleNamespace())
+    assert "@goose.art" in out
 
 
 def _mock_bot_client():
@@ -102,7 +134,6 @@ def _mock_bot_client():
     return bc
 
 
-@pytest.mark.asyncio
 async def test_trade_refuses_when_round_not_open():
     fn = _register()["place_chicken_trade"]
     market = {"round": {"id": "2026-07-02", "status": "locked", "contenders": []}}
@@ -119,7 +150,6 @@ async def test_trade_refuses_when_round_not_open():
     assert "only accepted while a round is open" in out
 
 
-@pytest.mark.asyncio
 async def test_trade_refuses_unknown_contender():
     fn = _register()["place_chicken_trade"]
     ctx_mgr, _ = _mock_client(OPEN_MARKET)
@@ -137,7 +167,6 @@ async def test_trade_refuses_unknown_contender():
     assert "@goose.art" in out
 
 
-@pytest.mark.asyncio
 async def test_buy_writes_order_record_with_slippage_cap():
     fn = _register()["place_chicken_trade"]
     ctx_mgr, _ = _mock_client(OPEN_MARKET)
@@ -165,7 +194,6 @@ async def test_buy_writes_order_record_with_slippage_cap():
     assert "order placed" in out
 
 
-@pytest.mark.asyncio
 async def test_sell_cap_is_a_floor_on_proceeds():
     fn = _register()["place_chicken_trade"]
     ctx_mgr, _ = _mock_client(OPEN_MARKET)
@@ -186,7 +214,6 @@ async def test_sell_cap_is_a_floor_on_proceeds():
     assert record["capSubc"] == math.floor(10 * 3332 * 0.98)
 
 
-@pytest.mark.asyncio
 async def test_trade_refuses_under_operator_override():
     fn = _register()["place_chicken_trade"]
     bc = _mock_bot_client()

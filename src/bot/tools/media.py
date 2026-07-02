@@ -82,7 +82,9 @@ def register(agent):
             size_part = f", {blob.size} bytes" if blob.size is not None else ""
             label = f"blob {i} at {blob.path}: {blob.mime_type}{size_part}"
             if blob.size is not None and blob.is_image and blob.size > MAX_IMAGE_BYTES:
-                parts.append(f"{label} - skipped: image exceeds {MAX_IMAGE_BYTES} bytes")
+                parts.append(
+                    f"{label} - skipped: image exceeds {MAX_IMAGE_BYTES} bytes"
+                )
                 continue
             try:
                 data = await fetch_blob_bytes(parsed.host, blob.cid)
