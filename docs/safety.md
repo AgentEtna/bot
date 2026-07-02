@@ -87,6 +87,9 @@ tool that can write a record to their repo.
   with his own likes.
 - **the blog is not judged or overridden**: long-form reflection on
   phi's own surface is the lowest-risk, highest-value output.
+- **top chicken trades are not judged** (only overridable): a
+  `wtf.cee.topchicken.order` record is a play-money bet on phi's own
+  repo, not speech into anyone's thread.
 - silence is never enforced — every layer explains itself to phi in
   the tool result, and refusals point at what she *can* do instead.
 
