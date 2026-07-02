@@ -89,13 +89,15 @@ class PolicyVerdict(TypedDict):
     ]
 
 
-_judge: Agent | None = None
+_judge: Agent[None, PolicyVerdict] | None = None
 
 
-def _get_judge() -> Agent:
+def _get_judge() -> Agent[None, PolicyVerdict]:
     global _judge
-    if _judge is None:
-        _judge = Agent[None, PolicyVerdict](
+    judge = _judge
+    if judge is not None:
+        return judge
+    _judge = judge = Agent[None, PolicyVerdict](
             name="phi-policy-judge",
             model=settings.policy_model,
             output_type=PolicyVerdict,
@@ -119,7 +121,7 @@ def _get_judge() -> Agent:
                 "instead when blocking."
             ),
         )
-    return _judge
+    return judge
 
 
 async def check_action(
@@ -139,7 +141,10 @@ async def check_action(
         f"provenance: {provenance}",
     ]
     if recent_posts:
-        parts += ["", f"phi's recent top-level posts (context for tendency policies):\n{recent_posts}"]
+        parts += [
+            "",
+            f"phi's recent top-level posts (context for tendency policies):\n{recent_posts}",
+        ]
     result = await _get_judge().run("\n".join(parts))
     verdict = result.output
     if verdict["verdict"] != "allow":

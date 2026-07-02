@@ -20,6 +20,7 @@ from bot.core.discovery_pool import get_discovery_pool_block
 from bot.core.docket import get_docket_digest
 from bot.core.goals import list_goals as list_goal_records
 from bot.core.graze_client import GrazeClient
+from bot.core.mcp_guard import guard_pdsx_tool_call
 from bot.core.operator import get_operator_profile
 from bot.core.owned_feeds import get_owned_feeds_block
 from bot.core.recent_flow_mentions import get_recent_flow_mentions_block
@@ -235,6 +236,16 @@ class PhiAgent:
         @self.agent.system_prompt(dynamic=True)
         async def inject_identity() -> str:
             return await get_identity_block()
+
+        @self.agent.system_prompt(dynamic=True)
+        async def inject_operator_override() -> str:
+            """[OPERATOR OVERRIDE] — safe mode banner, read from the
+            operator's PDS record. Empty (renders nothing) when inactive.
+            Rendered up front so phi learns about the override before
+            bumping into tool refusals."""
+            from bot.core.override import get_override_block
+
+            return await get_override_block()
 
         @self.agent.system_prompt(dynamic=True)
         async def inject_operator() -> str:
@@ -563,6 +574,10 @@ class PhiAgent:
                     "x-atproto-handle": settings.bluesky_handle,
                     "x-atproto-password": settings.bluesky_password,
                 },
+                # structural guard: raw feed-collection writes bypass the
+                # consent layer / policy judge / operator override — refuse
+                # them here, not just in the prompt (bot/core/mcp_guard.py)
+                process_tool_call=guard_pdsx_tool_call,
             ),
             MCPServerStreamableHTTP(
                 url="https://pub-search-by-zzstoatzz.fastmcp.app/mcp",

@@ -150,6 +150,14 @@ class Settings(BaseSettings):
 
     # Owner identity — handle or DID. Resolved to a profile (with display
     # name) at runtime via the atproto SDK; see core.operator.
+    owner_did: Did = Field(
+        default="did:plc:xbtmt2zjwlrfegqvch7fboei",
+        description=(
+            "Operator DID whose io.zzstoatzz.phi.override record the bot "
+            "obeys (safe mode). A did:plc is permanent, so this is a "
+            "deploy-time constant — no runtime handle resolution."
+        ),
+    )
     owner_handle: Handle | Did = Field(
         default="zzstoatzz.io",
         description="Handle or DID of the bot's owner (permission-gated tools)",

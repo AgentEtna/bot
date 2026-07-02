@@ -32,6 +32,7 @@ from pydantic_ai import RunContext
 from bot.config import settings
 from bot.core.atproto_client import bot_client
 from bot.core.mentionable import get_mentionable_handles
+from bot.core.override import get_override, refusal_text
 from bot.core.policy import check_action
 from bot.status import bot_status
 from bot.tools._helpers import PhiDeps
@@ -263,6 +264,10 @@ def register(agent):
         you're replying to another author in your current notifications
         batch, and status recording.
         """
+        override = await get_override()
+        if override["active"]:
+            return refusal_text(override)
+
         notifs = ctx.deps.notifications_context or {}
         unprompted = not notifs and not ctx.deps.author_handle
 
@@ -270,7 +275,11 @@ def register(agent):
             refusal, warn_note = await _policy_gate(
                 f"top-level post on phi's own feed: {text}",
                 "top-level post, triggered during "
-                + ("notification handling." if not unprompted else "a scheduled cycle (nobody prompted this)."),
+                + (
+                    "notification handling."
+                    if not unprompted
+                    else "a scheduled cycle (nobody prompted this)."
+                ),
                 unprompted=unprompted,
             )
             if refusal:
@@ -360,6 +369,9 @@ def register(agent):
         ],
     ) -> str:
         """Like a post. Use this to acknowledge something without saying anything."""
+        override = await get_override()
+        if override["active"]:
+            return refusal_text(override)
         ref = await _resolve_post_ref(uri, ctx.deps.notifications_context or {})
         if ref is None:
             return f"refused: could not verify {uri}"
@@ -392,6 +404,9 @@ def register(agent):
         ],
     ) -> str:
         """Repost a post. Use rarely — only when something genuinely deserves amplification."""
+        override = await get_override()
+        if override["active"]:
+            return refusal_text(override)
         ref = await _resolve_post_ref(uri, ctx.deps.notifications_context or {})
         if ref is None:
             return f"refused: could not verify {uri}"

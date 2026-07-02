@@ -7,11 +7,10 @@ scheduled cycle. The gate is the actor/judge split that makes the policies
 enforceable without hard-coding them.
 """
 
+from typing import Literal
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
-from typing import Literal
 
 from bot.core.policy import PolicySlug, PolicyVerdict
 from bot.tools import posting

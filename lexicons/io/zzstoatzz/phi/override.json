@@ -1,0 +1,31 @@
+{
+  "lexicon": 1,
+  "id": "io.zzstoatzz.phi.override",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Singleton operator-override record. Lives on the OPERATOR's repo, not phi's — the bot reads it from the DID configured as owner_did, so repo ownership is the authorization: anyone can write this record to their own repo, but only the operator's copy has effect. While active, phi's outward-facing tools (post/like/repost) refuse with the operator's message, and the message renders as a banner in phi's system prompt and on the cockpit.",
+      "key": "literal:self",
+      "record": {
+        "type": "object",
+        "required": ["active", "message"],
+        "properties": {
+          "active": {
+            "type": "boolean",
+            "description": "Whether the override (safe mode) is currently engaged."
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 3000,
+            "description": "The operator's own words: why the override is on and how phi should reach them. Shown to phi verbatim."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When the override was last changed."
+          }
+        }
+      }
+    }
+  }
+}
