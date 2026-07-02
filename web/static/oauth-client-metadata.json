@@ -1,0 +1,19 @@
+{
+  "client_id": "https://phi.zzstoatzz.io/oauth-client-metadata.json",
+  "client_name": "phi cockpit",
+  "client_uri": "https://phi.zzstoatzz.io/",
+  "redirect_uris": [
+    "https://phi.zzstoatzz.io/operator"
+  ],
+  "scope": "atproto repo:io.zzstoatzz.phi.override?action=create&action=update",
+  "grant_types": [
+    "authorization_code",
+    "refresh_token"
+  ],
+  "response_types": [
+    "code"
+  ],
+  "token_endpoint_auth_method": "none",
+  "application_type": "web",
+  "dpop_bound_access_tokens": true
+}
