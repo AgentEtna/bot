@@ -1,8 +1,12 @@
 """Top Chicken market tools — read and trade the daily Bluesky like-race market.
 
-"Top Chicken" is first and foremost the daily crown itself: @topchicken announces
-whoever posted Bluesky's most-liked post of the day. The prediction market is a
-separate thing built on top of that game — don't conflate them.
+"Top Chicken" is first and foremost a community game, not this market. It's a
+daily ranking run by @topchicken.bsky.social (managed by @dave.9000ish.uk), born
+from Grace saying "gm top chickens" in 2024: the field is the simcluster of
+people dave follows plus his followers, contenders must have under 7k followers
+(the "Grace Limit"), and the crown goes to the most-liked post of the day.
+bisk.social is a sibling stats site for the same cluster; the prediction market
+is a further derivative built on top. Don't conflate the game with the market.
 
 The market (https://topchicken.cee.wtf) is play-money, winner-take-all: a share
 pays $1 (10,000 subcents) if that account is the day's Top Chicken, else $0.
@@ -54,11 +58,12 @@ def register(agent):
     ) -> str:
         """Check the Top Chicken betting market and get a strategy recommendation.
 
-        "Top Chicken" is Bluesky's daily most-liked-post crown, announced by @topchicken;
-        this tool checks the play-money prediction market built ON TOP of that game. If
-        someone asks how to "top chicken", they may mean how to WIN the crown (post
-        something people love) rather than how to bet on it — read the intent before
-        reaching for market mechanics. A round is named for a UTC calendar day of posts
+        "Top Chicken" is a community game — the daily most-liked-post crown among the
+        simcluster around @dave.9000ish.uk (his follows + followers, under-7k accounts),
+        announced by @topchicken.bsky.social. This tool checks the play-money prediction
+        market built ON TOP of that game. If someone asks how to "top chicken", they may
+        mean how to WIN the crown (post something the cluster loves) rather than how to
+        bet on it — read the intent before reaching for market mechanics. A round is named for a UTC calendar day of posts
         but trades the day AFTER:
         round D opens at D 12:00 UTC, runs through the overnight like-race (much of the
         liking lands overnight, so prices can move a lot after your evening), locks at
