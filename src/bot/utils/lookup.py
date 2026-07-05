@@ -1,8 +1,7 @@
 """Cold-contact lookup — fetch a stranger's profile + recent posts before replying.
 
-This is the synchronous "let me see who you are" pre-reply behavior. Distinct from
-the background exploration loop (which writes findings to memory for later) — this
-just enriches the current reply context with what's publicly visible right now.
+This is the synchronous "let me see who you are" pre-reply behavior — it enriches
+the current reply context with what's publicly visible right now, writing nothing.
 """
 
 import logging

@@ -514,7 +514,8 @@ class PhiAgent:
         )
 
         logger.info(
-            "phi agent initialized with pdsx, pub-search, and prefect MCP tools"
+            "phi agent initialized with pdsx, pub-search, and semble MCP tools "
+            "(prefect included when configured)"
         )
 
     def get_capabilities(self) -> list[dict]:

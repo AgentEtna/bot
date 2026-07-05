@@ -59,14 +59,6 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = Field(
         default=None, description="The API key for the Anthropic API"
     )
-    # Google Search configuration
-    google_api_key: str | None = Field(
-        default=None, description="The API key for the Google API"
-    )
-    google_search_engine_id: str | None = Field(
-        default=None, description="The search engine ID for the Google API"
-    )
-
     # Tavily web search — grounds phi against the open web for currency
     # checks and source-finding. Free tier covers 1k searches/month.
     tavily_api_key: str | None = Field(
@@ -76,9 +68,6 @@ class Settings(BaseSettings):
     # TurboPuffer configuration
     turbopuffer_api_key: str | None = Field(
         default=None, description="The API key for the TurboPuffer API"
-    )
-    turbopuffer_namespace: str = Field(
-        default="bot-memories", description="The namespace for the TurboPuffer API"
     )
     turbopuffer_region: str = Field(
         default="gcp-us-central1", description="The region for the TurboPuffer API"

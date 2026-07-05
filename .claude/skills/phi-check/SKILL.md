@@ -4,7 +4,7 @@ description: >
   Inspect phi bot's health, recent activity, and behavior using logfire
   traces, bsky posts, fly status, and PDS records. Use when the operator
   asks how phi is doing, wants to check for errors, review recent posts,
-  inspect the exploration queue, or investigate a specific interaction.
+  or investigate a specific interaction.
 ---
 
 # phi-check
@@ -15,26 +15,31 @@ phi is a bluesky bot at `@phi.zzstoatzz.io` (DID `did:plc:65sucjiel52gefhcdcypyn
 
 ## the checks
 
-Run these in parallel where possible. Use `mcp__logfire__arbitrary_query` for logfire, `mcp__pdsx__list_records` / `mcp__pdsx__describe_repo` for PDS, bsky public API via curl, and `fly` CLI for infra.
+Run these in parallel where possible. Use `mcp__logfire__query_run` (project `phi`) for logfire, `mcp__pdsx__list_records` / `mcp__pdsx__describe_repo` for PDS, bsky public API via curl, and `fly` CLI for infra.
+
+**CRITICAL logfire window gotcha:** `query_run` scans only the **last 30 minutes** unless you pass `start_timestamp` / `end_timestamp` explicitly (max range 14 days). A SQL `... > now() - INTERVAL '24 hours'` filter does NOT widen it — the params are ANDed, not widened. For a 24h check, pass `start_timestamp` = 24h ago and `end_timestamp` = now. If a query returns suspiciously little, you almost certainly forgot the window params — that is not "phi is down."
 
 ### 1. hourly activity summary (logfire)
+
+Tool calls log as `span_name = 'running tool'` with the tool name in
+`attributes->>'gen_ai.tool.name'` — NOT in the span name. (Patterns like
+`span_name LIKE '%running tool: post%'` match nothing.) Posts and replies are the
+same `post` tool, so they can't be split apart here.
 
 ```sql
 SELECT
   date_trunc('hour', start_timestamp) as hour,
   count(*) as total_spans,
-  count(CASE WHEN span_name LIKE '%handle batch%' THEN 1 END) as batches,
-  count(CASE WHEN span_name LIKE '%running tool: reply_to%' THEN 1 END) as replies,
-  count(CASE WHEN span_name LIKE '%running tool: post%' THEN 1 END) as posts,
-  count(CASE WHEN span_name LIKE '%running tool: like_post%' THEN 1 END) as likes,
-  count(CASE WHEN exception_type IS NOT NULL THEN 1 END) as errors
+  count(*) FILTER (WHERE span_name LIKE '%handle batch%') as batches,
+  count(*) FILTER (WHERE span_name = 'running tool' AND attributes->>'gen_ai.tool.name' = 'post') as posts,
+  count(*) FILTER (WHERE span_name = 'running tool' AND attributes->>'gen_ai.tool.name' = 'like_post') as likes,
+  count(*) FILTER (WHERE exception_type IS NOT NULL) as errors
 FROM records
-WHERE start_timestamp > now() - INTERVAL '24 hours'
-GROUP BY hour
+GROUP BY date_trunc('hour', start_timestamp)
 ORDER BY hour DESC
 ```
 
-Use `age: 1440` (24 hours in minutes — logfire age parameter is always minutes, not hours).
+Pass `start_timestamp` = 24h ago, `end_timestamp` = now (see the window gotcha above).
 
 ### 2. phi's self-summaries (logfire)
 
@@ -75,17 +80,6 @@ GROUP BY exception_type, exception_message
 ORDER BY cnt DESC
 ```
 
-Also check for exploration failures separately — they don't set `exception_type`:
-
-```sql
-SELECT start_timestamp, message
-FROM records
-WHERE start_timestamp > now() - INTERVAL '3 days'
-  AND message LIKE '%exploration failed%'
-ORDER BY start_timestamp DESC
-LIMIT 10
-```
-
 Known benign errors:
 - `atproto_client.exceptions.InvokeTimeoutError` on `fetch notifications` — transient bsky API slowness, phi recovers automatically
 - `pydantic_ai.exceptions.ToolRetryError` — MCP tool returned an error, model retried, usually recovers
@@ -99,15 +93,7 @@ curl -sf "https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=did
 
 Check for: topic diversity across posts, voice quality (terse/specific/dry vs stuffy/corporate), duplication of themes, outward vs inward balance.
 
-### 5. exploration queue (PDS)
-
-```
-mcp__pdsx__list_records(repo="did:plc:65sucjiel52gefhcdcypynsr", collection="io.zzstoatzz.phi.curiosityQueue")
-```
-
-Check for: pending items that should have been explored, items stuck in `in_progress` (claimed but never completed — indicates a crash mid-exploration), failed items.
-
-### 6. fly status (one-liner)
+### 5. fly status (one-liner)
 
 ```bash
 cd ~/tangled.org/zzstoatzz.io/bot && fly status --json 2>/dev/null \
@@ -125,7 +111,6 @@ Structure the output as:
 ## last 24h
 - reflection: {fired/skipped} — "{summary}"
 - thought posts: {N} fired — {K} posted, {J} stayed quiet
-- exploration: {ran/failed/not triggered}
 - batches: {N} processed, {R} replies sent
 - errors: {count} ({types})
 
@@ -141,8 +126,7 @@ If nothing is concerning, say so. Don't invent problems.
 
 ## gotchas
 
-- **logfire `age` is minutes, not hours.** 24 hours = `age: 1440`. 3 days = `age: 4320`.
-- **exploration failures don't have `exception_type`.** They log as `message LIKE '%exploration failed%'` only. A query filtered to `exception_type IS NOT NULL` will miss them entirely.
+- **logfire window params, not `age`.** `query_run` defaults to the last 30 minutes; pass `start_timestamp`/`end_timestamp` explicitly for longer lookbacks (max 14 days). A SQL `INTERVAL` filter does not widen the scan.
 - **scheduled silence is healthy.** Most musing slots now log "staying quiet" — this means the topic concentration check is working. Don't flag silence as a problem unless ALL scheduled posts are silent for multiple days.
 - **`fetch notifications` spans are noisy.** ~8,400/day, one every 10 seconds. Only ~0.05% have unread notifications. Filter to `unread_count > 0` if inspecting notification handling, or skip them entirely for the hourly summary.
 - **DotDict `.get()` is broken in the atproto SDK.** If you're debugging code that reads `record.value.get("field")`, that's probably the bug — DotDict intercepts `.get` as attribute access and returns None. Use bracket access (`record.value["field"]`) or `dict(record.value).get("field")`.

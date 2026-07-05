@@ -48,7 +48,7 @@ sandbox/                   # experiments (graduate to scripts/ once proven)
 - actions happen as tool calls inside the run, not via structured output. the agent's return value is a brief summary string for logging.
 - public actions are gated (docs/safety.md): written policies + an independent judge on every `post` (`core/policy.py`), a structural guard refusing raw `app.bsky.feed.*` writes via pdsx (`core/mcp_guard.py`), and an operator override — an `io.zzstoatzz.phi.override` record on the *operator's* repo that makes post/like/repost refuse while active (`core/override.py`, editable at the cockpit's `/operator`).
 - personality is separate from operational rules. tool docstrings carry per-tool guidance, not the system prompt.
-- memory: turbopuffer namespaces (`phi-users-{handle}`, `phi-episodic`). intent state on PDS under `io.zzstoatzz.phi.*` (goals, mention consent, legacy queue).
+- memory: turbopuffer namespaces (`phi-users-{handle}`, `phi-episodic`). intent state on PDS under `io.zzstoatzz.phi.*` (goals, mention consent, override, atlas, docket).
 - owner-gated mutations (`follow_user`, `propose_goal_change`, `manage_mentionable`, `create_feed`) flow through a like-as-approval mechanism: phi posts an authorization request, owner likes it, next batch lets the action through.
 - MCP servers: pdsx (atproto record CRUD, feed-writes guarded), pub-search (publication search), semble (code-mode public knowledge graph), prefect (workflow state; only when auth configured). connected via `MCPServerStreamableHTTP`, fresh per `agent.run()`.
 - web grounding via tavily for recency claims (`web_search`).

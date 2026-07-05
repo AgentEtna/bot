@@ -40,3 +40,6 @@ logs/
 *.log
 threads.db
 .loq_cache
+
+# rendered prompt snapshots (hone-prompts skill) — never commit
+scratch/

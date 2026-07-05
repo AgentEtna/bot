@@ -555,26 +555,6 @@ class NamespaceMemory:
                         for row in response.rows
                     ]
 
-            # exploration notes (background research)
-            exploration_notes: list[str] = []
-            try:
-                exp_response = user_ns.query(
-                    rank_by=("vector", "ANN", query_embedding),
-                    top_k=5,
-                    filters=[
-                        "And",
-                        [
-                            ["kind", "Eq", "exploration_note"],
-                            ["status", "NotEq", "superseded"],
-                        ],
-                    ],
-                    include_attributes=["content"],
-                )
-                if exp_response.rows:
-                    exploration_notes = [row.content for row in exp_response.rows]
-            except Exception:
-                pass  # no exploration notes yet
-
             if observations:
                 parts.append(
                     f"\n[OBSERVATIONS ABOUT @{handle} — extracted from user's own words, trust: medium. tail shows source count and age (uncited and/or aged observations are lower-trust).]"
@@ -594,14 +574,7 @@ class NamespaceMemory:
                     age_part = f" ({age})" if age else ""
                     parts.append(f"- {interaction['content']}{age_part}")
 
-            if exploration_notes:
-                parts.append(
-                    f"\n[BACKGROUND RESEARCH ON @{handle} — phi explored their public activity, trust: lowest]"
-                )
-                for note in exploration_notes:
-                    parts.append(f"- {note}")
-
-            if not observations and not interactions and not exploration_notes:
+            if not observations and not interactions:
                 parts.append(f"\n[USER CONTEXT - @{handle}]")
                 parts.append("no previous interactions with this user.")
 
@@ -995,10 +968,9 @@ class NamespaceMemory:
         return results[:top_k]
 
     async def get_knowledge_count(self, handle: str) -> int:
-        """Count observations + exploration notes phi has stored about a handle.
+        """Count observations phi has stored about a handle.
 
-        Used to gauge how much we know about someone — for exploration triggers
-        and pre-reply lookup decisions.
+        Used to gauge how much we know about someone for pre-reply lookup decisions.
         """
         user_ns = self.get_user_namespace(handle)
         try:
@@ -1008,7 +980,7 @@ class NamespaceMemory:
                 filters=[
                     "And",
                     [
-                        ["kind", "In", ["observation", "exploration_note"]],
+                        ["kind", "Eq", "observation"],
                         ["status", "NotEq", "superseded"],
                     ],
                 ],
