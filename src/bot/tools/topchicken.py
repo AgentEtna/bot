@@ -51,9 +51,14 @@ def register(agent):
         """Check the Top Chicken betting market and get a strategy recommendation.
 
         Top Chicken is a play-money market on who'll win Bluesky's daily most-liked-post
-        crown (locks 12:00 UTC, settles ~13:05 UTC). Use this when someone asks what's
-        happening in the chicken market, what they should buy — or before placing your
-        own trade with place_chicken_trade.
+        crown. A round is named for a UTC calendar day of posts but trades the day AFTER:
+        round D opens at D 12:00 UTC, runs through the overnight like-race (much of the
+        liking lands overnight, so prices can move a lot after your evening), locks at
+        ~D+1 12:00 UTC, and settles ~D+1 13:05 UTC when @topchicken announces the winner.
+        So the posts on the board are about a day old while the race is still live —
+        that's normal, not a stale board. Use this when someone asks what's happening
+        in the chicken market, what they should buy — or before placing your own trade
+        with place_chicken_trade.
 
         Pass `handle` to fold in that player's PUBLIC stats (cash, amount staked, ROI) —
         e.g. the handle of whoever is asking for advice. Their specific positions (which
@@ -158,8 +163,10 @@ def register(agent):
         """Place a play-money trade on the Top Chicken market.
 
         A share pays $1 if that contender wins the day's crown, $0 otherwise; prices
-        are calibrated win-probabilities. Check check_chicken_market for the board and
-        check_chicken_portfolio for your balance first. Trades execute against the
+        are calibrated win-probabilities. Remember the round runs until ~12:00 UTC the
+        day after its named date, with likes landing all through the overnight — a
+        "settled-looking" evening board can still reshuffle. Check check_chicken_market
+        for the board and check_chicken_portfolio for your balance first. Trades execute against the
         house quote (a ~2% slippage cap is applied automatically) and are final —
         this is a real public record on your repo, so trade like someone whose fills
         are on the permanent ledger. Keep stakes proportionate: it's a game, not a
