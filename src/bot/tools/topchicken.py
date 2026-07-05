@@ -1,5 +1,9 @@
 """Top Chicken market tools — read and trade the daily Bluesky like-race market.
 
+"Top Chicken" is first and foremost the daily crown itself: @topchicken announces
+whoever posted Bluesky's most-liked post of the day. The prediction market is a
+separate thing built on top of that game — don't conflate them.
+
 The market (https://topchicken.cee.wtf) is play-money, winner-take-all: a share
 pays $1 (10,000 subcents) if that account is the day's Top Chicken, else $0.
 Trades are placed by writing a `wtf.cee.topchicken.order` record to phi's own
@@ -50,8 +54,12 @@ def register(agent):
     ) -> str:
         """Check the Top Chicken betting market and get a strategy recommendation.
 
-        Top Chicken is a play-money market on who'll win Bluesky's daily most-liked-post
-        crown. A round is named for a UTC calendar day of posts but trades the day AFTER:
+        "Top Chicken" is Bluesky's daily most-liked-post crown, announced by @topchicken;
+        this tool checks the play-money prediction market built ON TOP of that game. If
+        someone asks how to "top chicken", they may mean how to WIN the crown (post
+        something people love) rather than how to bet on it — read the intent before
+        reaching for market mechanics. A round is named for a UTC calendar day of posts
+        but trades the day AFTER:
         round D opens at D 12:00 UTC, runs through the overnight like-race (much of the
         liking lands overnight, so prices can move a lot after your evening), locks at
         ~D+1 12:00 UTC, and settles ~D+1 13:05 UTC when @topchicken announces the winner.
