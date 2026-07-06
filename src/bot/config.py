@@ -194,6 +194,15 @@ class Settings(BaseSettings):
         description="Phi's semble API key (enables writes; omit for read-only)",
     )
 
+    # Tangled — git collaboration on atproto. Reads go through bobbin
+    # (tangled's public API) with no auth; writes are atproto records on
+    # phi's own PDS, so phi's bluesky credentials ride along per-request
+    # via x-tangled-* headers and issues/comments attribute to phi.
+    tangled_mcp_url: str = Field(
+        default="https://nate-tangled-mcp.fastmcp.app/mcp",
+        description="URL of the tangled MCP server (fastmcp.app deployment)",
+    )
+
     # Discovery pool — generic agents endpoint serving authors the operator
     # has been liking. Currently lives on hub.waow.tech as part of the
     # prefect-server side; consumers (phi here) read it as opaque JSON.

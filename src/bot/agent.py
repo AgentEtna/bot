@@ -514,7 +514,7 @@ class PhiAgent:
         )
 
         logger.info(
-            "phi agent initialized with pdsx, pub-search, and semble MCP tools "
+            "phi agent initialized with pdsx, pub-search, semble, and tangled MCP tools "
             "(prefect included when configured)"
         )
 
@@ -596,6 +596,18 @@ class PhiAgent:
                     if settings.semble_api_key
                     else {}
                 ),
+            ),
+            # Tangled code-collab server. Reads (repos, files, commits,
+            # issues) need no auth; the headers carry phi's own PDS
+            # credentials so any issue/comment she writes attributes to her.
+            MCPServerStreamableHTTP(
+                url=settings.tangled_mcp_url,
+                timeout=30,
+                tool_prefix="tangled",
+                headers={
+                    "x-tangled-handle": settings.bluesky_handle,
+                    "x-tangled-password": settings.bluesky_password,
+                },
             ),
         ]
         # Prefect MCP — only included when auth is configured, so phi degrades
