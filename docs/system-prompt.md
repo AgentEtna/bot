@@ -43,7 +43,7 @@ contributed by the `inject_*` callbacks in `agent.py`, in registration order. ea
 | `[ATLAS]` | `inject_atlas_digest` → PDS `io.zzstoatzz.phi.atlas` blob (CID-cached) | when the phi-atlas flow writes a new atlas | daily map of phi's mind: point / cluster / promotion counts. drill via `inspect_atlas` |
 | `[DOCKET]` | `inject_docket_digest` → PDS `io.zzstoatzz.phi.docket` blob (CID-cached) | when the docket flow writes a new docket | daily promotion candidates: title + `suggested_shape` only. full rationale one `get_record` away |
 | `[OWNED FEEDS]` | `inject_owned_feeds` → graze | every run | phi's curated graze feeds, by name |
-| `[SEMBLE]` | `inject_public_memory` → cosmik record counts | every run | one-line reminder phi has public collections via cosmik/semble |
+| `[SEMBLE]` | `inject_public_memory` → `core/public_memory.py` → PDS `network.cosmik.*` reads (5min cache) | every 5min | phi's public library: collection names with card counts, most recent cards, connection count — so saving/filing decisions happen against real state instead of bare counts |
 
 ## 3. path-specific blocks (appended to the user message)
 

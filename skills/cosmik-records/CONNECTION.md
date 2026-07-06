@@ -28,7 +28,7 @@ result = await call_tool("connections_create", {
 - `EXPLAINER` — source explains target
 - `LEADS_TO` — source points toward target as a next step or consequence
 - `SUPPLEMENT` — source adds supporting context without being primary evidence
-- `RELATED` — weaker, generic association — use sparingly
+- `RELATED` — generic association. effectively banned: if this is the honest type, the connection shouldn't exist (semantic search already covers it)
 
 (these are the api's exact enum values — `semble_get_schema(tools=["connections_create"])` is the source of truth if this list ever drifts.)
 
@@ -36,4 +36,4 @@ result = await call_tool("connections_create", {
 
 semble's vector search already surfaces semantically-related cards together. a connection is worth writing when the relationship is *specific and directional* — not just "these are about the same thing."
 
-if you find yourself reaching for `RELATED` constantly, that's a sign the cards are already adjacent in semantic space and the connection isn't doing real work.
+if you find yourself reaching for `RELATED` at all, the cards are already adjacent in semantic space and the connection isn't doing real work — skip it. (the library once accumulated 80+ connections that were ~90% RELATED; a janitor deleted them. don't refill it.)

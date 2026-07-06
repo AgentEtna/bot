@@ -60,6 +60,12 @@ its own, found later via `search_memory`.
 | `save_url` | no consent, no owner-gate, no side effects, pdsx-covered | `mcp__pdsx__create_record(collection="network.cosmik.card", record={kind: "URL", ...})` via `cosmik-records` skill |
 | `create_connection` | same | `mcp__pdsx__create_record(collection="network.cosmik.connection", ...)` via skill |
 
+> [history note] the pdsx replacements above were themselves superseded on
+> 2026-06-11: URL cards, collections, and connections now write through the
+> semble code-mode MCP toolset (`semble_execute`); only standalone NOTE cards
+> remain on pdsx. see [tool-sprawl.md](tool-sprawl.md) and the
+> `cosmik-records` skill for current routing.
+
 ## what was corrected mid-review
 
 `publish_blog_post` was originally going to be the next deletion. on

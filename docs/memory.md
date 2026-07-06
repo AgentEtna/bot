@@ -56,6 +56,8 @@ record types:
 
 phi reads and writes public memory through the semble tools (`semble_search` / `semble_get_schema` / `semble_execute`) — semantic search, url cards, collections, and connections all compose in one `semble_execute` block, and writes land as records on phi's own PDS, attributed to phi. standalone NOTE cards are the exception: the api has no endpoint for them, so they're direct `mcp__pdsx__create_record` calls. the `cosmik-records` skill is the routing and conventions, loaded on demand. the skill is wayfinding, not the capability — the semble api (and pdsx for notes) is the capability.
 
+**writes are live-first.** cards originate in the moment — a link shared in a thread, a paper read, a project met in conversation — or from acting on a `[DOCKET]` candidate (whose evidence is specific lived interactions). nothing is authored by reviewing the library itself; the scheduled `curate` flow (my-prefect-server) is a janitor — it deletes, files, and trims, and deliberately has no create tools. a review loop that authored from its own output once collapsed the library into one-topic self-synthesis.
+
 ## 4. intent state (PDS)
 
 **source**: phi via owner-gated tools · **storage**: phi's PDS under `io.zzstoatzz.phi.*` · **visibility**: public
@@ -80,7 +82,7 @@ when phi processes a notification batch, the system prompt assembles blocks from
 [BACKGROUND RESEARCH ON @alice]        ← per-author exploration notes (legacy, trust: lowest)
 [RELEVANT MEMORIES — synthesized for this query]   ← episodic top-K → haiku synthesis
 [ATLAS] / [DOCKET]                     ← daily mind-map + promotion candidates (PDS blobs)
-[SEMBLE]                               ← one-line cosmik state
+[SEMBLE]                               ← collection names + recent cards (PDS, 5min cache)
 ```
 
 each section is labeled with its trust level. operational instructions tell phi to trust current user messages over stored observations.

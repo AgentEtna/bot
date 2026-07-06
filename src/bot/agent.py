@@ -11,7 +11,6 @@ from pydantic_ai import Agent, ImageUrl, RunContext
 from pydantic_ai.mcp import MCPServerStreamableHTTP
 from pydantic_ai.models.anthropic import AnthropicModelSettings
 from pydantic_ai_skills import SkillsToolset
-from semble import AsyncSemble
 
 from bot.config import settings
 from bot.core.atlas import get_atlas_digest
@@ -23,6 +22,7 @@ from bot.core.graze_client import GrazeClient
 from bot.core.mcp_guard import guard_pdsx_tool_call
 from bot.core.operator import get_operator_profile
 from bot.core.owned_feeds import get_owned_feeds_block
+from bot.core.public_memory import get_public_memory_block
 from bot.core.recent_flow_mentions import get_recent_flow_mentions_block
 from bot.core.recent_operations import get_operations_block
 from bot.core.self_state import get_state_block
@@ -56,6 +56,8 @@ your policies — these are yours to hold, and an independent policy check also 
 a blocked post returns the policy and reason as your tool result; nothing was posted. treat it as information, not punishment — adapt (a like, save_memory, a different post) rather than retrying verbatim. a policy note on a successful post means you're drifting toward a boundary; let it register.
 
 your public knowledge graph (cosmik/semble) flows through the semble tools: semble_search to find api methods, semble_get_schema for parameter shapes, semble_execute to compose reads and writes in one block. writes there land on your own PDS, attributed to you, scoped to network.cosmik.* — no owner gate, but they're public. the one exception is standalone NOTE cards (pdsx; the cosmik-records skill has the routing).
+
+your library grows from contact, not from review. when something worth keeping crosses your attention in the moment — a link someone shares, a paper you read, a project you learn about in conversation — save it then, with one specific sentence about why (`cards_add_url(url, note=...)` is one call). the test of a good card is that it came from your actual life on the network, not from re-reading your own library. acting on a [DOCKET] candidate counts as contact — its evidence is specific lived interactions — but a card whose only source is your existing cards or collections does not. a connection must make a directional claim (SUPPORTS / OPPOSES / ADDRESSES / EXPLAINER / LEADS_TO); if the honest type is RELATED, don't write it — semantic search already covers "these are about the same thing". collections are short-named indexes you file into, not essays.
 
 memory blocks carry their own trust labels. when a user's current words contradict stored notes, trust the words.
 
@@ -451,55 +453,14 @@ class PhiAgent:
 
         @self.agent.system_prompt(dynamic=True)
         async def inject_public_memory() -> str:
-            """One-line summary of phi's cosmik state.
-
-            Just enough for phi to know it has public collections — the
-            details are available through the semble tools when phi
-            actually needs them. Counts come from the semble appview
-            (uncapped, reflects what's actually indexed); the raw-PDS
-            list_records path is the fallback when the appview is down.
-            """
-            await bot_client.authenticate()
-            if not bot_client.client.me:
+            """[SEMBLE] — collection names + recent cards, so live phi
+            knows what its library holds when deciding whether and where
+            to save. See core/public_memory.py."""
+            try:
+                return await get_public_memory_block(bot_client)
+            except Exception as e:
+                logger.debug(f"public memory inject failed: {e}")
                 return ""
-            did = bot_client.client.me.did
-            try:
-                async with AsyncSemble() as semble:
-                    profile = await semble.actors.get_profile(
-                        identifier=did, include_stats=True
-                    )
-                cards = profile.url_card_count or 0
-                cols = profile.collection_count or 0
-                conns = profile.connection_count or 0
-                if cards or cols or conns:
-                    return (
-                        f"[SEMBLE]: {cols} public collections, {cards} cards, "
-                        f"{conns} connections."
-                    )
-            except Exception as e:
-                logger.debug(f"semble appview profile fetch failed: {e}")
-            try:
-                cols = bot_client.client.com.atproto.repo.list_records(
-                    {
-                        "repo": did,
-                        "collection": "network.cosmik.collection",
-                        "limit": 50,
-                    }
-                )
-                cards = bot_client.client.com.atproto.repo.list_records(
-                    {
-                        "repo": did,
-                        "collection": "network.cosmik.card",
-                        "limit": 50,
-                    }
-                )
-                nc = len(cols.records) if cols.records else 0
-                nk = len(cards.records) if cards.records else 0
-                if nc or nk:
-                    return f"[SEMBLE]: {nc} public collections, {nk} cards."
-            except Exception as e:
-                logger.debug(f"failed to fetch cosmik counts: {e}")
-            return ""
 
         # --- register tools from tools/ package ---
 

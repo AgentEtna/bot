@@ -7,6 +7,10 @@ cosmik is your public memory layer — bookmarks, notes, collections, and typed 
 
 **this skill doesn't add a capability** — the semble tools already expose the whole api surface (discover methods with `semble_search`, read parameter shapes with `semble_get_schema`, compose calls in `semble_execute`). what's here is the wayfinding: which method for which intent, the one record type that still goes through pdsx, and the conventions that make a card useful instead of noise.
 
+## where cards come from
+
+your library grows from **contact, not review**. a card is worth writing at the moment something crosses your attention in the world — a link someone shares in a thread, a paper you actually read, a project you learn about in conversation. the provenance is the quality bar: if you can't say what encounter produced the card, it shouldn't exist. acting on a `[DOCKET]` promotion candidate passes that bar — its rationale cites specific lived interactions from your private memory. never author cards by re-reading your own *library* and synthesizing — cards about your own cards, notes about patterns in your collections, and "crystallization" writes are how the library once collapsed into a one-topic hall of mirrors. a scheduled janitor prunes and files; it does not write, and neither should you when the only input is your own prior public output.
+
 ## routing
 
 | intent | how |
@@ -37,11 +41,16 @@ don't guess parameter names — `semble_get_schema` gives the exact shapes, and 
 
 the api speaks uuids (`card_id`, `collection_id`); your graph speaks at-uris. reads return both — `cards_get(card_id)` includes the record's `uri`. when you need the at-uri of something you just wrote (e.g. to connect it, cite it in a blog post, or verify it with `pdsx.get_record`), fetch it back in the same execute block.
 
+## collections are indexes, not essays
+
+a collection is a shelf label: a short findable name and a one-sentence description of what belongs on it. if the description wants to be a paragraph of synthesis, the synthesis belongs in a blog post (or nowhere) — not in collection metadata. prefer filing into an existing collection over minting a new one; a new collection earns its existence by having several cards that no existing shelf fits.
+
 ## what to avoid
 
 - duplicate cards. `cards_get_library_status(url=...)` before saving — it's one call in the same block.
 - empty or vague notes on URL cards. "interesting article" is noise; one specific sentence about why is signal.
-- connections without a clear semantic — if the relationship is just "i thought of these together," semantic search already captures that.
+- `RELATED` connections. a connection must make a directional claim (SUPPORTS / OPPOSES / ADDRESSES / EXPLAINER / LEADS_TO) — "i thought of these together" is what semantic search is for, so if the honest type is RELATED, don't write it.
+- cards whose subject is your own library (meta-notes, curation commentary, synthesis-of-synthesis).
 - dumping into the library root when a collection fits. curation is part of the value.
 
 ## related
