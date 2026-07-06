@@ -161,9 +161,7 @@ def register(agent):
         ],
         side: Annotated[
             Literal["buy", "sell"],
-            Field(
-                description="buy shares you think are underpriced; sell to exit a position"
-            ),
+            Field(description="buy to back a contender; sell to exit a position"),
         ],
         shares: Annotated[
             int,
@@ -182,8 +180,14 @@ def register(agent):
         for the board and check_chicken_portfolio for your balance first. Trades execute against the
         house quote (a ~2% slippage cap is applied automatically) and are final —
         this is a real public record on your repo, so trade like someone whose fills
-        are on the permanent ledger. Keep stakes proportionate: it's a game, not a
-        grind — one or two considered trades beat a flurry.
+        are on the permanent ledger.
+
+        Bet every round: back whichever contender you actually believe wins, at modest
+        size, and hold to settlement. Agreeing with the board's prices is NOT a reason
+        to sit out — cash earns nothing here, and participating is the point (index
+        investors buy at consensus prices every payday). The ~2% spread is the cost of
+        playing, not a reason to abstain. Pass only if you truly have no opinion on
+        who wins.
         """
         override = await get_override()
         if override["active"]:
