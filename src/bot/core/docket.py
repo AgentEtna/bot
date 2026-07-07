@@ -137,7 +137,9 @@ def _summarize_docket(docket: dict[str, Any]) -> str:
         lines.append(f"- {title}  [{shape}]")
     lines.append(
         "call mcp__pdsx__get_record(uri='at://.../io.zzstoatzz.phi.docket/self') "
-        "to read full rationale + evidence for any candidate."
+        "to read full rationale + evidence for any candidate. if you save a "
+        "card from a candidate, name it in the note (e.g. \"from today's "
+        "docket: <title>\") so the card's provenance is readable."
     )
     return "\n".join(lines)
 

@@ -19,7 +19,7 @@ from bot.core.discovery_pool import get_discovery_pool_block
 from bot.core.docket import get_docket_digest
 from bot.core.goals import list_goals as list_goal_records
 from bot.core.graze_client import GrazeClient
-from bot.core.mcp_guard import guard_pdsx_tool_call
+from bot.core.mcp_guard import guard_pdsx_tool_call, make_semble_write_logger
 from bot.core.operator import get_operator_profile
 from bot.core.owned_feeds import get_owned_feeds_block
 from bot.core.public_memory import get_public_memory_block
@@ -526,7 +526,7 @@ class PhiAgent:
             )
         return out
 
-    def _mcp_toolsets(self) -> list[MCPServerStreamableHTTP]:
+    def _mcp_toolsets(self, run_label: str = "") -> list[MCPServerStreamableHTTP]:
         """Create fresh MCP server instances for a single agent run."""
         toolsets: list[MCPServerStreamableHTTP] = [
             MCPServerStreamableHTTP(
@@ -557,6 +557,9 @@ class PhiAgent:
                     if settings.semble_api_key
                     else {}
                 ),
+                # observational: every library write leaves a logfire event
+                # with the run label + executed code (bot/core/mcp_guard.py)
+                process_tool_call=make_semble_write_logger(run_label),
             ),
             # Tangled code-collab server. Reads (repos, files, commits,
             # issues) need no auth; the headers carry phi's own PDS
@@ -595,7 +598,7 @@ class PhiAgent:
         deps: PhiDeps,
     ) -> str:
         """Run phi with fresh MCP toolsets and consistent error logging."""
-        toolsets = self._mcp_toolsets()
+        toolsets = self._mcp_toolsets(run_label=label)
         try:
             async with contextlib.AsyncExitStack() as stack:
                 for ts in toolsets:
