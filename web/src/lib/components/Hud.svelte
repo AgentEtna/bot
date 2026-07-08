@@ -9,13 +9,15 @@
 
 	const LENSES = [
 		{ key: 'mind', href: '/', label: 'mind' },
-		{ key: 'capabilities', href: '/capabilities', label: 'capabilities' }
+		{ key: 'capabilities', href: '/capabilities', label: 'capabilities' },
+		{ key: 'market', href: '/market', label: 'market' }
 	] as const;
 
 	const current = $derived.by(() => {
 		const path = page.url.pathname;
 		if (path === '/') return 'mind';
 		if (path.startsWith('/capabilities')) return 'capabilities';
+		if (path.startsWith('/market')) return 'market';
 		return 'mind';
 	});
 
@@ -30,6 +32,7 @@
 		if (e.target instanceof HTMLTextAreaElement) return;
 		if (e.key === '1') goto('/');
 		if (e.key === '2') goto('/capabilities');
+		if (e.key === '3') goto('/market');
 		if (e.key === 'Tab' && !e.shiftKey) {
 			e.preventDefault();
 			cycle(1);

@@ -267,3 +267,66 @@ export type LogbookEntry =
 	| { kind: 'activity'; item: ActivityItem }
 	| { kind: 'blog'; doc: BlogDoc }
 	| { kind: 'discovery'; entry: DiscoveryEntry };
+
+// --- top chicken market (external: topchicken.cee.wtf) ---
+//
+// phi trades the play-money prediction market on the daily Top Chicken game.
+// all money fields are integer subcents (10000 subc = $1). trades are public
+// records; the trader endpoint is public, keyed by DID.
+
+export interface ChickenTrade {
+	ts: number; // unix seconds
+	round_id: string; // "2026-07-07" — the UTC day the round is named for
+	contender_did: string;
+	contender_handle: string;
+	side: 'buy' | 'sell';
+	shares: number;
+	price_subc: number;
+	total_subc: number;
+	source: string;
+}
+
+export interface ChickenPosition {
+	round_id?: string;
+	round?: string;
+	contender_did?: string;
+	contender_handle?: string;
+	shares?: number;
+	avg_price_subc?: number;
+	cost_subc?: number;
+}
+
+export interface ChickenTrader {
+	did: string;
+	handle: string;
+	balance_subc: number;
+	networth_subc: number;
+	pnl_subc: number;
+	positions: ChickenPosition[];
+	trades: ChickenTrade[];
+	networth_series: [number, number][]; // [unix seconds, networth subc]
+}
+
+export interface ChickenContender {
+	did: string;
+	handle: string;
+	likes: number;
+	p: number | null;
+	mid_subc: number;
+	bid_subc: number;
+	ask_subc: number;
+}
+
+export interface ChickenRound {
+	id: string;
+	status: string;
+	contenders: ChickenContender[];
+}
+
+export interface ChickenResultRound {
+	id: string;
+	status: string;
+	winner_did: string;
+	winner_handle: string;
+	winner_likes: number;
+}

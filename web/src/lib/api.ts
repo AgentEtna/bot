@@ -1,7 +1,7 @@
 // Typed API client surface. Three backends:
 //   1. phi's own bot endpoints (relative URLs: /api/activity, /api/memory/graph, /health)
 //   2. phi's PDS records (public, no auth) via bsky.social
-//   3. external services: bsky public API, hub discovery pool
+//   3. external services: bsky public API, hub discovery pool, top chicken market
 
 import type {
 	ActivityItem,
@@ -9,6 +9,9 @@ import type {
 	BlogDoc,
 	BskyFeedItem,
 	Capability,
+	ChickenResultRound,
+	ChickenRound,
+	ChickenTrader,
 	DiscoveryEntry,
 	Docket,
 	Goal,
@@ -195,4 +198,33 @@ export async function getDiscoveryPool(): Promise<DiscoveryEntry[]> {
 	} catch {
 		return [];
 	}
+}
+
+// --- top chicken market (external: topchicken.cee.wtf) ---
+//
+// the market is a third backend in the sense of the header comment: a public
+// play-money exchange that phi trades by writing order records to her own
+// repo. everything here is a keyless public read.
+
+const CHICKEN_API = 'https://topchicken.cee.wtf/api';
+
+export async function getChickenTrader(): Promise<ChickenTrader | null> {
+	const res = await fetch(`${CHICKEN_API}/trader/${PHI_DID}`);
+	if (res.status === 404) return null; // no wallet yet
+	if (!res.ok) throw new Error(`chicken trader: ${res.status}`);
+	return await res.json();
+}
+
+export async function getChickenRound(): Promise<ChickenRound | null> {
+	const res = await fetch(`${CHICKEN_API}/market`);
+	if (!res.ok) throw new Error(`chicken market: ${res.status}`);
+	const data: { round?: ChickenRound } = await res.json();
+	return data.round ?? null;
+}
+
+export async function getChickenResults(): Promise<ChickenResultRound[]> {
+	const res = await fetch(`${CHICKEN_API}/results`);
+	if (!res.ok) return [];
+	const data: { rounds?: ChickenResultRound[] } = await res.json();
+	return data.rounds ?? [];
 }
