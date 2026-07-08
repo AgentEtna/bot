@@ -22,8 +22,6 @@ class PhiDeps:
 
     author_handle: str
     memory: NamespaceMemory | None = None
-    thread_uri: str | None = None
-    thread_context: str | None = None
     # batch-of-notifications context: maps notification post URI -> per-notif data
     # populated by the message handler before calling agent.run; consumed by the
     # trusted posting tools (post / like_post / repost_post) to look up cids,
