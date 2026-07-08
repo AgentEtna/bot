@@ -200,30 +200,28 @@ export async function getDiscoveryPool(): Promise<DiscoveryEntry[]> {
 	}
 }
 
-// --- top chicken market (external: topchicken.cee.wtf) ---
+// --- top chicken market ---
 //
-// the market is a third backend in the sense of the header comment: a public
-// play-money exchange that phi trades by writing order records to her own
-// repo. everything here is a keyless public read.
-
-const CHICKEN_API = 'https://topchicken.cee.wtf/api';
+// topchicken.cee.wtf serves no CORS headers, so these reads go through the
+// bot's /api/chicken/* proxy (60s server-side cache; trader is pinned to
+// phi's DID there).
 
 export async function getChickenTrader(): Promise<ChickenTrader | null> {
-	const res = await fetch(`${CHICKEN_API}/trader/${PHI_DID}`);
+	const res = await fetch('/api/chicken/trader');
 	if (res.status === 404) return null; // no wallet yet
 	if (!res.ok) throw new Error(`chicken trader: ${res.status}`);
 	return await res.json();
 }
 
 export async function getChickenRound(): Promise<ChickenRound | null> {
-	const res = await fetch(`${CHICKEN_API}/market`);
+	const res = await fetch('/api/chicken/market');
 	if (!res.ok) throw new Error(`chicken market: ${res.status}`);
 	const data: { round?: ChickenRound } = await res.json();
 	return data.round ?? null;
 }
 
 export async function getChickenResults(): Promise<ChickenResultRound[]> {
-	const res = await fetch(`${CHICKEN_API}/results`);
+	const res = await fetch('/api/chicken/results');
 	if (!res.ok) return [];
 	const data: { rounds?: ChickenResultRound[] } = await res.json();
 	return data.rounds ?? [];

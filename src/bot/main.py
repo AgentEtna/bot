@@ -15,6 +15,7 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import httpx
 import logfire
 from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
@@ -438,6 +439,53 @@ async def discovery():
     _discovery_cache_data = entries
     _discovery_cache_expires = now + _DISCOVERY_CACHE_TTL
     return JSONResponse(entries)
+
+
+_chicken_cache: dict[str, tuple[float, dict | list]] = {}
+_CHICKEN_CACHE_TTL = 60  # seconds
+_CHICKEN_API = "https://topchicken.cee.wtf/api"
+_CHICKEN_PATHS = {
+    "trader": lambda: f"trader/{bot_client.client.me.did}" if bot_client.client.me else None,
+    "market": lambda: "market",
+    "results": lambda: "results",
+}
+
+
+@app.get("/api/chicken/{name}")
+async def chicken(name: str):
+    """Read-only proxy for phi's top chicken market surface.
+
+    topchicken.cee.wtf serves no CORS headers, so the /market page can't
+    fetch it from the browser — these three whitelisted reads pass through
+    here instead (60s cache). trader is pinned to phi's own DID.
+    """
+    make_path = _CHICKEN_PATHS.get(name)
+    if make_path is None:
+        return JSONResponse({"error": "unknown resource"}, status_code=404)
+    path = make_path()
+    if path is None:
+        return JSONResponse({"error": "not ready"}, status_code=503)
+
+    now = time.monotonic()
+    cached = _chicken_cache.get(name)
+    if cached and now < cached[0]:
+        return JSONResponse(cached[1])
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            res = await client.get(f"{_CHICKEN_API}/{path}")
+            res.raise_for_status()
+            data = res.json()
+    except httpx.HTTPStatusError as e:
+        return JSONResponse(
+            {"error": "upstream"}, status_code=e.response.status_code
+        )
+    except Exception as e:
+        logger.warning(f"chicken proxy {name} failed: {e}")
+        return JSONResponse({"error": "unreachable"}, status_code=502)
+
+    _chicken_cache[name] = (now + _CHICKEN_CACHE_TTL, data)
+    return JSONResponse(data)
 
 
 @app.get("/api/atlas")
