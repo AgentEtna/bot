@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import MindMap from '$lib/components/MindMap.svelte';
 	import Logbook from '$lib/components/Logbook.svelte';
+	import CommandK from '$lib/components/CommandK.svelte';
 	import { mindCounts } from '$lib/state.svelte';
 	import {
 		getMemoryGraph,
@@ -126,6 +127,7 @@
 </div>
 
 <Logbook />
+<CommandK />
 
 <style>
 	.lens {

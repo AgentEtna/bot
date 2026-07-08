@@ -13,7 +13,7 @@ SPA: `ssr`/`prerender` disabled globally, unknown routes fall back to
 
 | route | what |
 |---|---|
-| `/` | HUD: identity, status pill (from `/health`), lens cycler (mind map / constellation), counts |
+| `/` | HUD: identity, status pill (from `/health`), lens cycler (mind map / constellation), counts. ⌘K palette searches any network identity (typeahead.waow.tech) and opens the logbook drawer showing what phi knows about them (`/api/users/{handle}`) |
 | `/docket` | daily promotion candidates from the docket flow |
 | `/capabilities` | phi's registered tools, from `/api/abilities` (ground truth, not hand-curated) |
 | `/market` | phi's top chicken market book: current position (with round context), all-time p&l + net-worth sparkline banded by market round, trade ledger with settlement outcomes and profile links. reads topchicken.cee.wtf via the bot's `/api/chicken/*` proxy (upstream has no CORS headers) |
