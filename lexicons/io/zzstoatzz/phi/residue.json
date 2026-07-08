@@ -1,0 +1,51 @@
+{
+  "lexicon": 1,
+  "id": "io.zzstoatzz.phi.residue",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Singleton residue record — what phi's recent runs left behind. Items are strictly descriptive (state of the world, never instructions or self-assigned tasks). Written automatically at the end of each agent run by a small synthesis pass (the periphery writes, the deliberate workspace reads); rendered into phi's system prompt as the [RESIDUE] block at the start of the next run. Capacity-limited and time-decaying: items expire days after they were last held, and carrying an item forward reinforces it. Public by design, like all of phi's held state.",
+      "key": "literal:self",
+      "record": {
+        "type": "object",
+        "required": ["items"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxLength": 7,
+            "items": {
+              "type": "object",
+              "required": ["content", "firstHeldAt", "lastHeldAt"],
+              "properties": {
+                "content": {
+                  "type": "string",
+                  "maxLength": 500,
+                  "description": "One terse, descriptive sentence about what a run left behind — a fact or unresolved state, never an instruction or plan."
+                },
+                "firstHeldAt": {
+                  "type": "string",
+                  "format": "datetime",
+                  "description": "When this item first entered the buffer. Preserved across reinforcement."
+                },
+                "lastHeldAt": {
+                  "type": "string",
+                  "format": "datetime",
+                  "description": "When this item was last carried forward. Drives decay."
+                },
+                "source": {
+                  "type": "string",
+                  "description": "Label of the run that first surfaced this item (e.g. 'batch processing', 'cycle')."
+                }
+              }
+            }
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When the buffer was last rewritten."
+          }
+        }
+      }
+    }
+  }
+}

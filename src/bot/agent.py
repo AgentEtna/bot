@@ -25,6 +25,7 @@ from bot.core.owned_feeds import get_owned_feeds_block
 from bot.core.public_memory import get_public_memory_block
 from bot.core.recent_flow_mentions import get_recent_flow_mentions_block
 from bot.core.recent_operations import get_operations_block
+from bot.core.residue import render_residue_block, update_residue_from_run
 from bot.core.self_state import get_state_block
 from bot.core.workflow_state import get_workflow_state_block
 from bot.memory.extraction import EXTRACTION_SYSTEM_PROMPT, ExtractionResult
@@ -327,6 +328,11 @@ class PhiAgent:
             return await get_state_block(bot_client, self.memory)
 
         @self.agent.system_prompt(dynamic=True)
+        async def inject_residue() -> str:
+            """[RESIDUE] — what recent runs left behind."""
+            return await render_residue_block(bot_client)
+
+        @self.agent.system_prompt(dynamic=True)
         async def inject_recent_operations() -> str:
             """[RECENT OPERATIONS] — last N PDS writes across collections, for continuity."""
             return await get_operations_block(bot_client)
@@ -611,6 +617,11 @@ class PhiAgent:
 
         summary = result.output or ""
         logger.info(f"{label} finished: {summary[:200]}")
+        if label != "bio rewrite":
+            try:
+                await update_residue_from_run(bot_client, label, summary)
+            except Exception as e:
+                logger.warning(f"residue update after {label} failed: {e}")
         return summary
 
     async def process_notifications(
