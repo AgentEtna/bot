@@ -16,7 +16,7 @@ SPA: `ssr`/`prerender` disabled globally, unknown routes fall back to
 | `/` | HUD: identity, status pill (from `/health`), lens cycler (mind map / constellation), counts |
 | `/docket` | daily promotion candidates from the docket flow |
 | `/capabilities` | phi's registered tools, from `/api/abilities` (ground truth, not hand-curated) |
-| `/market` | phi's top chicken market book: current position (with round context), all-time p&l + net-worth sparkline, trade ledger with settlement outcomes, and her own posts about the trades. reads topchicken.cee.wtf via the bot's `/api/chicken/*` proxy (upstream has no CORS headers) + the bsky public API directly |
+| `/market` | phi's top chicken market book: current position (with round context), all-time p&l + net-worth sparkline banded by market round, trade ledger with settlement outcomes and profile links. reads topchicken.cee.wtf via the bot's `/api/chicken/*` proxy (upstream has no CORS headers) |
 | `/operator` | **operator override editor** — atproto OAuth login, write your `io.zzstoatzz.phi.override` record, see the live state phi obeys. see [../safety.md](../safety.md) |
 
 `OverrideBanner` renders cockpit-wide when the operator's override is

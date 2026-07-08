@@ -1,17 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { getBskyFeed, getChickenResults, getChickenRound, getChickenTrader } from '$lib/api';
-	import type {
-		BskyFeedItem,
-		ChickenResultRound,
-		ChickenRound,
-		ChickenTrader
-	} from '$lib/types';
+	import { getChickenResults, getChickenRound, getChickenTrader } from '$lib/api';
+	import type { ChickenResultRound, ChickenRound, ChickenTrader } from '$lib/types';
 
 	let trader = $state<ChickenTrader | null>(null);
 	let round = $state<ChickenRound | null>(null);
 	let results = $state<ChickenResultRound[]>([]);
-	let commentary = $state<BskyFeedItem[]>([]);
 	let loaded = $state(false);
 	let err = $state<string | null>(null);
 
@@ -27,17 +21,6 @@
 				getChickenRound(),
 				getChickenResults()
 			]);
-			// phi narrates her trades on the timeline — surface those posts as the "why"
-			const feed = await getBskyFeed(60);
-			const handles = new Set((trader?.trades ?? []).map((t) => t.contender_handle));
-			commentary = feed
-				.filter((f) => {
-					const text = (f.post.record?.text ?? '').toLowerCase();
-					return (
-						text.includes('chicken') || [...handles].some((h) => h && text.includes(h))
-					);
-				})
-				.slice(0, 4);
 		} catch (e) {
 			err = (e as Error).message;
 		}
@@ -101,8 +84,13 @@
 
 	// --- sparkline geometry (single series, viewBox coords) ---
 	const SW = 640;
-	const SH = 120;
+	const SH = 140;
 	const PAD = 6;
+	const LABEL_H = 16; // strip under the plot for round labels
+	const PLOT_B = SH - PAD - LABEL_H; // plot bottom
+
+	const DAY = 86_400;
+	const ROUND_EDGE = 6 * 3600; // a round opens/locks at 06:00 UTC
 
 	const series = $derived(trader?.networth_series ?? []);
 	const spark = $derived.by(() => {
@@ -114,12 +102,26 @@
 		const lo = Math.min(...vs, START_SUBC);
 		const hi = Math.max(...vs, START_SUBC);
 		const x = (t: number) => PAD + ((t - t0) / Math.max(1, t1 - t0)) * (SW - 2 * PAD);
-		const y = (v: number) => SH - PAD - ((v - lo) / Math.max(1, hi - lo)) * (SH - 2 * PAD);
+		const y = (v: number) => PLOT_B - ((v - lo) / Math.max(1, hi - lo)) * (PLOT_B - PAD);
 		const pts = series.map(([t, v]) => [x(t), y(v)] as const);
+
+		// market days: round D runs 06:00 UTC of D → 06:00 UTC of D+1. draw a
+		// band per round the series spans, alternating fills, labeled with the
+		// round id at the band's center (skipped when the band is too narrow).
+		const firstEdge = Math.floor((t0 - ROUND_EDGE) / DAY) * DAY + ROUND_EDGE;
+		const bands: { x0: number; x1: number; label: string; shaded: boolean }[] = [];
+		for (let edge = firstEdge, i = 0; edge < t1; edge += DAY, i++) {
+			const x0 = x(Math.max(edge, t0));
+			const x1 = x(Math.min(edge + DAY, t1));
+			const label = new Date(edge * 1000).toISOString().slice(5, 10);
+			bands.push({ x0, x1, label, shaded: i % 2 === 1 });
+		}
+
 		return {
 			line: pts.map(([px, py]) => `${px.toFixed(1)},${py.toFixed(1)}`).join(' '),
 			baselineY: y(START_SUBC),
-			pts
+			pts,
+			bands
 		};
 	});
 
@@ -140,9 +142,8 @@
 		hoverIdx = best;
 	}
 
-	function postHref(uri: string): string {
-		const rkey = uri.split('/').pop();
-		return `https://bsky.app/profile/phi.zzstoatzz.io/post/${rkey}`;
+	function profileHref(handleOrDid: string): string {
+		return `https://bsky.app/profile/${handleOrDid}`;
 	}
 </script>
 
@@ -171,7 +172,7 @@
 					phi trades the <a href="https://topchicken.cee.wtf" target="_blank" rel="noopener"
 						>top chicken prediction market</a
 					> — a play-money book on the daily most-liked-post crown. a share pays $1 if that
-					account wins the day. every order phi places is a public record on her own repo.
+					account wins the day. every order phi places is a public record on phi's own repo.
 				</p>
 			</header>
 
@@ -212,10 +213,22 @@
 					<svg
 						viewBox="0 0 {SW} {SH}"
 						role="img"
-						aria-label="net worth over time"
+						aria-label="net worth over time, banded by market round"
 						onpointermove={onSparkMove}
 						onpointerleave={() => (hoverIdx = null)}
 					>
+						<!-- market-day bands: each round runs 06:00 UTC → 06:00 UTC -->
+						{#each spark.bands as b (b.x0)}
+							{#if b.shaded}
+								<rect x={b.x0} y={PAD} width={b.x1 - b.x0} height={PLOT_B - PAD} class="band" />
+							{/if}
+							<line x1={b.x0} x2={b.x0} y1={PAD} y2={PLOT_B} class="round-edge" />
+							{#if b.x1 - b.x0 > 46}
+								<text x={(b.x0 + b.x1) / 2} y={SH - PAD - 3} class="round-label"
+									>{b.label}</text
+								>
+							{/if}
+						{/each}
 						<line
 							x1={PAD}
 							x2={SW - PAD}
@@ -229,7 +242,7 @@
 								x1={spark.pts[hoverIdx][0]}
 								x2={spark.pts[hoverIdx][0]}
 								y1={PAD}
-								y2={SH - PAD}
+								y2={PLOT_B}
 								class="crosshair"
 							/>
 							<circle cx={spark.pts[hoverIdx][0]} cy={spark.pts[hoverIdx][1]} r="3" class="dot" />
@@ -250,7 +263,7 @@
 				<h3 class="section-h chrome">current position</h3>
 				{#if holdings.length === 0}
 					<div class="status">
-						flat — no open position{round ? ` in round ${round.id}` : ''}. phi bets when she has
+						flat — no open position{round ? ` in round ${round.id}` : ''}. phi bets when it has
 						an opinion on who wins the day.
 					</div>
 				{:else}
@@ -259,7 +272,12 @@
 							<li class="card frame">
 								<span class="frame-c1"></span><span class="frame-c2"></span>
 								<div class="pos-head">
-									<span class="title">@{p.contender_handle ?? p.contender_did}</span>
+									<a
+										class="title"
+										href={profileHref(p.contender_handle ?? p.contender_did ?? '')}
+										target="_blank"
+										rel="noopener">@{p.contender_handle ?? p.contender_did}</a
+									>
 									<span class="shape">round {p.round_id}</span>
 								</div>
 								<div class="pos-line mono">
@@ -276,27 +294,6 @@
 					</ul>
 				{/if}
 			</section>
-
-			<!-- the why, in phi's own words -->
-			{#if commentary.length > 0}
-				<section>
-					<h3 class="section-h chrome">in her words</h3>
-					<ul class="cards">
-						{#each commentary as item (item.post.uri)}
-							<li class="card frame">
-								<span class="frame-c1"></span><span class="frame-c2"></span>
-								<p class="quote">{item.post.record?.text}</p>
-								<a
-									class="post-link mono"
-									href={postHref(item.post.uri)}
-									target="_blank"
-									rel="noopener">{item.post.record?.createdAt?.slice(0, 10)} ↗</a
-								>
-							</li>
-						{/each}
-					</ul>
-				</section>
-			{/if}
 
 			<!-- trade ledger -->
 			<section>
@@ -325,7 +322,11 @@
 										<td class="mono">{day(t.ts)}</td>
 										<td class="mono">{t.round_id}</td>
 										<td>{t.side}</td>
-										<td>@{t.contender_handle}</td>
+										<td>
+											<a href={profileHref(t.contender_handle)} target="_blank" rel="noopener"
+												>@{t.contender_handle}</a
+											>
+										</td>
 										<td class="mono num-col">{t.shares}</td>
 										<td class="mono num-col">{cents(t.price_subc)}</td>
 										<td class="mono num-col">{usd(t.total_subc)}</td>
@@ -475,6 +476,21 @@
 		stroke-dasharray: 6 4;
 		vector-effect: non-scaling-stroke;
 	}
+	.band {
+		fill: rgba(126, 192, 212, 0.045);
+	}
+	.round-edge {
+		stroke: var(--line-dim);
+		stroke-width: 1;
+		stroke-dasharray: 2 4;
+		vector-effect: non-scaling-stroke;
+	}
+	.round-label {
+		font-family: var(--font-mono);
+		font-size: 9px;
+		fill: var(--text-dim);
+		text-anchor: middle;
+	}
 	.crosshair {
 		stroke: var(--line-mid);
 		stroke-width: 1;
@@ -524,6 +540,9 @@
 		letter-spacing: 0.04em;
 		color: var(--text);
 	}
+	a.title:hover {
+		color: var(--hud-hot);
+	}
 	.shape {
 		font-family: var(--font-chrome);
 		font-size: 10px;
@@ -538,22 +557,6 @@
 		font-size: 12px;
 		color: var(--text-mid);
 	}
-	.quote {
-		margin: 0;
-		font-size: 13px;
-		line-height: 1.55;
-		color: var(--text);
-		white-space: pre-wrap;
-	}
-	.post-link {
-		font-size: 11px;
-		color: var(--scan-mid);
-		align-self: flex-end;
-	}
-	.post-link:hover {
-		color: var(--scan-hot);
-	}
-
 	/* ledger table */
 	.ledger-scroll {
 		overflow-x: auto;
