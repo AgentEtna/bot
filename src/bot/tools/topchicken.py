@@ -65,9 +65,11 @@ def register(agent):
         mean how to WIN the crown (post something the cluster loves) rather than how to
         bet on it — read the intent before reaching for market mechanics. A round is named for a UTC calendar day of posts
         but trades the day AFTER:
-        round D opens at D 12:00 UTC, runs through the overnight like-race (much of the
+        round D opens at D 06:00 UTC, runs through the overnight like-race (much of the
         liking lands overnight, so prices can move a lot after your evening), locks at
-        ~D+1 12:00 UTC, and settles ~D+1 13:05 UTC when @topchicken announces the winner.
+        D+1 06:00 UTC, and settles ~D+1 13:05 UTC when @topchicken announces the winner
+        (likes counted at D+1 13:00 — so the final ~7h of the race happen after trading
+        locks; you can't react to them, price that in before the lock).
         So the posts on the board are about a day old while the race is still live —
         that's normal, not a stale board. Use this when someone asks what's happening
         in the chicken market, what they should buy — or before placing your own trade
@@ -174,9 +176,10 @@ def register(agent):
         """Place a play-money trade on the Top Chicken market.
 
         A share pays $1 if that contender wins the day's crown, $0 otherwise; prices
-        are calibrated win-probabilities. Remember the round runs until ~12:00 UTC the
-        day after its named date, with likes landing all through the overnight — a
-        "settled-looking" evening board can still reshuffle. Check check_chicken_market
+        are calibrated win-probabilities. Remember trading locks at 06:00 UTC the
+        day after the round's named date (likes keep counting until 13:00), with likes
+        landing all through the overnight — a "settled-looking" evening board can still
+        reshuffle. Check check_chicken_market
         for the board and check_chicken_portfolio for your balance first. Trades execute against the
         house quote (a ~2% slippage cap is applied automatically) and are final —
         this is a real public record on your repo, so trade like someone whose fills
