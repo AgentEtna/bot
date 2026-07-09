@@ -48,6 +48,7 @@ class NotificationPoller:
         self._last_daily_post: datetime | None = None
         self._last_thought_hours: set[int] = set()
         self._last_thought_date: date | None = None
+        self._last_chicken_precheck_date: date | None = None
         self._semaphore = asyncio.Semaphore(MAX_CONCURRENT)
         self._background_tasks: set[asyncio.Task] = set()
 
@@ -163,6 +164,14 @@ class NotificationPoller:
                     task.add_done_callback(self._background_tasks.discard)
             except Exception as e:
                 logger.error(f"cycle error: {e}", exc_info=settings.debug)
+
+            try:
+                if self._should_chicken_precheck():
+                    task = asyncio.create_task(self._maybe_chicken_precheck())
+                    self._background_tasks.add(task)
+                    task.add_done_callback(self._background_tasks.discard)
+            except Exception as e:
+                logger.error(f"chicken precheck error: {e}", exc_info=settings.debug)
 
             try:
                 await asyncio.sleep(settings.notification_poll_interval)
@@ -296,6 +305,33 @@ class NotificationPoller:
         if hour in self._last_thought_hours:
             return False
         return True
+
+    def _should_chicken_precheck(self) -> bool:
+        """Check if it's time for the pre-lock chicken market check.
+
+        UTC clock, not operator-local — the market locks rounds at 06:00
+        UTC regardless of DST. At most once per UTC day. Not seeded from
+        post history (the check usually produces no post): a redeploy
+        during the precheck hour may re-run it, which is a harmless extra
+        market read.
+        """
+        if bot_status.paused:
+            return False
+        now_utc = datetime.now(UTC)
+        if now_utc.hour != settings.chicken_precheck_utc_hour:
+            return False
+        if self._last_chicken_precheck_date == now_utc.date():
+            return False
+        return True
+
+    async def _maybe_chicken_precheck(self):
+        """Trigger the pre-lock chicken market check."""
+        self._last_chicken_precheck_date = datetime.now(UTC).date()
+        logger.info("triggering chicken precheck")
+        try:
+            await self.handler.chicken_precheck()
+        except Exception as e:
+            logger.error(f"chicken precheck error: {e}", exc_info=settings.debug)
 
     async def _maybe_run_cycle(self):
         """Trigger one cognitive cycle."""

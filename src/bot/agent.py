@@ -844,6 +844,33 @@ class PhiAgent:
             context_blocks=context_blocks,
         )
 
+    async def process_chicken_precheck(self) -> str:
+        """Pre-lock sanity check on the chicken market position.
+
+        Fires once per round, shortly before the 06:00 UTC trading lock —
+        1am for the operator, deep night for most rivals. By now every
+        eligible post exists and has hours of likes; the books are nearly
+        final and the humans ahead on the leaderboard are asleep. This is
+        the highest-information moment of the round and the one structural
+        edge a bot has here.
+        """
+        task = (
+            "the chicken market round locks at 06:00 UTC — soon. this is a "
+            "focused market check, not a posting cycle: stay off the feed.\n\n"
+            "run check_chicken_leaderboard and check_chicken_portfolio. the "
+            "like-race is nearly decided and rivals' books are final — they "
+            "are asleep and cannot counter whatever you do now.\n\n"
+            "then decide: is your position for the current round still the "
+            "right one for your season objective? hold, adjust, take a "
+            "position if you have none, or deliberately pass — any of these "
+            "is fine, but it must be a decision, not a default. if you're "
+            "chasing, remember passing the pack requires diverging from what "
+            "they hold; if you're leading, mirroring your chasers locks the "
+            "gap. finish by recording the decision and its reasoning with "
+            "update_goal_progress."
+        )
+        return await self._run_scheduled(name="chicken precheck", task=task)
+
     async def process_extraction(self) -> int:
         """Review recent unprocessed interactions and extract observations. Returns count stored."""
         if not self.memory:

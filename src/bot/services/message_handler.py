@@ -345,6 +345,12 @@ class MessageHandler:
         """One cognitive cycle — see :meth:`PhiAgent.process_cycle`."""
         await self._run_scheduled("cycle", self.agent.process_cycle)
 
+    async def chicken_precheck(self):
+        """Pre-lock market check — see :meth:`PhiAgent.process_chicken_precheck`."""
+        await self._run_scheduled(
+            "chicken precheck", self.agent.process_chicken_precheck
+        )
+
     async def daily_reflection(self):
         """Generate and post a daily reflection if phi has something to say.
 
