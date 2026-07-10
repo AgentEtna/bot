@@ -225,3 +225,65 @@ async def test_trade_refuses_under_operator_override():
         out = await fn(SimpleNamespace(), contender="goose.art", side="buy", shares=5)
     assert "paused for maintenance" in out
     bc.client.com.atproto.repo.create_record.assert_not_called()
+
+
+async def test_update_strategy_writes_doctrine_record():
+    fn = _register()["update_chicken_strategy"]
+    bc = _mock_bot_client()
+    with (
+        patch("bot.tools.topchicken.bot_client", bc),
+        patch(
+            "bot.tools.topchicken.get_override",
+            AsyncMock(return_value={"active": False, "message": ""}),
+        ),
+    ):
+        out = await fn(SimpleNamespace(), doctrine="compound early, variance late")
+
+    data = bc.client.com.atproto.repo.put_record.call_args.kwargs["data"]
+    assert data["repo"] == "did:plc:phi"
+    assert data["collection"] == "io.zzstoatzz.phi.strategy"
+    assert data["rkey"] == "topchicken"
+    assert data["record"]["doctrine"] == "compound early, variance late"
+    assert "updated" in out
+
+
+async def test_leaderboard_shows_doctrine_or_asks_for_one():
+    fn = _register()["check_chicken_leaderboard"]
+    board = {
+        "season_info": {"num": 3, "day": 5, "total_days": 7, "end_round": "2026-07-12"},
+        "leaders": [
+            {"did": "did:plc:rival", "handle": "rival.example", "pnl_subc": 100_000},
+            {"did": "did:plc:phi", "handle": "phi.example", "pnl_subc": 50_000},
+        ],
+    }
+    bc = _mock_bot_client()
+    trader = {"positions": [], "balance_subc": 0}
+    with (
+        _patch_get_json(
+            {
+                topchicken.LEADERBOARD_URL: board,
+                topchicken.TRADER_URL.format(did="did:plc:rival"): trader,
+            }
+        ),
+        patch("bot.tools.topchicken.bot_client", bc),
+        patch(
+            "bot.tools.topchicken._read_strategy",
+            AsyncMock(return_value="compound early, variance late"),
+        ),
+    ):
+        out = await fn(SimpleNamespace())
+    assert "compound early, variance late" in out
+    assert "← you" in out
+
+    with (
+        _patch_get_json(
+            {
+                topchicken.LEADERBOARD_URL: board,
+                topchicken.TRADER_URL.format(did="did:plc:rival"): trader,
+            }
+        ),
+        patch("bot.tools.topchicken.bot_client", bc),
+        patch("bot.tools.topchicken._read_strategy", AsyncMock(return_value=None)),
+    ):
+        out = await fn(SimpleNamespace())
+    assert "no strategy doctrine on record" in out

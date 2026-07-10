@@ -39,6 +39,25 @@ MARKET_URL = "https://topchicken.cee.wtf/api/market"
 TRADER_URL = "https://topchicken.cee.wtf/api/trader/{did}"
 LEADERBOARD_URL = "https://topchicken.cee.wtf/api/leaderboard"
 ORDER_COLLECTION = "wtf.cee.topchicken.order"
+STRATEGY_COLLECTION = "io.zzstoatzz.phi.strategy"
+STRATEGY_RKEY = "topchicken"
+
+
+async def _read_strategy() -> str | None:
+    """Read phi's own trading doctrine record, if she's written one."""
+    await bot_client.authenticate()
+    assert bot_client.client.me is not None
+    try:
+        resp = bot_client.client.com.atproto.repo.get_record(
+            params={
+                "repo": bot_client.client.me.did,
+                "collection": STRATEGY_COLLECTION,
+                "rkey": STRATEGY_RKEY,
+            }
+        )
+        return dict(resp.value).get("doctrine") if resp.value else None
+    except Exception:
+        return None
 
 
 def _fmt_subc(subc: int) -> str:
@@ -160,23 +179,15 @@ def register(agent):
     async def check_chicken_leaderboard(ctx: RunContext[PhiDeps]) -> str:
         """Check the season leaderboard: standings, days left, and rivals' open positions.
 
-        The market runs in week-long SEASONS, and a season is a TOURNAMENT, not a
-        savings account: what pays is your final RANK, and the podium is remembered
-        forever. That changes correct play, especially late in a season:
+        The market runs in week-long SEASONS scored by final RANK. Rivals' wallets
+        and positions are public — that's load-bearing information for tournament
+        play, which is why they're shown here.
 
-        - trailing with few rounds left: steady small-edge betting mathematically
-          cannot close a big gap. Seek variance — larger positions on cheaper
-          longshots. Finishing 4th by a little and 4th by a lot are the same result,
-          so the downside of a miss is smaller than it feels.
-        - leading: mirror your chasers' positions. If you hold what they hold, the
-          gap can't move and the clock wins for you.
-        - to PASS someone you must DIVERGE from them — if you both hold the same
-          chicken, nothing changes when it hits. That's why rivals' positions
-          (public, shown here for the traders around you) are load-bearing
-          information, not gossip: fade what they hold, or hold what they missed.
-
-        Use this alongside check_chicken_market when deciding how much round-to-round
-        risk actually fits the season situation.
+        HOW to play the season is yours to decide and revise: your current doctrine
+        (from your own strategy record) is included in the output, and you evolve it
+        with update_chicken_strategy as results come in. Use this alongside
+        check_chicken_market when deciding how much round-to-round risk fits the
+        season situation.
         """
         try:
             board = await _get_json(LEADERBOARD_URL)
@@ -232,7 +243,67 @@ def register(agent):
                 held = f"no open positions (cash {_fmt_subc(r.get('balance_subc', 0))})"
             lines.append(f"@{ldr['handle']} holds: {held}")
 
+        doctrine = await _read_strategy()
+        if doctrine:
+            lines.append(f"\nyour current strategy doctrine:\n{doctrine}")
+        else:
+            lines.append(
+                "\nyou have no strategy doctrine on record — write one with "
+                "update_chicken_strategy before your next trade"
+            )
+
         return "\n".join(lines)
+
+    @agent.tool
+    async def update_chicken_strategy(
+        ctx: RunContext[PhiDeps],
+        doctrine: Annotated[
+            str,
+            Field(
+                description=(
+                    "your full trading doctrine, replacing the previous one — "
+                    "the rules you currently believe in, plus what result would "
+                    "change them"
+                )
+            ),
+        ],
+    ) -> str:
+        """Rewrite your chicken-market strategy doctrine (a record on your own repo).
+
+        The doctrine is YOURS: it should evolve when results contradict it, and
+        every revision should say what you learned. It's shown back to you by
+        check_chicken_leaderboard and at every pre-lock check, so write it as
+        instructions to your future self.
+
+        Two disciplines make a doctrine honest:
+        - pre-register: before a bet, the doctrine (or your goal record) should
+          state the estimated hit probability and what the plan is if it misses.
+          A strategy that only explains results afterward can't lose an argument
+          and can't be trusted.
+        - operator constraints are not yours to revise (see place_chicken_trade):
+          stay in the green; bet big only from a profit cushion; go negative only
+          when the position credibly makes it back soon.
+        """
+        override = await get_override()
+        if override["active"]:
+            return refusal_text(override)
+
+        await bot_client.authenticate()
+        assert bot_client.client.me is not None
+        bot_client.client.com.atproto.repo.put_record(
+            data={
+                "repo": bot_client.client.me.did,
+                "collection": STRATEGY_COLLECTION,
+                "rkey": STRATEGY_RKEY,
+                "record": {
+                    "$type": STRATEGY_COLLECTION,
+                    "game": "topchicken",
+                    "doctrine": doctrine,
+                    "updatedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+                },
+            }
+        )
+        return "strategy doctrine updated — it will be shown at your next market check"
 
     @agent.tool
     async def place_chicken_trade(
@@ -270,9 +341,16 @@ def register(agent):
         to sit out — cash earns nothing here, and participating is the point (index
         investors buy at consensus prices every payday). The ~2% spread is the cost of
         playing, not a reason to abstain. Pass only if you truly have no opinion on
-        who wins. Size with the season in mind: check_chicken_leaderboard shows your
-        rank, the time left, and what rivals hold — late in a season, trailing badly,
-        modest consensus bets can't change your finish.
+        who wins.
+
+        OPERATOR CONSTRAINTS on sizing (these bound whatever your doctrine says):
+        - stay in the green: net P&L should stay positive at all times. bet big
+          only when a profit cushion can absorb the miss.
+        - going negative is acceptable only when the position credibly makes it
+          back soon — a stated plan, not a hope.
+        - before any bet, state your estimated hit probability (in your goal or
+          strategy record). if you wouldn't accept the miss-case out loud, don't
+          place the bet.
         """
         override = await get_override()
         if override["active"]:
