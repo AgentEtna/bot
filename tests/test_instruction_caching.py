@@ -9,13 +9,20 @@ invalidate the message-history cache prefix.
 """
 
 from types import SimpleNamespace
+from typing import cast
+
+from pydantic_ai import RunContext
 
 from bot.agent import memoize_per_run
 from bot.tools import PhiDeps
 
 
-def _ctx() -> SimpleNamespace:
-    return SimpleNamespace(deps=PhiDeps(author_handle="someone"))
+def _ctx() -> RunContext[PhiDeps]:
+    """A minimal stand-in: memoize_per_run only touches ctx.deps."""
+    return cast(
+        RunContext[PhiDeps],
+        SimpleNamespace(deps=PhiDeps(author_handle="someone")),
+    )
 
 
 async def test_async_block_renders_once_per_run():

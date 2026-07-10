@@ -4,8 +4,10 @@ import contextlib
 import inspect
 import logging
 import os
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic_ai import Agent, ImageUrl, RunContext
@@ -39,7 +41,18 @@ from bot.utils.time import humanize_duration
 logger = logging.getLogger("bot.agent")
 
 
-def memoize_per_run(fn):
+type ContextBlockFn = (
+    Callable[[], str]
+    | Callable[[], Awaitable[str]]
+    | Callable[[RunContext[PhiDeps]], str]
+    | Callable[[RunContext[PhiDeps]], Awaitable[str]]
+)
+"""A context-block renderer: sync or async, with or without RunContext."""
+
+
+def memoize_per_run(
+    fn: ContextBlockFn,
+) -> Callable[[RunContext[PhiDeps]], Awaitable[str]]:
     """Wrap a context-block function so it renders once per run.
 
     pydantic-ai re-evaluates @agent.instructions on every model request in
@@ -48,18 +61,21 @@ def memoize_per_run(fn):
     message-history cache prefix. The memo lives on the run's PhiDeps.
     """
     takes_ctx = bool(inspect.signature(fn).parameters)
+    # the union of callable shapes is dispatched at runtime; erase it for
+    # the call and the function-attribute reads
+    fn_any = cast(Any, fn)
+    key: str = fn_any.__qualname__
 
     async def block(ctx: RunContext[PhiDeps]) -> str:
         cache = ctx.deps.run_cache
-        key = fn.__qualname__
         if key not in cache:
-            result = fn(ctx) if takes_ctx else fn()
+            result = fn_any(ctx) if takes_ctx else fn_any()
             if inspect.isawaitable(result):
                 result = await result
             cache[key] = result
         return cache[key]
 
-    block.__name__ = fn.__name__
+    block.__name__ = fn_any.__name__
     return block
 
 
