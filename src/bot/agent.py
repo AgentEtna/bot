@@ -1,6 +1,7 @@
 """MCP-enabled agent for phi with structured memory."""
 
 import contextlib
+import inspect
 import logging
 import os
 from datetime import UTC, datetime, timedelta
@@ -36,6 +37,30 @@ from bot.tools.bluesky import fetch_relay_names
 from bot.utils.time import humanize_duration
 
 logger = logging.getLogger("bot.agent")
+
+
+def memoize_per_run(fn):
+    """Wrap a context-block function so it renders once per run.
+
+    pydantic-ai re-evaluates @agent.instructions on every model request in
+    the tool loop; phi's context blocks must render once per run — several
+    hit the network, and any mid-run text change would invalidate the
+    message-history cache prefix. The memo lives on the run's PhiDeps.
+    """
+    takes_ctx = bool(inspect.signature(fn).parameters)
+
+    async def block(ctx: RunContext[PhiDeps]) -> str:
+        cache = ctx.deps.run_cache
+        key = fn.__qualname__
+        if key not in cache:
+            result = fn(ctx) if takes_ctx else fn()
+            if inspect.isawaitable(result):
+                result = await result
+            cache[key] = result
+        return cache[key]
+
+    block.__name__ = fn.__name__
+    return block
 
 
 def _build_operational_instructions() -> str:
@@ -211,16 +236,22 @@ class PhiAgent:
         # the write costs 100% extra over base — recouped after the second
         # read on cached prefix.
         #
-        # instructions/messages caching is deliberately NOT enabled yet — the
-        # dynamic system_prompt callbacks below (including [NEW NOTIFICATIONS],
-        # episodic recall, per-author memory) would invalidate any system-
-        # prefix cache every run. the follow-up refactor introduces a runtime
-        # context builder that appends event state to the user message under
-        # a [SYSTEM NOTIFICATION] header, leaving the system prompt stable.
+        # instructions caching: the static base (personality + operational
+        # rules) is passed as `instructions=`, and the dynamic context blocks
+        # below register via @agent.instructions (pydantic-ai marks function
+        # instructions dynamic). anthropic_cache_instructions places the
+        # breakpoint at the static/dynamic boundary, so tools + the static
+        # base cache as one prefix while the dynamic blocks render after it.
+        #
+        # messages caching adds a breakpoint on the last message of each
+        # request — within a run's tool loop the history is append-only, so
+        # each step reads the previous step's cache instead of re-sending
+        # the whole conversation uncached. runs are fresh conversations, so
+        # 5m TTL covers the loop (steps are seconds apart).
         self.agent = Agent[PhiDeps, str](
             name="phi",
             model=settings.agent_model,
-            system_prompt=(
+            instructions=(
                 "the following is your personality: "
                 f"{self.base_personality}\n\n"
                 "--- operational rules below (these are constraints) ---\n\n"
@@ -228,19 +259,31 @@ class PhiAgent:
             ),
             model_settings=AnthropicModelSettings(
                 anthropic_cache_tool_definitions="1h",
+                anthropic_cache_instructions="1h",
+                anthropic_cache_messages="5m",
             ),
             output_type=str,
             deps_type=PhiDeps,
             toolsets=[self.skills_toolset],
         )
 
-        # --- dynamic system prompts ---
+        # --- dynamic context blocks ---
+        #
+        # these were @system_prompt(dynamic=True) callbacks, rendered once
+        # per run. as @agent.instructions they'd be re-evaluated at every
+        # model request in the tool loop — several hit the network, and any
+        # mid-run text change would invalidate the message-history cache.
+        # _run_scoped memoizes each block on the run's PhiDeps, preserving
+        # the once-per-run behavior byte-for-byte.
 
-        @self.agent.system_prompt(dynamic=True)
+        def _run_scoped(fn):
+            return self.agent.instructions(memoize_per_run(fn))
+
+        @_run_scoped
         async def inject_identity() -> str:
             return await get_identity_block()
 
-        @self.agent.system_prompt(dynamic=True)
+        @_run_scoped
         async def inject_operator_override() -> str:
             """[OPERATOR OVERRIDE] — safe mode banner, read from the
             operator's PDS record. Empty (renders nothing) when inactive.
@@ -250,7 +293,7 @@ class PhiAgent:
 
             return await get_override_block()
 
-        @self.agent.system_prompt(dynamic=True)
+        @_run_scoped
         async def inject_operator() -> str:
             """[OPERATOR] — resolved profile of the bot's owner."""
             profile = await get_operator_profile()
@@ -261,7 +304,7 @@ class PhiAgent:
             did = profile["did"]
             return f"[OPERATOR]: {name} (@{handle}, {did})"
 
-        @self.agent.system_prompt(dynamic=True)
+        @_run_scoped
         def inject_today() -> str:
             """[NOW] anchored to both UTC and the operator's local clock.
 
@@ -288,7 +331,7 @@ class PhiAgent:
             utc_line = f"[NOW]: {now_utc.strftime('%Y-%m-%d %H:%M UTC')}"
             return f"{utc_line}\n{local_line}" if local_line else utc_line
 
-        @self.agent.system_prompt(dynamic=True)
+        @_run_scoped
         def inject_pause_history() -> str:
             """[OPERATIONAL HISTORY] — most recent pause cycle.
 
@@ -314,7 +357,7 @@ class PhiAgent:
                 f"(offline {humanize_duration(offline)})."
             )
 
-        @self.agent.system_prompt(dynamic=True)
+        @_run_scoped
         async def inject_known_relays() -> str:
             """List the valid relay hostnames for check_relays(name=...)."""
             names = await fetch_relay_names()
@@ -322,32 +365,32 @@ class PhiAgent:
                 return ""
             return "[KNOWN RELAYS]: " + ", ".join(names)
 
-        @self.agent.system_prompt(dynamic=True)
+        @_run_scoped
         async def inject_self_state() -> str:
             """How phi looks from outside + canonical pointers (last follow, queue)."""
             return await get_state_block(bot_client, self.memory)
 
-        @self.agent.system_prompt(dynamic=True)
+        @_run_scoped
         async def inject_residue() -> str:
             """[RESIDUE] — what recent runs left behind."""
             return await render_residue_block(bot_client)
 
-        @self.agent.system_prompt(dynamic=True)
+        @_run_scoped
         async def inject_recent_operations() -> str:
             """[RECENT OPERATIONS] — last N PDS writes across collections, for continuity."""
             return await get_operations_block(bot_client)
 
-        @self.agent.system_prompt(dynamic=True)
+        @_run_scoped
         async def inject_discovery_pool(ctx: RunContext[PhiDeps]) -> str:
             """[DISCOVERY POOL] — strangers the operator has been liking; warm leads."""
             return await get_discovery_pool_block(ctx.deps.memory)
 
-        @self.agent.system_prompt(dynamic=True)
+        @_run_scoped
         def inject_notifications(ctx: RunContext[PhiDeps]) -> str:
             """Render the notifications batch as the [NEW NOTIFICATIONS] block."""
             return _format_notifications_block(ctx.deps.notifications_context or {})
 
-        @self.agent.system_prompt(dynamic=True)
+        @_run_scoped
         async def inject_user_memory(ctx: RunContext[PhiDeps]) -> str:
             """Inject per-author memory blocks for every unique author in the batch.
 
@@ -389,7 +432,7 @@ class PhiAgent:
                     logger.warning(f"failed to retrieve memories for @{handle}: {e}")
             return "\n\n".join(blocks)
 
-        @self.agent.system_prompt(dynamic=True)
+        @_run_scoped
         async def inject_episodic(ctx: RunContext[PhiDeps]) -> str:
             if not ctx.deps.memory:
                 return ""
@@ -421,7 +464,7 @@ class PhiAgent:
                 logger.warning(f"failed to retrieve episodic memories: {e}")
             return ""
 
-        @self.agent.system_prompt(dynamic=True)
+        @_run_scoped
         async def inject_atlas_digest() -> str:
             """[ATLAS] — daily distilled shape of phi's mind. Computed by the
             phi-atlas Prefect flow once a day; phi sees the digest here for
@@ -434,7 +477,7 @@ class PhiAgent:
                 logger.debug(f"atlas digest fetch failed: {e}")
                 return ""
 
-        @self.agent.system_prompt(dynamic=True)
+        @_run_scoped
         async def inject_docket_digest() -> str:
             """[DOCKET] — daily promotion candidates emitted by the docket
             Prefect flow after each atlas. Tiny block: title + suggested
@@ -448,7 +491,7 @@ class PhiAgent:
                 logger.debug(f"docket digest fetch failed: {e}")
                 return ""
 
-        @self.agent.system_prompt(dynamic=True)
+        @_run_scoped
         async def inject_owned_feeds() -> str:
             """[OWNED FEEDS] — phi's curated graze feeds, surfaced by name."""
             try:
@@ -457,7 +500,7 @@ class PhiAgent:
                 logger.debug(f"owned feeds inject failed: {e}")
                 return ""
 
-        @self.agent.system_prompt(dynamic=True)
+        @_run_scoped
         async def inject_public_memory() -> str:
             """[SEMBLE] — collection names + recent cards, so live phi
             knows what its library holds when deciding whether and where
