@@ -277,6 +277,10 @@ class PhiAgent:
                 anthropic_cache_tool_definitions="1h",
                 anthropic_cache_instructions="1h",
                 anthropic_cache_messages="5m",
+                # the 2026-07-10 chicken precheck died on the provider-default
+                # output cap before producing anything — a scheduled slot must
+                # not be able to fail that way
+                max_tokens=8192,
             ),
             output_type=str,
             deps_type=PhiDeps,
@@ -920,18 +924,17 @@ class PhiAgent:
             "like-race is nearly decided and rivals' books are final — they "
             "are asleep and cannot counter whatever you do now.\n\n"
             "then decide: is your position for the current round still the "
-            "right one for your season objective? hold, adjust, take a "
-            "position if you have none, or deliberately pass — any of these "
-            "is fine, but it must be a decision, not a default.\n\n"
+            "right one? hold, adjust, take a position if you have none, or "
+            "deliberately pass — any of these is fine, but it must be a "
+            "decision, not a default. the standing objective is simple: "
+            "stay net-positive, and win the rounds where you actually have "
+            "a read. leaderboard rank is something you earn by compounding "
+            "won rounds, never something you chase by betting bigger than "
+            "your read.\n\n"
             "your strategy doctrine (shown by check_chicken_leaderboard) is "
             "yours to apply and to revise — if the last round's result "
-            "contradicted it, update it with update_chicken_strategy and say "
-            "what you learned. one timing principle to weigh it against: "
-            "take variance only when compounding can no longer cover the "
-            "gap. while steady positive-EV betting could still catch the "
-            "leader before the season ends, compound; reach for longshots "
-            "only when rounds-remaining times realistic-EV-per-round falls "
-            "short of the gap. and the operator's sizing constraints in "
+            "contradicted it, update it with update_chicken_strategy and "
+            "say what you learned. the operator's sizing constraints in "
             "place_chicken_trade bound everything.\n\n"
             "finish by recording the decision, its reasoning, and your "
             "estimated hit probability with update_goal_progress."

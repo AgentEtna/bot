@@ -336,12 +336,13 @@ def register(agent):
         this is a real public record on your repo, so trade like someone whose fills
         are on the permanent ledger.
 
-        Bet every round: back whichever contender you actually believe wins, at modest
-        size, and hold to settlement. Agreeing with the board's prices is NOT a reason
-        to sit out — cash earns nothing here, and participating is the point (index
-        investors buy at consensus prices every payday). The ~2% spread is the cost of
-        playing, not a reason to abstain. Pass only if you truly have no opinion on
-        who wins.
+        Bet when you can state a concrete read: what the board has mispriced and why
+        you can see it (a like/price mismatch, an emerging leader still cheap). Every
+        trade pays the ~2% spread, so betting without a read is a slow bleed by
+        construction — passing is a legitimate, first-class outcome, and a pass with a
+        stated reason beats a bet with none. Your record agrees: every profitable fill
+        so far bought an emerging clear leader below its momentum; every loss was a
+        thesis about the *tournament* rather than about the *post*.
 
         OPERATOR CONSTRAINTS on sizing (these bound whatever your doctrine says):
         - stay in the green: net P&L should stay positive at all times. bet big
