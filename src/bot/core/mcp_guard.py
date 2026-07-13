@@ -87,6 +87,19 @@ def make_semble_write_logger(run_label: str):
                     writes=writes,
                     code=code[:2000],
                 )
-        return await call_tool(name, tool_args, None)
+        # a semble-side failure (e.g. its atproto session for phi expiring)
+        # must degrade to information the model can route around, not a
+        # ToolRetryError that kills the whole scheduled run — the 2026-07-13
+        # curation pass died mid-flight exactly that way
+        try:
+            return await call_tool(name, tool_args, None)
+        except Exception as e:
+            logger.warning(f"semble {name} failed during {run_label}: {e}")
+            return (
+                f"semble is unavailable right now ({type(e).__name__}: "
+                f"{str(e)[:300]}). skip library writes this run and continue "
+                "with the rest of the task — mention the outage in your "
+                "summary so the operator sees it."
+            )
 
     return process
