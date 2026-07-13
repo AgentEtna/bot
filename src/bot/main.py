@@ -177,6 +177,7 @@ _TRIGGER_SLOTS = {
     "reflection": lambda handler: handler.daily_reflection,
     "chicken-precheck": lambda handler: handler.chicken_precheck,
     "curation": lambda handler: handler.curation,
+    "editorial": lambda handler: handler.editorial,
 }
 
 

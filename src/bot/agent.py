@@ -967,6 +967,30 @@ class PhiAgent:
         )
         return await self._run_scheduled(name="curation", task=task)
 
+    async def process_editorial(self) -> str:
+        """Refresh the editorial-context record that grounds coral's curator.
+
+        Triggered externally (prefect, daily) via
+        /api/control/trigger/editorial. phi reads coral's trending entities,
+        researches the unfamiliar ones, and rewrites her
+        io.zzstoatzz.phi.editorialContext record — which coral injects
+        verbatim into its curator prompt on the next cycle.
+        """
+        task = (
+            "editorial pass for coral. load your coral-editorial skill first "
+            "— it has the record shape, the write recipe, and the note "
+            "discipline; follow it exactly.\n\n"
+            "this is a focused maintenance pass, not a posting cycle: stay "
+            "off the feed. check what's trending (get_trending), research "
+            "what you don't recognize, then rewrite your editorial-context "
+            "record — refresh what's still hot, prune what fell off, add "
+            "grounding only where a curator without research ability would "
+            "misread the moment. an empty notes list is a legitimate "
+            "outcome. finish with a one-line summary of what changed in the "
+            "record and why."
+        )
+        return await self._run_scheduled(name="editorial", task=task)
+
     async def process_extraction(self) -> int:
         """Review recent unprocessed interactions and extract observations. Returns count stored."""
         if not self.memory:

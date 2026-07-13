@@ -355,6 +355,10 @@ class MessageHandler:
         """Weekly publication curation pass — see :meth:`PhiAgent.process_curation`."""
         await self._run_scheduled("curation", self.agent.process_curation)
 
+    async def editorial(self):
+        """Coral editorial-context refresh — see :meth:`PhiAgent.process_editorial`."""
+        await self._run_scheduled("editorial", self.agent.process_editorial)
+
     async def daily_reflection(self):
         """Generate and post a daily reflection if phi has something to say.
 
