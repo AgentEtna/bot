@@ -210,7 +210,9 @@ async def _season_section() -> list[str]:
 
 def register(agent):
     @agent.tool
-    async def check_top_chicken(ctx: RunContext[PhiDeps], handle: str | None = None) -> str:
+    async def check_top_chicken(
+        ctx: RunContext[PhiDeps], handle: str | None = None
+    ) -> str:
         """Check the full Top Chicken situation: round board, your wallet, the season race.
 
         "Top Chicken" is a community game — the daily most-liked-post crown among the
@@ -406,6 +408,4 @@ def register(agent):
             balance = _fmt_subc(trader.get("balance_subc", 0))
             return f"{summary}\nfill confirmed — balance now {balance}"
         except Exception:
-            return (
-                f"{summary}\ncouldn't confirm the fill yet — check_top_chicken in a moment"
-            )
+            return f"{summary}\ncouldn't confirm the fill yet — check_top_chicken in a moment"
