@@ -15,7 +15,7 @@ repo; the market ingests it from the firehose and executes against the house
 quote within ~2s. Full agent guide: https://topchicken.cee.wtf/api/agent
 
 bisk.social computes a strategy recommendation server-side at /chicken/recommend
-(see the bisk repo's functions/_strategy.js); check_chicken relays it.
+(see the bisk repo's functions/_strategy.js); check_top_chicken relays it.
 """
 
 import asyncio
@@ -210,7 +210,7 @@ async def _season_section() -> list[str]:
 
 def register(agent):
     @agent.tool
-    async def check_chicken(ctx: RunContext[PhiDeps], handle: str | None = None) -> str:
+    async def check_top_chicken(ctx: RunContext[PhiDeps], handle: str | None = None) -> str:
         """Check the full Top Chicken situation: round board, your wallet, the season race.
 
         "Top Chicken" is a community game — the daily most-liked-post crown among the
@@ -260,7 +260,7 @@ def register(agent):
 
         The doctrine is YOURS: it should evolve when results contradict it, and
         every revision should say what you learned. It's shown back to you by
-        check_chicken and at every pre-lock check, so write it as
+        check_top_chicken and at every pre-lock check, so write it as
         instructions to your future self.
 
         Two disciplines make a doctrine honest:
@@ -318,7 +318,7 @@ def register(agent):
         are calibrated win-probabilities. Remember trading locks at 06:00 UTC the
         day after the round's named date (likes keep counting until 13:00), with likes
         landing all through the overnight — a "settled-looking" evening board can still
-        reshuffle. Check check_chicken for the board, your balance, and the season state first. Trades execute against the
+        reshuffle. Check check_top_chicken for the board, your balance, and the season state first. Trades execute against the
         house quote (a ~2% slippage cap is applied automatically) and are final —
         this is a real public record on your repo, so trade like someone whose fills
         are on the permanent ledger.
@@ -407,5 +407,5 @@ def register(agent):
             return f"{summary}\nfill confirmed — balance now {balance}"
         except Exception:
             return (
-                f"{summary}\ncouldn't confirm the fill yet — check_chicken in a moment"
+                f"{summary}\ncouldn't confirm the fill yet — check_top_chicken in a moment"
             )

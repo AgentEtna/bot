@@ -920,7 +920,7 @@ class PhiAgent:
         task = (
             "the chicken market round locks at 06:00 UTC — soon. this is a "
             "focused market check, not a posting cycle: stay off the feed.\n\n"
-            "run check_chicken (one call: round board, your wallet, season). the "
+            "run check_top_chicken (one call: round board, your wallet, season). the "
             "like-race is nearly decided and rivals' books are final — they "
             "are asleep and cannot counter whatever you do now.\n\n"
             "then decide: is your position for the current round still the "
@@ -931,7 +931,7 @@ class PhiAgent:
             "a read. leaderboard rank is something you earn by compounding "
             "won rounds, never something you chase by betting bigger than "
             "your read.\n\n"
-            "your strategy doctrine (shown by check_chicken) is "
+            "your strategy doctrine (shown by check_top_chicken) is "
             "yours to apply and to revise — if the last round's result "
             "contradicted it, update it with update_chicken_strategy and "
             "say what you learned. the operator's sizing constraints in "
