@@ -941,6 +941,32 @@ class PhiAgent:
         )
         return await self._run_scheduled(name="chicken precheck", task=task)
 
+    async def process_curation(self) -> str:
+        """Weekly pass over the publications network's most-recommended surface.
+
+        Triggered externally (prefect, Sunday evening operator time) via
+        /api/control/trigger/curation — the week's recommendation window is
+        complete, so the surface is worth a real read.
+        """
+        task = (
+            "weekly curation pass. load your publication-curation skill "
+            "first — it has the tools and the standards.\n\n"
+            "browse this week's most-recommended posts on the publications "
+            "network (pub_discover_focal_post, window='week' — check both "
+            "sort='top' and sort='trending'). pick what genuinely interests "
+            "you and READ it (pub_get_document), don't skim titles.\n\n"
+            "then curate: recommend at most one or two documents you'd "
+            "actually put your name behind (it's just a "
+            "site.standard.graph.recommend record — the skill has the shape, "
+            "and the standards: read first, sparingly, never your own, never "
+            "twice). a cosmik card with a specific why is welcome when a "
+            "piece earned it. recommending nothing is fine when nothing "
+            "clears the bar — say why in your summary. posting to bsky about "
+            "what you read is allowed but optional; only if something is "
+            "genuinely worth surfacing to your feed."
+        )
+        return await self._run_scheduled(name="curation", task=task)
+
     async def process_extraction(self) -> int:
         """Review recent unprocessed interactions and extract observations. Returns count stored."""
         if not self.memory:

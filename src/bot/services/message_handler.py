@@ -351,6 +351,10 @@ class MessageHandler:
             "chicken precheck", self.agent.process_chicken_precheck
         )
 
+    async def curation(self):
+        """Weekly publication curation pass — see :meth:`PhiAgent.process_curation`."""
+        await self._run_scheduled("curation", self.agent.process_curation)
+
     async def daily_reflection(self):
         """Generate and post a daily reflection if phi has something to say.
 

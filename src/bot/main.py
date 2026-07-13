@@ -169,17 +169,40 @@ async def resume(request: Request):
     return {"paused": False}
 
 
-@app.post("/api/control/post")
-async def trigger_post(request: Request, background_tasks: BackgroundTasks):
-    """Trigger one cognitive cycle immediately."""
+# Named scheduled passes an external scheduler (prefect) can kick off. The
+# bot exposes WHAT can run; prefect owns WHEN — a new scheduled behavior
+# should be a prefect deployment hitting this endpoint, not a poller slot.
+_TRIGGER_SLOTS = {
+    "cycle": lambda handler: handler.cycle,
+    "reflection": lambda handler: handler.daily_reflection,
+    "chicken-precheck": lambda handler: handler.chicken_precheck,
+    "curation": lambda handler: handler.curation,
+}
+
+
+@app.post("/api/control/trigger/{slot}")
+async def trigger_slot(slot: str, request: Request, background_tasks: BackgroundTasks):
+    """Run a named scheduled pass in the background (bearer control token)."""
     if err := _check_control_token(request):
         return err
+    slot_fn = _TRIGGER_SLOTS.get(slot)
+    if slot_fn is None:
+        return JSONResponse(
+            {"error": f"unknown slot {slot!r}", "slots": sorted(_TRIGGER_SLOTS)},
+            status_code=404,
+        )
     poller: NotificationPoller | None = getattr(app.state, "poller", None)
     if not poller:
         return JSONResponse({"error": "poller not available"}, status_code=503)
-    background_tasks.add_task(poller.handler.cycle)
-    logger.info("cycle triggered via API")
-    return {"triggered": True}
+    background_tasks.add_task(slot_fn(poller.handler))
+    logger.info(f"{slot} triggered via API")
+    return {"triggered": slot}
+
+
+@app.post("/api/control/post")
+async def trigger_post(request: Request, background_tasks: BackgroundTasks):
+    """Trigger one cognitive cycle immediately (legacy alias for trigger/cycle)."""
+    return await trigger_slot("cycle", request, background_tasks)
 
 
 _abilities_cache: list | None = None
@@ -445,7 +468,9 @@ _chicken_cache: dict[str, tuple[float, dict | list]] = {}
 _CHICKEN_CACHE_TTL = 60  # seconds
 _CHICKEN_API = "https://topchicken.cee.wtf/api"
 _CHICKEN_PATHS = {
-    "trader": lambda: f"trader/{bot_client.client.me.did}" if bot_client.client.me else None,
+    "trader": lambda: f"trader/{bot_client.client.me.did}"
+    if bot_client.client.me
+    else None,
     "market": lambda: "market",
     "results": lambda: "results",
 }
@@ -477,9 +502,7 @@ async def chicken(name: str):
             res.raise_for_status()
             data = res.json()
     except httpx.HTTPStatusError as e:
-        return JSONResponse(
-            {"error": "upstream"}, status_code=e.response.status_code
-        )
+        return JSONResponse({"error": "upstream"}, status_code=e.response.status_code)
     except Exception as e:
         logger.warning(f"chicken proxy {name} failed: {e}")
         return JSONResponse({"error": "unreachable"}, status_code=502)
