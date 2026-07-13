@@ -986,8 +986,15 @@ class PhiAgent:
             "record — refresh what's still hot, prune what fell off, add "
             "grounding only where a curator without research ability would "
             "misread the moment. an empty notes list is a legitimate "
-            "outcome. finish with a one-line summary of what changed in the "
-            "record and why."
+            "outcome.\n\n"
+            "then review your io.zzstoatzz.phi.entityDirectives record per "
+            "the skill's directive discipline: add alias merges for "
+            "unambiguous same-referent variants you noticed in trending, "
+            "suppress only clear NER noise (with a reason), and re-justify "
+            "or prune every existing entry — coral executes these "
+            "mechanically, so restraint beats coverage.\n\n"
+            "finish with a one-line summary of what changed in each record "
+            "and why."
         )
         return await self._run_scheduled(name="editorial", task=task)
 

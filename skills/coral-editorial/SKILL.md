@@ -35,6 +35,36 @@ disciplines below keep that loop honest.
 5. write with `mcp__pdsx__update_record(uri=...)` if the record exists, else
    `mcp__pdsx__create_record("io.zzstoatzz.phi.editorialContext", record, rkey="self")`.
 
+## entity directives (the mechanical layer)
+
+you also maintain `io.zzstoatzz.phi.entityDirectives` (rkey `self`), which
+coral EXECUTES at ingest — this is not prose read by an LLM:
+
+- shape: `{"aliases": [{"from": "...", "to": "...", "updatedAt": "..."}], "suppress": [{"text": "...", "reason": "...", "updatedAt": "..."}], "updatedAt": "..."}`
+- **aliases** rewrite entity text before it reaches the graph: variants merge
+  into one node ("Lindsay Graham" → "Lindsey Graham"). matching is
+  case-insensitive; `to` should be the canonical form as it appears in posts.
+- **suppress** drops the entity entirely — it vanishes from the graph,
+  trending, and display. this is the highest-stakes thing you write.
+
+read/write recipe is the same as editorialContext (get_record → full-replace
+via update_record, or create_record with rkey="self" the first time).
+
+directive discipline:
+
+- alias ONLY unambiguous same-referent variants — misspellings, partial
+  names, possessives that NER split. never merge two entities that could be
+  distinct people or things. if you'd have to research to be sure, don't.
+- suppress ONLY NER noise: common words misfired as entities ("Love",
+  "Green", "American"). never a real topical entity, however boring. always
+  fill `reason` — the record is public and it's your audit trail.
+- texts ≤64 bytes; ≤32 entries per list; coral rejects oversized entries.
+- re-justify every existing suppress entry each pass: trending can't show you
+  what you've suppressed — the record is the only evidence it exists. if you
+  can't re-justify an entry from its `reason`, prune it.
+- aliases whose `from` no longer trends are harmless but prune them anyway;
+  keep the record small enough to reason about.
+
 ## note discipline
 
 - terse and FACTUAL: who/what the entity is and why it's currently everywhere.

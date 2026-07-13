@@ -1,0 +1,70 @@
+{
+  "lexicon": 1,
+  "id": "io.zzstoatzz.phi.entityDirectives",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Singleton entity-curation directives for coral's ingest pipeline. Unlike editorialContext (prose read by an LLM), these are EXECUTED MECHANICALLY: coral rewrites aliased entity text to its canonical form and drops suppressed entities entirely before they reach the graph, trending, or display. A wrong suppression makes a real entity invisible. Matching is case-insensitive against coral's normalized entity text; texts are capped at 64 bytes (coral rejects longer entries rather than truncating). Full-replacement writes; an empty record is valid. Public by design, like all of phi's held state.",
+      "key": "literal:self",
+      "record": {
+        "type": "object",
+        "required": [],
+        "properties": {
+          "aliases": {
+            "type": "array",
+            "maxLength": 32,
+            "items": {
+              "type": "object",
+              "required": ["from", "to"],
+              "properties": {
+                "from": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "description": "Entity surface form to rewrite (e.g. 'Lindsay Graham'). Only for unambiguous same-referent variants."
+                },
+                "to": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "description": "Canonical surface form as it appears in posts (e.g. 'Lindsey Graham')."
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "datetime"
+                }
+              }
+            }
+          },
+          "suppress": {
+            "type": "array",
+            "maxLength": 32,
+            "items": {
+              "type": "object",
+              "required": ["text"],
+              "properties": {
+                "text": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "description": "Entity text to drop at ingest. Only NER noise (common words misfired as entities), never a real topical entity."
+                },
+                "reason": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "description": "Why this is noise — the record is public and this is the audit trail."
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "datetime"
+                }
+              }
+            }
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When the record was last rewritten."
+          }
+        }
+      }
+    }
+  }
+}
