@@ -5,7 +5,7 @@ import ipaddress
 import socket
 import time
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Literal
 from urllib.parse import urlparse
 
 import httpx
@@ -19,7 +19,7 @@ from bot.tools._helpers import PhiDeps, _check_services_impl, _is_owner, _relati
 
 # cached relay names, refreshed from the snapshot endpoint. surfaced to
 # the LLM via a dynamic system prompt so it picks from real values when
-# calling check_relays(name=...).
+# calling check_infra(aspect="relays", name=...).
 _RELAY_NAMES_TTL = 300  # 5 minutes
 _relay_names_cache: dict = {"names": [], "fetched_at": 0.0}
 
@@ -102,43 +102,53 @@ def register(agent):
         return "\n".join(results)
 
     @agent.tool
-    async def manage_labels(
-        ctx: RunContext[PhiDeps], action: str, label: str = ""
+    async def manage_account(
+        ctx: RunContext[PhiDeps],
+        setting: Annotated[
+            Literal["labels", "mentionable"],
+            Field(
+                description=(
+                    "labels: self-labels on your profile (e.g. 'bot'). "
+                    "mentionable: who has opted in to being @mentioned by you "
+                    "(owner-only)."
+                )
+            ),
+        ],
+        action: Annotated[
+            Literal["list", "add", "remove"],
+            Field(description="list current values, add one, or remove one"),
+        ],
+        value: Annotated[
+            str,
+            Field(description="[add/remove] the label value or handle to add/remove"),
+        ] = "",
     ) -> str:
-        """Manage self-labels on your profile. Actions: 'list' to see current labels, 'add' to add a label, 'remove' to remove a label. The 'bot' label marks you as an automated account."""
-        from bot.core.profile_manager import (
-            add_self_label,
-            get_self_labels,
-            remove_self_label,
-        )
+        """Manage your account settings: profile self-labels or the mention opt-in list.
 
-        if action == "list":
-            labels = get_self_labels(bot_client.client)
-            return f"current self-labels: {labels}" if labels else "no self-labels set"
-        elif action == "add":
-            if not label:
-                return "provide a label value to add"
-            labels = add_self_label(bot_client.client, label)
-            return f"added '{label}', labels now: {labels}"
-        elif action == "remove":
-            if not label:
-                return "provide a label value to remove"
-            labels = remove_self_label(bot_client.client, label)
-            return f"removed '{label}', labels now: {labels}"
-        else:
-            return f"unknown action '{action}', use 'list', 'add', or 'remove'"
+        The mentionable list is OWNER-ONLY — when someone tells you "you can
+        tag me", ask the operator to confirm before adding them; never add
+        someone without operator approval.
+        """
+        if setting == "labels":
+            from bot.core.profile_manager import (
+                add_self_label,
+                get_self_labels,
+                remove_self_label,
+            )
 
-    @agent.tool
-    async def manage_mentionable(
-        ctx: RunContext[PhiDeps], action: str, handle: str = ""
-    ) -> str:
-        """Manage the list of people who have opted in to being @mentioned by you.
-        OWNER-ONLY (restricted to @{settings.owner_handle}).
+            if action == "list":
+                labels = get_self_labels(bot_client.client)
+                return (
+                    f"current self-labels: {labels}" if labels else "no self-labels set"
+                )
+            if not value:
+                return f"provide a label value to {action}"
+            if action == "add":
+                labels = add_self_label(bot_client.client, value)
+                return f"added '{value}', labels now: {labels}"
+            labels = remove_self_label(bot_client.client, value)
+            return f"removed '{value}', labels now: {labels}"
 
-        Actions: 'list' to see who's opted in, 'add' to add a handle, 'remove' to remove one.
-
-        When someone tells you "you can tag me" or similar, ask the operator
-        to confirm before adding them. Never add someone without operator approval."""
         if not _is_owner(ctx):
             return f"only @{settings.owner_handle} can manage the mentionable list"
         if action == "list":
@@ -146,31 +156,34 @@ def register(agent):
             if handles:
                 return f"opted-in handles: {', '.join(sorted(handles))}"
             return "no one has opted in yet"
-        elif action == "add":
-            if not handle:
-                return "provide a handle to add"
-            handles = await add_handle(handle)
+        if not value:
+            return f"provide a handle to {action}"
+        if action == "add":
+            handles = await add_handle(value)
             return (
-                f"added @{handle} — opted-in list is now: {', '.join(sorted(handles))}"
+                f"added @{value} — opted-in list is now: {', '.join(sorted(handles))}"
             )
-        elif action == "remove":
-            if not handle:
-                return "provide a handle to remove"
-            handles = await remove_handle(handle)
-            return f"removed @{handle} — opted-in list is now: {', '.join(sorted(handles)) or '(empty)'}"
-        else:
-            return f"unknown action '{action}', use 'list', 'add', or 'remove'"
+        handles = await remove_handle(value)
+        return f"removed @{value} — opted-in list is now: {', '.join(sorted(handles)) or '(empty)'}"
 
     @agent.tool
-    async def check_services(ctx: RunContext[PhiDeps]) -> str:
-        """Check health of the operator's infrastructure (plyr, PDS, prefect, etc) — NOT your own status.
-        Do NOT call this when someone asks if you're online — that's about you, not infrastructure.
-        Only use during daily reflection or when someone explicitly asks about services/infrastructure."""
-        return await _check_services_impl()
-
-    @agent.tool
-    async def check_relays(
+    async def check_infra(
         ctx: RunContext[PhiDeps],
+        aspect: Annotated[
+            Literal["services", "relays", "changelog"],
+            Field(
+                description=(
+                    "services: health of the operator's apps (plyr, PDS, "
+                    "prefect, ...). relays: the atproto relay fleet via "
+                    "relay-eval (snapshot/history/transitions — see the "
+                    "relay params). changelog: your own recent deploys."
+                )
+            ),
+        ] = "services",
+        count: Annotated[
+            int,
+            Field(description="[changelog] number of recent commits to show"),
+        ] = 10,
         name: Annotated[
             str | None,
             Field(
@@ -213,17 +226,41 @@ def register(agent):
             ),
         ] = None,
     ) -> str:
-        """Check the atproto relay fleet the operator evaluates via relay-eval.
+        """Check the operator's infrastructure — NOT your own status.
 
-        Three modes:
-        - snapshot (default, no args): current status of every relay.
+        Do NOT call this when someone asks if you're online; that's about you.
+
+        aspect='services': health checks for the operator's apps.
+        aspect='changelog': your own recent deploys (github mirror of the bot
+        repo; origin is tangled.sh/zzstoatzz.io/bot) — what changed and when.
+        aspect='relays': the relay fleet via relay-eval, in three modes:
+        - snapshot (default, no relay params): current status of every relay.
         - history (name=<host>): coverage timeseries for one relay. Bound
           with since/until for a precise window, or use limit for recent-N.
         - transitions (transitions=True): status-change events across the
           fleet. Answers "when did X happen." Optionally filter by name.
+        Report relay headlines verbatim — the service owns interpretation."""
+        if aspect == "services":
+            return await _check_services_impl()
 
-        Report headlines verbatim — the service owns interpretation.
-        For app health (plyr, PDS, prefect, etc), use check_services."""
+        if aspect == "changelog":
+            try:
+                async with httpx.AsyncClient(timeout=10) as http:
+                    r = await http.get(
+                        "https://api.github.com/repos/zzstoatzz/bot/commits",
+                        params={"per_page": min(count, 30)},
+                    )
+                    r.raise_for_status()
+                    commits = r.json()
+                lines = []
+                for c in commits:
+                    when = c["commit"]["author"]["date"][:10]
+                    msg = c["commit"]["message"].split("\n")[0]
+                    lines.append(f"[{when}] {msg}")
+                return "\n".join(lines)
+            except Exception as e:
+                return f"failed to fetch changelog: {e}"
+
         base = settings.relays_url
 
         if transitions:
@@ -353,28 +390,3 @@ def register(agent):
             lines.append("")
 
         return "\n".join(lines).rstrip()
-
-    @agent.tool
-    async def changelog(ctx: RunContext[PhiDeps], count: int = 10) -> str:
-        """See your own recent changes — what was deployed and when.
-
-        Reads commit history from the github mirror (github.com/zzstoatzz/bot).
-        Origin is tangled.sh/zzstoatzz.io/bot. Use when you want to know what
-        changed, when a feature was added, or why something works differently.
-        """
-        try:
-            async with httpx.AsyncClient(timeout=10) as http:
-                r = await http.get(
-                    "https://api.github.com/repos/zzstoatzz/bot/commits",
-                    params={"per_page": min(count, 30)},
-                )
-                r.raise_for_status()
-                commits = r.json()
-            lines = []
-            for c in commits:
-                date = c["commit"]["author"]["date"][:10]
-                msg = c["commit"]["message"].split("\n")[0]
-                lines.append(f"[{date}] {msg}")
-            return "\n".join(lines)
-        except Exception as e:
-            return f"failed to fetch changelog: {e}"

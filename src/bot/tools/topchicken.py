@@ -15,7 +15,7 @@ repo; the market ingests it from the firehose and executes against the house
 quote within ~2s. Full agent guide: https://topchicken.cee.wtf/api/agent
 
 bisk.social computes a strategy recommendation server-side at /chicken/recommend
-(see the bisk repo's functions/_strategy.js); check_chicken_market relays it.
+(see the bisk repo's functions/_strategy.js); check_chicken relays it.
 """
 
 import asyncio
@@ -71,188 +71,176 @@ async def _get_json(url: str, params: dict | None = None) -> dict:
         return r.json()
 
 
+async def _market_section(handle: str | None) -> list[str]:
+    """Current round: board, status, and bisk's advice garnish."""
+    try:
+        market = await _get_json(MARKET_URL)
+    except Exception as e:
+        logger.warning(f"chicken market fetch failed: {e}")
+        return ["the chicken market is unreachable right now — try again in a bit"]
+
+    round_ = market.get("round") or {}
+    contenders = round_.get("contenders", [])
+    lines = [
+        f"round {round_.get('id')} · {round_.get('status')} · {len(contenders)} contenders"
+    ]
+    if contenders:
+        top = ", ".join(
+            f"@{c['handle']} {c['likes']}L (p={c.get('p') or 0:.2f}, ask {c['ask_subc'] / 100:.1f}¢)"
+            for c in sorted(contenders, key=lambda c: c.get("p") or 0, reverse=True)[:5]
+        )
+        lines.append(f"board (top 5 by win-probability): {top}")
+
+    # bisk's strategy advice is garnish on top of the live board — its tracker
+    # can desync (empty board, "@undefined" leader), so only relay it when it
+    # agrees with the market about whether there's a field at all
+    params = {"handle": handle.lstrip("@")} if handle else {}
+    try:
+        rec = await _get_json(RECOMMEND_URL, params=params)
+        if contenders and not rec.get("board"):
+            logger.warning(
+                "bisk recommend board is empty while the market has "
+                f"{len(contenders)} contenders — dropping its advice as stale"
+            )
+        else:
+            lines.extend(rec.get("advice", []))
+    except Exception as e:
+        logger.warning(f"bisk recommend fetch failed: {e}")
+
+    return lines
+
+
+async def _portfolio_section() -> list[str]:
+    """Own wallet: balance, open positions, recent trades."""
+    await bot_client.authenticate()
+    assert bot_client.client.me is not None
+    try:
+        data = await _get_json(TRADER_URL.format(did=bot_client.client.me.did))
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            return [
+                "you don't have a wallet yet — your first trade via "
+                "place_chicken_trade auto-creates one with $1,000 play money"
+            ]
+        raise
+    except Exception as e:
+        logger.warning(f"chicken trader fetch failed: {e}")
+        return ["your wallet is unreachable right now — try again in a bit"]
+
+    lines = [f"balance: {_fmt_subc(data.get('balance_subc', 0))}"]
+    positions = data.get("positions", [])
+    if positions:
+        lines.append("positions:")
+        for p in positions:
+            lines.append(f"  {p}")
+    else:
+        lines.append("no open positions")
+    trades = data.get("trades", [])
+    if trades:
+        lines.append(f"recent trades (latest {min(5, len(trades))}):")
+        for t in trades[:5]:
+            lines.append(f"  {t}")
+    return lines
+
+
+async def _season_section() -> list[str]:
+    """Season standings, rivals' books, and phi's own doctrine."""
+    try:
+        board = await _get_json(LEADERBOARD_URL)
+    except Exception as e:
+        logger.warning(f"chicken leaderboard fetch failed: {e}")
+        return ["the season leaderboard is unreachable right now"]
+
+    info = board.get("season_info") or {}
+    leaders = board.get("leaders", [])
+    lines = [
+        f"season {info.get('num')} · day {info.get('day')}/{info.get('total_days')}"
+        f" · final round {info.get('end_round')} (settles ~13:00 UTC the day after)"
+    ]
+
+    await bot_client.authenticate()
+    assert bot_client.client.me is not None
+    my_did = bot_client.client.me.did
+    my_rank = next(
+        (i + 1 for i, ldr in enumerate(leaders) if ldr.get("did") == my_did), None
+    )
+
+    shown = leaders[: max(5, my_rank or 0)]
+    for i, ldr in enumerate(shown, start=1):
+        you = " ← you" if ldr.get("did") == my_did else ""
+        bot_tag = " [bot]" if ldr.get("bot") else ""
+        lines.append(
+            f"{i}. @{ldr['handle']}{bot_tag} · net {_fmt_subc(ldr.get('pnl_subc', 0))}"
+            f" · 24h {_fmt_subc(ldr.get('pnl_24h_subc', 0))}"
+            f" · {_fmt_subc(ldr.get('open_subc', 0))} in open positions{you}"
+        )
+    if my_rank and leaders:
+        gap = leaders[0].get("pnl_subc", 0) - leaders[my_rank - 1].get("pnl_subc", 0)
+        lines.append(f"gap to 1st: {_fmt_subc(gap)}")
+
+    rivals = [ldr for ldr in shown if ldr.get("did") != my_did][:4]
+    results = await asyncio.gather(
+        *(_get_json(TRADER_URL.format(did=ldr["did"])) for ldr in rivals),
+        return_exceptions=True,
+    )
+    for ldr, r in zip(rivals, results):
+        if isinstance(r, BaseException):
+            continue
+        positions = r.get("positions", [])
+        if positions:
+            held = ", ".join(
+                f"{p['shares']} @{p['handle']} (avg {p['avg_subc'] / 100:.0f}¢, "
+                f"now {p['mark_subc'] / 100:.0f}¢)"
+                for p in positions
+            )
+        else:
+            held = f"no open positions (cash {_fmt_subc(r.get('balance_subc', 0))})"
+        lines.append(f"@{ldr['handle']} holds: {held}")
+
+    doctrine = await _read_strategy()
+    if doctrine:
+        lines.append(f"\nyour current strategy doctrine:\n{doctrine}")
+    else:
+        lines.append(
+            "\nyou have no strategy doctrine on record — write one with "
+            "update_chicken_strategy before your next trade"
+        )
+    return lines
+
+
 def register(agent):
     @agent.tool
-    async def check_chicken_market(
-        ctx: RunContext[PhiDeps], handle: str | None = None
-    ) -> str:
-        """Check the Top Chicken betting market and get a strategy recommendation.
+    async def check_chicken(ctx: RunContext[PhiDeps], handle: str | None = None) -> str:
+        """Check the full Top Chicken situation: round board, your wallet, the season race.
 
         "Top Chicken" is a community game — the daily most-liked-post crown among the
         simcluster around @dave.9000ish.uk (his follows + followers, under-7k accounts),
-        announced by @topchicken.bsky.social. This tool checks the play-money prediction
-        market built ON TOP of that game. If someone asks how to "top chicken", they may
-        mean how to WIN the crown (post something the cluster loves) rather than how to
-        bet on it — read the intent before reaching for market mechanics. A round is named for a UTC calendar day of posts
-        but trades the day AFTER:
-        round D opens at D 06:00 UTC, runs through the overnight like-race (much of the
-        liking lands overnight, so prices can move a lot after your evening), locks at
-        D+1 06:00 UTC, and settles ~D+1 13:05 UTC when @topchicken announces the winner
-        (likes counted at D+1 13:00 — so the final ~7h of the race happen after trading
-        locks; you can't react to them, price that in before the lock).
-        So the posts on the board are about a day old while the race is still live —
-        that's normal, not a stale board. Use this when someone asks what's happening
-        in the chicken market, what they should buy — or before placing your own trade
-        with place_chicken_trade.
+        announced by @topchicken.bsky.social. The play-money prediction market
+        (topchicken.cee.wtf) is built ON TOP of that game. If someone asks how to "top
+        chicken", they may mean how to WIN the crown (post something the cluster
+        loves) — read the intent before reaching for market mechanics.
 
-        Pass `handle` to fold in that player's PUBLIC stats (cash, amount staked, ROI) —
-        e.g. the handle of whoever is asking for advice. All wallets and positions are
-        public; use check_chicken_leaderboard to see the season standings and what the
-        players ahead of you are holding.
+        Round timing (all UTC): a round covers one calendar day of posts but trades
+        the day AFTER — round D opens at D 06:00, locks at D+1 06:00, and settles
+        ~D+1 13:05 when @topchicken announces (likes counted at 13:00, so the final
+        ~7h of the race happen after trading locks — price that in before the lock).
+        Posts on the board being a day old is normal, not staleness.
+
+        Returns three sections in one report:
+        - the current ROUND: board with win-probabilities and asks, plus bisk advice
+        - your WALLET: balance, open positions, recent trades (all play money)
+        - the SEASON: week-long tournament standings, rivals' public books, and your
+          own strategy doctrine (evolve it with update_chicken_strategy)
+
+        Pass `handle` to fold in that player's PUBLIC stats — e.g. whoever is asking
+        for advice. Use before every place_chicken_trade.
         """
-        try:
-            market = await _get_json(MARKET_URL)
-        except Exception as e:
-            logger.warning(f"chicken market fetch failed: {e}")
-            return "the chicken market is unreachable right now — try again in a bit"
-
-        round_ = market.get("round") or {}
-        contenders = round_.get("contenders", [])
-        lines = [
-            f"round {round_.get('id')} · {round_.get('status')} · {len(contenders)} contenders"
-        ]
-        if contenders:
-            top = ", ".join(
-                f"@{c['handle']} {c['likes']}L (p={c.get('p') or 0:.2f}, ask {c['ask_subc'] / 100:.1f}¢)"
-                for c in sorted(
-                    contenders, key=lambda c: c.get("p") or 0, reverse=True
-                )[:5]
-            )
-            lines.append(f"board (top 5 by win-probability): {top}")
-
-        # bisk's strategy advice is garnish on top of the live board — its tracker
-        # can desync (empty board, "@undefined" leader), so only relay it when it
-        # agrees with the market about whether there's a field at all
-        params = {"handle": handle.lstrip("@")} if handle else {}
-        try:
-            rec = await _get_json(RECOMMEND_URL, params=params)
-            if contenders and not rec.get("board"):
-                logger.warning(
-                    "bisk recommend board is empty while the market has "
-                    f"{len(contenders)} contenders — dropping its advice as stale"
-                )
-            else:
-                lines.extend(rec.get("advice", []))
-        except Exception as e:
-            logger.warning(f"bisk recommend fetch failed: {e}")
-
-        return "\n".join(lines)
-
-    @agent.tool
-    async def check_chicken_portfolio(ctx: RunContext[PhiDeps]) -> str:
-        """Check your own Top Chicken wallet: balance, open positions, recent trades.
-
-        Use this before trading (to know your balance and what you already hold) or
-        when reflecting on how your bets went. Everything here is play money.
-        """
-        await bot_client.authenticate()
-        assert bot_client.client.me is not None
-        try:
-            data = await _get_json(TRADER_URL.format(did=bot_client.client.me.did))
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 404:
-                return (
-                    "you don't have a wallet yet — your first trade via "
-                    "place_chicken_trade auto-creates one with $1,000 play money"
-                )
-            raise
-        except Exception as e:
-            logger.warning(f"chicken trader fetch failed: {e}")
-            return "the chicken market is unreachable right now — try again in a bit"
-
-        lines = [f"balance: {_fmt_subc(data.get('balance_subc', 0))}"]
-        positions = data.get("positions", [])
-        if positions:
-            lines.append("positions:")
-            for p in positions:
-                lines.append(f"  {p}")
-        else:
-            lines.append("no open positions")
-        trades = data.get("trades", [])
-        if trades:
-            lines.append(f"recent trades (latest {min(5, len(trades))}):")
-            for t in trades[:5]:
-                lines.append(f"  {t}")
-        return "\n".join(lines)
-
-    @agent.tool
-    async def check_chicken_leaderboard(ctx: RunContext[PhiDeps]) -> str:
-        """Check the season leaderboard: standings, days left, and rivals' open positions.
-
-        The market runs in week-long SEASONS scored by final RANK. Rivals' wallets
-        and positions are public — that's load-bearing information for tournament
-        play, which is why they're shown here.
-
-        HOW to play the season is yours to decide and revise: your current doctrine
-        (from your own strategy record) is included in the output, and you evolve it
-        with update_chicken_strategy as results come in. Use this alongside
-        check_chicken_market when deciding how much round-to-round risk fits the
-        season situation.
-        """
-        try:
-            board = await _get_json(LEADERBOARD_URL)
-        except Exception as e:
-            logger.warning(f"chicken leaderboard fetch failed: {e}")
-            return "the chicken market is unreachable right now — try again in a bit"
-
-        info = board.get("season_info") or {}
-        leaders = board.get("leaders", [])
-        lines = [
-            f"season {info.get('num')} · day {info.get('day')}/{info.get('total_days')}"
-            f" · final round {info.get('end_round')} (settles ~13:00 UTC the day after)"
-        ]
-
-        await bot_client.authenticate()
-        assert bot_client.client.me is not None
-        my_did = bot_client.client.me.did
-        my_rank = next(
-            (i + 1 for i, ldr in enumerate(leaders) if ldr.get("did") == my_did), None
+        market, portfolio, season = await asyncio.gather(
+            _market_section(handle), _portfolio_section(), _season_section()
         )
-
-        shown = leaders[: max(5, my_rank or 0)]
-        for i, ldr in enumerate(shown, start=1):
-            you = " ← you" if ldr.get("did") == my_did else ""
-            bot_tag = " [bot]" if ldr.get("bot") else ""
-            lines.append(
-                f"{i}. @{ldr['handle']}{bot_tag} · net {_fmt_subc(ldr.get('pnl_subc', 0))}"
-                f" · 24h {_fmt_subc(ldr.get('pnl_24h_subc', 0))}"
-                f" · {_fmt_subc(ldr.get('open_subc', 0))} in open positions{you}"
-            )
-        if my_rank and leaders:
-            gap = leaders[0].get("pnl_subc", 0) - leaders[my_rank - 1].get(
-                "pnl_subc", 0
-            )
-            lines.append(f"gap to 1st: {_fmt_subc(gap)}")
-
-        rivals = [ldr for ldr in shown if ldr.get("did") != my_did][:4]
-        results = await asyncio.gather(
-            *(_get_json(TRADER_URL.format(did=ldr["did"])) for ldr in rivals),
-            return_exceptions=True,
+        return "\n".join(
+            ["[ROUND]", *market, "", "[WALLET]", *portfolio, "", "[SEASON]", *season]
         )
-        for ldr, r in zip(rivals, results):
-            if isinstance(r, BaseException):
-                continue
-            positions = r.get("positions", [])
-            if positions:
-                held = ", ".join(
-                    f"{p['shares']} @{p['handle']} (avg {p['avg_subc'] / 100:.0f}¢, "
-                    f"now {p['mark_subc'] / 100:.0f}¢)"
-                    for p in positions
-                )
-            else:
-                held = f"no open positions (cash {_fmt_subc(r.get('balance_subc', 0))})"
-            lines.append(f"@{ldr['handle']} holds: {held}")
-
-        doctrine = await _read_strategy()
-        if doctrine:
-            lines.append(f"\nyour current strategy doctrine:\n{doctrine}")
-        else:
-            lines.append(
-                "\nyou have no strategy doctrine on record — write one with "
-                "update_chicken_strategy before your next trade"
-            )
-
-        return "\n".join(lines)
 
     @agent.tool
     async def update_chicken_strategy(
@@ -272,7 +260,7 @@ def register(agent):
 
         The doctrine is YOURS: it should evolve when results contradict it, and
         every revision should say what you learned. It's shown back to you by
-        check_chicken_leaderboard and at every pre-lock check, so write it as
+        check_chicken and at every pre-lock check, so write it as
         instructions to your future self.
 
         Two disciplines make a doctrine honest:
@@ -330,8 +318,7 @@ def register(agent):
         are calibrated win-probabilities. Remember trading locks at 06:00 UTC the
         day after the round's named date (likes keep counting until 13:00), with likes
         landing all through the overnight — a "settled-looking" evening board can still
-        reshuffle. Check check_chicken_market
-        for the board and check_chicken_portfolio for your balance first. Trades execute against the
+        reshuffle. Check check_chicken for the board, your balance, and the season state first. Trades execute against the
         house quote (a ~2% slippage cap is applied automatically) and are final —
         this is a real public record on your repo, so trade like someone whose fills
         are on the permanent ledger.
@@ -419,4 +406,6 @@ def register(agent):
             balance = _fmt_subc(trader.get("balance_subc", 0))
             return f"{summary}\nfill confirmed — balance now {balance}"
         except Exception:
-            return f"{summary}\ncouldn't confirm the fill yet — check_chicken_portfolio in a moment"
+            return (
+                f"{summary}\ncouldn't confirm the fill yet — check_chicken in a moment"
+            )

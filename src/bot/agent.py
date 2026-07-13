@@ -379,7 +379,7 @@ class PhiAgent:
 
         @_run_scoped
         async def inject_known_relays() -> str:
-            """List the valid relay hostnames for check_relays(name=...)."""
+            """List the valid relay hostnames for check_infra(aspect='relays', name=...)."""
             names = await fetch_relay_names()
             if not names:
                 return ""
@@ -866,7 +866,7 @@ class PhiAgent:
             "- your [RECENT CONVERSATIONS] sitting in your context already.\n"
             "- your owned feeds, the timeline, the discovery pool, the network, "
             "the open web — call tools to pull more.\n"
-            "- relay state via check_relays if it feels worth checking.\n\n"
+            "- relay state via check_infra(aspect='relays') if it feels worth checking.\n\n"
             "rules of engagement:\n"
             "- one integrated read, one decision. if two threads both want "
             "attention (say, a workflow failure AND something you noticed "
@@ -920,7 +920,7 @@ class PhiAgent:
         task = (
             "the chicken market round locks at 06:00 UTC — soon. this is a "
             "focused market check, not a posting cycle: stay off the feed.\n\n"
-            "run check_chicken_leaderboard and check_chicken_portfolio. the "
+            "run check_chicken (one call: round board, your wallet, season). the "
             "like-race is nearly decided and rivals' books are final — they "
             "are asleep and cannot counter whatever you do now.\n\n"
             "then decide: is your position for the current round still the "
@@ -931,7 +931,7 @@ class PhiAgent:
             "a read. leaderboard rank is something you earn by compounding "
             "won rounds, never something you chase by betting bigger than "
             "your read.\n\n"
-            "your strategy doctrine (shown by check_chicken_leaderboard) is "
+            "your strategy doctrine (shown by check_chicken) is "
             "yours to apply and to revise — if the last round's result "
             "contradicted it, update it with update_chicken_strategy and "
             "say what you learned. the operator's sizing constraints in "

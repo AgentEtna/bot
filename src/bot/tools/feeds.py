@@ -1,7 +1,9 @@
-"""Feed tools — graze feed CRUD, timeline, following."""
+"""Feed tools — graze feed CRUD, timeline reading, following."""
 
 import logging
+from typing import Annotated, Literal
 
+from pydantic import Field
 from pydantic_ai import RunContext
 
 from bot.config import settings
@@ -14,68 +16,92 @@ logger = logging.getLogger("bot.tools.feeds")
 
 def register(agent, graze_client: GrazeClient):
     @agent.tool
-    async def create_feed(
+    async def manage_feeds(
         ctx: RunContext[PhiDeps],
-        name: str,
-        display_name: str,
-        description: str,
-        filter_manifest: dict,
+        action: Annotated[
+            Literal["list", "create", "delete"],
+            Field(description="list your graze feeds, create a new one, or delete one"),
+        ],
+        name: Annotated[
+            str | None,
+            Field(
+                description=(
+                    "[create] url-safe slug (e.g. 'electronic-music'); becomes "
+                    "the feed rkey"
+                )
+            ),
+        ] = None,
+        display_name: Annotated[
+            str | None, Field(description="[create] human-readable feed title")
+        ] = None,
+        description: Annotated[
+            str | None, Field(description="[create] what the feed shows")
+        ] = None,
+        filter_manifest: Annotated[
+            dict | None,
+            Field(
+                description=(
+                    "[create] graze filter DSL (grazer engine operators). key "
+                    "operators: regex_any: ['field', ['t1','t2']] (match any, "
+                    "case-insensitive), regex_none (exclude), regex_matches "
+                    "(single regex), and/or: [...filters]. field is usually "
+                    "'text'. example: {'filter': {'and': [{'regex_any': "
+                    "['text', ['jazz', 'bebop']]}]}}"
+                )
+            ),
+        ] = None,
+        algo_id: Annotated[
+            int | None,
+            Field(description="[delete] the numeric id shown by action='list'"),
+        ] = None,
     ) -> str:
-        """Create a new bluesky feed powered by graze. Only the bot's owner can use this tool.
+        """Manage your graze-powered bluesky feeds: list, create, or delete.
 
-        name: url-safe slug (e.g. "electronic-music"). becomes the feed rkey.
-        display_name: human-readable feed title.
-        description: what the feed shows.
-        filter_manifest: graze filter DSL (grazer engine operators). key operators:
-          - regex_any: ["field", ["term1", "term2"]] — match any term (case-insensitive by default)
-          - regex_none: ["field", ["term1", "term2"]] — exclude posts matching any term
-          - regex_matches: ["field", "pattern"] — single regex match
-          - and: [...filters], or: [...filters] — combine filters
-        field is usually "text". example: {"filter": {"and": [{"regex_any": ["text", ["jazz", "bebop"]]}]}}
+        Creating and deleting are owner-only. Deleting removes both the graze
+        registration and the PDS feed generator record. To READ a feed's posts,
+        use read_feed with the feed's name.
         """
+        if action == "list":
+            try:
+                feeds = await graze_client.list_feeds()
+                if not feeds:
+                    return "no graze feeds found"
+                lines = []
+                for f in feeds:
+                    display = f.get("display_name") or f.get("name") or "unnamed"
+                    aid = f.get("id") or f.get("algo_id") or "?"
+                    uri = f.get("feed_uri") or f.get("uri") or ""
+                    rkey = f.get("record_name") or (
+                        uri.rsplit("/", 1)[-1] if uri else "?"
+                    )
+                    lines.append(f"- {display} | name={rkey} | algo_id={aid}")
+                return "\n".join(lines)
+            except Exception as e:
+                logger.warning(f"manage_feeds list failed: {e}")
+                return f"failed to list feeds: {e}"
+
         if not _is_owner(ctx):
-            return f"only @{settings.owner_handle} can create feeds"
-        try:
-            result = await graze_client.create_feed(
-                rkey=name,
-                display_name=display_name,
-                description=description,
-                filter_manifest=filter_manifest,
-            )
-            return f"feed created: {result['uri']} (algo_id={result['algo_id']})"
-        except Exception as e:
-            logger.warning(f"create_feed failed: {e}")
-            return f"failed to create feed: {e}"
+            return f"only @{settings.owner_handle} can {action} feeds"
 
-    @agent.tool
-    async def list_feeds(ctx: RunContext[PhiDeps]) -> str:
-        """List your existing graze-powered feeds. Returns name (slug for read_feed) and algo_id (for delete_feed)."""
-        try:
-            feeds = await graze_client.list_feeds()
-            if not feeds:
-                return "no graze feeds found"
-            lines = []
-            for f in feeds:
-                display = f.get("display_name") or f.get("name") or "unnamed"
-                algo_id = f.get("id") or f.get("algo_id") or "?"
-                uri = f.get("feed_uri") or f.get("uri") or ""
-                # extract rkey slug from feed_uri for use with read_feed
-                rkey = f.get("record_name") or (uri.rsplit("/", 1)[-1] if uri else "?")
-                lines.append(f"- {display} | name={rkey} | algo_id={algo_id}")
-            return "\n".join(lines)
-        except Exception as e:
-            logger.warning(f"list_feeds failed: {e}")
-            return f"failed to list feeds: {e}"
+        if action == "create":
+            if not (name and display_name and description and filter_manifest):
+                return (
+                    "create needs name, display_name, description, and filter_manifest"
+                )
+            try:
+                result = await graze_client.create_feed(
+                    rkey=name,
+                    display_name=display_name,
+                    description=description,
+                    filter_manifest=filter_manifest,
+                )
+                return f"feed created: {result['uri']} (algo_id={result['algo_id']})"
+            except Exception as e:
+                logger.warning(f"manage_feeds create failed: {e}")
+                return f"failed to create feed: {e}"
 
-    @agent.tool
-    async def delete_feed(ctx: RunContext[PhiDeps], algo_id: int) -> str:
-        """Delete a graze-powered feed by its algo_id. Only the bot's owner can use this tool.
-
-        algo_id: the numeric id from list_feeds (e.g. 33726).
-        This deletes both the graze registration and the PDS feed generator record.
-        """
-        if not _is_owner(ctx):
-            return f"only @{settings.owner_handle} can delete feeds"
+        if algo_id is None:
+            return "delete needs algo_id (see action='list')"
         try:
             # find the record_name from graze so we can delete the PDS record too
             feeds = await graze_client.list_feeds()
@@ -87,7 +113,6 @@ def register(agent, graze_client: GrazeClient):
 
             await graze_client.delete_feed(algo_id)
 
-            # also delete the PDS record if we found the rkey
             if record_name:
                 assert bot_client.client.me is not None
                 try:
@@ -105,33 +130,29 @@ def register(agent, graze_client: GrazeClient):
                 f" and PDS record '{record_name}'" if record_name else ""
             )
         except Exception as e:
-            logger.warning(f"delete_feed failed: {e}")
+            logger.warning(f"manage_feeds delete failed: {e}")
             return f"failed to delete feed: {e}"
 
-    # --- feed consumption + following ---
-
     @agent.tool
-    async def read_timeline(ctx: RunContext[PhiDeps], limit: int = 20) -> str:
-        """Read your 'following' timeline — posts from accounts you follow. Use this when someone asks what's on your feed or what people you follow are talking about."""
-        try:
-            response = await bot_client.get_timeline(limit=limit)
-            if not response.feed:
-                return (
-                    "your timeline is empty — you're not following anyone yet. "
-                    f"ask @{settings.owner_handle} to have me follow some accounts!"
-                )
-            return _format_feed_posts(response.feed, limit=limit)
-        except Exception as e:
-            return f"failed to read timeline: {e}"
+    async def read_feed(
+        ctx: RunContext[PhiDeps], name: str = "timeline", limit: int = 20
+    ) -> str:
+        """Read posts from a feed.
 
-    @agent.tool
-    async def read_feed(ctx: RunContext[PhiDeps], name: str, limit: int = 20) -> str:
-        """Read posts from a feed by name.
-
-        name: a saved feed name (e.g. "for-you") or one of your own feed slugs.
-        use list_feeds to see available names.
+        name: 'timeline' (default) for your following timeline — posts from
+        accounts you follow; a saved feed name (e.g. 'for-you'); or one of
+        your own feed slugs (see manage_feeds action='list').
         """
         try:
+            if name == "timeline":
+                response = await bot_client.get_timeline(limit=limit)
+                if not response.feed:
+                    return (
+                        "your timeline is empty — you're not following anyone yet. "
+                        f"ask @{settings.owner_handle} to have me follow some accounts!"
+                    )
+                return _format_feed_posts(response.feed, limit=limit)
+
             # check saved feeds first (external feeds mapped by friendly name)
             feed_uri = settings.saved_feeds.get(name)
             if not feed_uri:

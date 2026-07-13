@@ -1,7 +1,7 @@
 """Regression tests for the Top Chicken market tools.
 
-check_chicken_market fetches bisk.social/chicken/recommend and relays its
-`advice` lines; place_chicken_trade reads /api/market and writes an order
+check_chicken renders round/wallet/season sections (bisk advice relayed as
+garnish); place_chicken_trade reads /api/market and writes an order
 record to phi's own repo. We stub HTTP + the bot client so nothing hits the
 network.
 """
@@ -78,14 +78,29 @@ def _patch_get_json(responses):
     return patch("bot.tools.topchicken._get_json", side_effect=fake)
 
 
+def _stub_sections(*names):
+    """Patch away the sections not under test (they hit auth + network)."""
+    from contextlib import ExitStack
+
+    stack = ExitStack()
+    for n in names:
+        stack.enter_context(
+            patch(f"bot.tools.topchicken.{n}", AsyncMock(return_value=[]))
+        )
+    return stack
+
+
 async def test_board_comes_from_the_market_with_bisk_advice_as_garnish():
-    fn = _register()["check_chicken_market"]
+    fn = _register()["check_chicken"]
     rec = {
         "advice": ["Mind the 2% spread."],
         "board": [{"handle": "goose.art", "likes": 246, "ask_c": 34.7}],
     }
-    with _patch_get_json(
-        {topchicken.MARKET_URL: OPEN_MARKET, topchicken.RECOMMEND_URL: rec}
+    with (
+        _patch_get_json(
+            {topchicken.MARKET_URL: OPEN_MARKET, topchicken.RECOMMEND_URL: rec}
+        ),
+        _stub_sections("_portfolio_section", "_season_section"),
     ):
         out = await fn(SimpleNamespace(), handle="@zzstoatzz.io")
 
@@ -97,10 +112,13 @@ async def test_board_comes_from_the_market_with_bisk_advice_as_garnish():
 async def test_stale_bisk_advice_is_dropped_when_market_has_contenders():
     """Regression: bisk's tracker desynced (empty board, '0 contenders' advice)
     while the real market had 129 contenders; phi relayed the fiction verbatim."""
-    fn = _register()["check_chicken_market"]
+    fn = _register()["check_chicken"]
     rec = {"advice": ["Wide open with 0 contenders."], "board": []}
-    with _patch_get_json(
-        {topchicken.MARKET_URL: OPEN_MARKET, topchicken.RECOMMEND_URL: rec}
+    with (
+        _patch_get_json(
+            {topchicken.MARKET_URL: OPEN_MARKET, topchicken.RECOMMEND_URL: rec}
+        ),
+        _stub_sections("_portfolio_section", "_season_section"),
     ):
         out = await fn(SimpleNamespace())
 
@@ -109,19 +127,25 @@ async def test_stale_bisk_advice_is_dropped_when_market_has_contenders():
 
 
 async def test_market_unreachable_is_handled_gracefully():
-    fn = _register()["check_chicken_market"]
-    with _patch_get_json({topchicken.MARKET_URL: httpx.ConnectError("boom")}):
+    fn = _register()["check_chicken"]
+    with (
+        _patch_get_json({topchicken.MARKET_URL: httpx.ConnectError("boom")}),
+        _stub_sections("_portfolio_section", "_season_section"),
+    ):
         out = await fn(SimpleNamespace())
     assert "unreachable" in out.lower()
 
 
 async def test_bisk_unreachable_still_returns_the_board():
-    fn = _register()["check_chicken_market"]
-    with _patch_get_json(
-        {
-            topchicken.MARKET_URL: OPEN_MARKET,
-            topchicken.RECOMMEND_URL: httpx.ConnectError("pi is down"),
-        }
+    fn = _register()["check_chicken"]
+    with (
+        _patch_get_json(
+            {
+                topchicken.MARKET_URL: OPEN_MARKET,
+                topchicken.RECOMMEND_URL: httpx.ConnectError("pi is down"),
+            }
+        ),
+        _stub_sections("_portfolio_section", "_season_section"),
     ):
         out = await fn(SimpleNamespace())
     assert "@goose.art" in out
@@ -248,7 +272,7 @@ async def test_update_strategy_writes_doctrine_record():
 
 
 async def test_leaderboard_shows_doctrine_or_asks_for_one():
-    fn = _register()["check_chicken_leaderboard"]
+    fn = _register()["check_chicken"]
     board = {
         "season_info": {"num": 3, "day": 5, "total_days": 7, "end_round": "2026-07-12"},
         "leaders": [
@@ -270,6 +294,7 @@ async def test_leaderboard_shows_doctrine_or_asks_for_one():
             "bot.tools.topchicken._read_strategy",
             AsyncMock(return_value="compound early, variance late"),
         ),
+        _stub_sections("_market_section", "_portfolio_section"),
     ):
         out = await fn(SimpleNamespace())
     assert "compound early, variance late" in out
@@ -284,6 +309,7 @@ async def test_leaderboard_shows_doctrine_or_asks_for_one():
         ),
         patch("bot.tools.topchicken.bot_client", bc),
         patch("bot.tools.topchicken._read_strategy", AsyncMock(return_value=None)),
+        _stub_sections("_market_section", "_portfolio_section"),
     ):
         out = await fn(SimpleNamespace())
     assert "no strategy doctrine on record" in out

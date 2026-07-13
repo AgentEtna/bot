@@ -140,9 +140,7 @@ class TestPhiAgentToolRegistration:
 
             agent = PhiAgent()
             tool_names = {t.name for t in agent.agent._function_toolset.tools.values()}
-            assert "create_feed" in tool_names, f"create_feed not in {tool_names}"
-            assert "list_feeds" in tool_names, f"list_feeds not in {tool_names}"
-            assert "read_timeline" in tool_names, f"read_timeline not in {tool_names}"
+            assert "manage_feeds" in tool_names, f"manage_feeds not in {tool_names}"
             assert "read_feed" in tool_names, f"read_feed not in {tool_names}"
             assert "follow_user" in tool_names, f"follow_user not in {tool_names}"
             assert "get_own_posts" in tool_names, f"get_own_posts not in {tool_names}"
