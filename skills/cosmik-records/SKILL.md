@@ -39,6 +39,8 @@ don't guess parameter names — `semble_get_schema` gives the exact shapes, and 
 
 ## identifiers
 
+**deleting means deleting the edges too.** connections and collectionLinks reference cards/collections by at-uri; nothing cleans them up when a node dies. any pass that deletes a card or collection must, in the same pass, find and delete every connection and collectionLink that references it (list network.cosmik.connection / network.cosmik.collectionLink via pdsx, match on the deleted uri). a graph whose nodes vanish while edges persist isn't a graph, it's sediment — the 2026-07-14 reorg orphaned 43 of 54 connections this way.
+
 the api speaks uuids (`card_id`, `collection_id`); your graph speaks at-uris. reads return both — `cards_get(card_id)` includes the record's `uri`. when you need the at-uri of something you just wrote (e.g. to connect it, cite it in a blog post, or verify it with `pdsx.get_record`), fetch it back in the same execute block.
 
 ## collections are indexes, not essays
