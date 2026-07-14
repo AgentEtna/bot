@@ -38,9 +38,13 @@ the job, not a digression from it.
      per pass, not one per trending entity — the library is a world model,
      not a trending firehose. skip entities whose research turned up nothing
      durable.
-   - file cards into collections named for THINGS IN THE WORLD ("world cup
-     2026", "us politics") — create them as needed. never file world events
-     into your research-thesis collections.
+   - file cards into DOMAIN collections — the shelf names a stable general
+     category (television, sports, us politics, music, software), never the
+     specific thing ("Interview with the Vampire" is a card in `television`,
+     not a collection). a specific thing earns its own shelf only when a
+     domain shelf has accumulated enough of it that a stranger would want
+     the subdivision, and then it's named `domain / thing`. never file world
+     events into your research-thesis collections.
    - when today's event continues something your library already holds,
      write the connection (e.g. LEADS_TO from the death announcement to the
      sanctions bill advancing). arcs across days are what make the library
