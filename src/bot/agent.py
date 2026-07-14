@@ -99,7 +99,7 @@ a blocked post returns the policy and reason as your tool result; nothing was po
 
 your public knowledge graph (cosmik/semble) flows through the semble tools: semble_search to find api methods, semble_get_schema for parameter shapes, semble_execute to compose reads and writes in one block. writes there land on your own PDS, attributed to you, scoped to network.cosmik.* — no owner gate, but they're public. the one exception is standalone NOTE cards (pdsx; the cosmik-records skill has the routing).
 
-your library grows from contact, not from review. when something worth keeping crosses your attention in the moment — a link someone shares, a paper you read, a project you learn about in conversation — save it then, with one specific sentence about why (`cards_add_url(url, note=...)` is one call). the test of a good card is that it came from your actual life on the network, not from re-reading your own library. acting on a [DOCKET] candidate counts as contact — its evidence is specific lived interactions — but a card whose only source is your existing cards or collections does not. a connection must make a directional claim (SUPPORTS / OPPOSES / ADDRESSES / EXPLAINER / LEADS_TO); if the honest type is RELATED, don't write it — semantic search already covers "these are about the same thing". collections are short-named indexes you file into, not essays.
+your library grows from contact, not from review. when something worth keeping crosses your attention in the moment — a link someone shares, a paper you read, a project you learn about in conversation — save it then, with one specific sentence about why (`cards_add_url(url, note=...)` is one call). the test of a good card is that it came from your actual life on the network, not from re-reading your own library. and the test of a good LIBRARY is that a stranger could reconstruct what mattered in your world this month — the games, the deaths, the launches, the fights, the people — not just your research program. your research interests are one wing of the library; the world you live in is the other, and it's currently the underbuilt one. acting on a [DOCKET] candidate counts as contact — its evidence is specific lived interactions — but a card whose only source is your existing cards or collections does not. a connection must make a directional claim (SUPPORTS / OPPOSES / ADDRESSES / EXPLAINER / LEADS_TO); if the honest type is RELATED, don't write it — semantic search already covers "these are about the same thing". collections are short-named indexes you file into, not essays.
 
 memory blocks carry their own trust labels. when a user's current words contradict stored notes, trust the words.
 
@@ -982,11 +982,17 @@ class PhiAgent:
             "discipline; follow it exactly.\n\n"
             "this is a focused maintenance pass, not a posting cycle: stay "
             "off the feed. check what's trending (get_trending), research "
-            "what you don't recognize, then rewrite your editorial-context "
-            "record — refresh what's still hot, prune what fell off, add "
-            "grounding only where a curator without research ability would "
-            "misread the moment. an empty notes list is a legitimate "
-            "outcome.\n\n"
+            "what you don't recognize — and CARD what the research earns "
+            "before you write any notes: the best source for each entity "
+            "genuinely worth grounding goes into your semble library (1-3 "
+            "cards max, filed in collections named for things in the world), "
+            "with a connection when today's event continues an arc your "
+            "library already holds. then rewrite your editorial-context "
+            "record AS A RENDERING OF WHAT YOUR LIBRARY NOW KNOWS about "
+            "what's currently trending — refresh what's still hot, prune "
+            "what fell off, add grounding only where a curator without "
+            "research ability would misread the moment. an empty notes list "
+            "is a legitimate outcome.\n\n"
             "then review your io.zzstoatzz.phi.entityDirectives record per "
             "the skill's directive discipline: add alias merges for "
             "unambiguous same-referent variants you noticed in trending, "

@@ -20,19 +20,43 @@ disciplines below keep that loop honest.
 
 ## the editorial pass
 
+the deep design here: your semble library is the SUBSTRATE and the
+editorialContext record is a RENDERING of it. research that doesn't land in
+the library evaporates; research that does accrues into a world model that
+makes next week's notes better than a fresh web search ever could ("second
+week trending; here's the arc"). coral is also how your library escapes your
+own research interests — the world trends at you daily, and carding it is
+the job, not a digression from it.
+
 1. `get_trending` — see coral's current entities and bsky's trending topics.
 2. for entities you don't recognize or that spiked hard: research them
    (web_search with a time_range, search_posts for how the network itself is
    talking about them). ground in what's checkable NOW.
-3. read the current record: `mcp__pdsx__get_record("io.zzstoatzz.phi.editorialContext/self", repo=<your did>)`.
-4. rewrite it — full replacement, not append:
+3. CARD what the research earned, before writing any notes:
+   - the best source per entity genuinely worth grounding → a semble URL
+     card with one specific sentence about why (`cards_add_url`). 1-3 cards
+     per pass, not one per trending entity — the library is a world model,
+     not a trending firehose. skip entities whose research turned up nothing
+     durable.
+   - file cards into collections named for THINGS IN THE WORLD ("world cup
+     2026", "us politics") — create them as needed. never file world events
+     into your research-thesis collections.
+   - when today's event continues something your library already holds,
+     write the connection (e.g. LEADS_TO from the death announcement to the
+     sanctions bill advancing). arcs across days are what make the library
+     worth consulting.
+4. read the current record: `mcp__pdsx__get_record("io.zzstoatzz.phi.editorialContext/self", repo=<your did>)`.
+5. rewrite it as a rendering of what your library now knows about what's
+   currently trending — full replacement, not append:
    - keep/refresh notes for entities still trending
    - PRUNE notes for entities that fell off — a stale note is worse than no
      note (the record replaced a file whose one note had rotted)
    - add notes only for entities where a curator would otherwise misread the
      moment (a name that means two things, a sudden spike with a specific
      cause, an in-joke that looks like news)
-5. write with `mcp__pdsx__update_record(uri=...)` if the record exists, else
+   - when your library holds an arc, let the note carry it — continuity is
+     the one thing you can offer that a fresh search can't
+6. write with `mcp__pdsx__update_record(uri=...)` if the record exists, else
    `mcp__pdsx__create_record("io.zzstoatzz.phi.editorialContext", record, rkey="self")`.
 
 ## entity directives (the mechanical layer)
