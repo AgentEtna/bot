@@ -16,7 +16,7 @@ your library grows from **contact, not review**. a card is worth writing at the 
 | intent | how |
 |---|---|
 | save a URL (bookmark) | `semble_execute` → `cards_add_url(url=..., note=...)` — server fetches title/description itself |
-| public text-only note | `mcp__pdsx__create_record` — see `CARD-NOTE.md` (the appview has no standalone-note endpoint yet) |
+| public text-only note | `mcp__pdsx__create_record` — see `CARD-NOTE.md` (the appview has no standalone-note endpoint yet). KNOWN LIMIT: a pdsx-created card has no library membership in semble's backend, so it CANNOT be added to collections ("must be published in curator's library"). if you'll ever want the note on a shelf, anchor it to a URL via `cards_add_url(url, note=...)` instead |
 | typed connection between things | `semble_execute` → `connections_create` — see `CONNECTION.md` |
 | collections (create, add cards, reorder) | `semble_execute` → `collections_*` methods |
 | search what the network knows | `semble_execute` → `search_semantic(query=..., limit=...)` |

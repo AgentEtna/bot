@@ -15,6 +15,7 @@ own custom collections, cosmik cards (her operator channel under an
 override), profile records — passes through untouched.
 """
 
+import asyncio
 import logging
 import re
 from typing import Any
@@ -52,6 +53,12 @@ async def guard_pdsx_tool_call(
 
 _SEMBLE_TOOL_RE = re.compile(r"\b(?:actors|cards|collections|connections)_[a-z_]+")
 _SEMBLE_READ_VERBS = ("get", "list", "search", "describe")
+
+# semble's backend has no unique constraint on collection names, and code-mode
+# blocks do check-then-create — two execute calls running concurrently (the
+# model batches parallel tool calls) raced on 2026-07-14 and created duplicate
+# "Games"/"games" collections. serialize execute; reads stay concurrent.
+_semble_execute_lock = asyncio.Lock()
 
 
 def _semble_writes(code: str) -> list[str]:
@@ -92,6 +99,9 @@ def make_semble_write_logger(run_label: str):
         # ToolRetryError that kills the whole scheduled run — the 2026-07-13
         # curation pass died mid-flight exactly that way
         try:
+            if name == "execute":
+                async with _semble_execute_lock:
+                    return await call_tool(name, tool_args, None)
             return await call_tool(name, tool_args, None)
         except Exception as e:
             logger.warning(f"semble {name} failed during {run_label}: {e}")
