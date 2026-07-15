@@ -234,8 +234,10 @@ def _format_goals_block(
         lines.append(f"- {rkey_part}{g.get('title', 'untitled')} ({kind})")
         if g.get("description"):
             lines.append(f"  why: {g['description']}")
+        if g.get("metabolism"):
+            lines.append(f"  metabolism: {g['metabolism']}")
         if g.get("progress_signal"):
-            lines.append(f"  progress means: {g['progress_signal']}")
+            lines.append(f"  progress means (yours to revise): {g['progress_signal']}")
         if g.get("current_state"):
             lines.append(f"  current: {g['current_state']}")
         if g.get("next_step"):

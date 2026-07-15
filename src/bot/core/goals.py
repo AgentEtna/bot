@@ -61,14 +61,20 @@ async def upsert_goal(
     rkey: str | None,
     title: str,
     description: str,
-    progress_signal: str,
+    metabolism: str,
     kind: str = "goal",
 ) -> str:
     """Create (rkey=None) or update a goal's CONSTITUTIONAL fields. Returns AT-URI.
 
-    On update, the operational fields written by update_goal_progress
-    (current_state / next_step / last_step / last_step_at / blocked_by) are
-    preserved — this only touches title / description / progress_signal / kind.
+    Constitutional = direction: title / description / metabolism / kind.
+    The measure (progress_signal) is phi-owned and lives with the
+    operational fields — the operator gates what phi is FOR, never the
+    scorekeeping (a hand-written operator measure went stale for three
+    months once; see docs/goals-metabolism.md).
+
+    On update, the fields written by update_goal_progress (current_state /
+    next_step / last_step / last_step_at / blocked_by / progress_signal)
+    are preserved.
     """
     if kind not in ("goal", "interest"):
         raise ValueError(f"kind must be 'goal' or 'interest', got {kind!r}")
@@ -83,7 +89,7 @@ async def upsert_goal(
         record.update(
             title=title,
             description=description,
-            progress_signal=progress_signal,
+            metabolism=metabolism,
             kind=kind,
             updated_at=now,
         )
@@ -100,7 +106,7 @@ async def upsert_goal(
         record = {
             "title": title,
             "description": description,
-            "progress_signal": progress_signal,
+            "metabolism": metabolism,
             "kind": kind,
             "created_at": now,
             "updated_at": now,
@@ -123,6 +129,7 @@ async def update_goal_progress(
     last_step: str,
     blocked_by: str = "",
     evidence_uris: list[str] | None = None,
+    progress_signal: str | None = None,
 ) -> str:
     """Update a goal's OPERATIONAL fields, preserving its constitutional ones.
 
@@ -148,6 +155,8 @@ async def update_goal_progress(
     )
     if evidence_uris:
         record["evidence_uris"] = evidence_uris
+    if progress_signal is not None:
+        record["progress_signal"] = progress_signal
     result = client.client.com.atproto.repo.put_record(
         data={
             "repo": client.client.me.did,
