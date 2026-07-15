@@ -43,15 +43,20 @@ don't guess parameter names — `semble_get_schema` gives the exact shapes, and 
 
 ground truth from semble's source (2026-07-15): collections are FLAT at every
 layer — the lexicon has no parent field, the domain model holds only cardLinks,
-the api has no nesting parameter, and there is no COLLECTION card type. a
-collection cannot contain a collection, and nothing you write can make it so.
-growth therefore works like this:
+the api has no nesting parameter, and there is no COLLECTION card type. containment
+between collections does not exist — but NAVIGATION does: a collection has a
+stable web url, and a url is a card. growth therefore works like this:
 
 - start with domain shelves (television, sports, world news, knowledge &
   memory). a new card goes in an existing domain unless it genuinely founds one.
 - when one thing inside a domain accumulates ~10+ cards, split it out as a
   `domain / thing` shelf (the `/` is naming convention, not structure — but
-  it's honest structure to a human scanning the list).
+  it's honest structure to a human scanning the list). when you split, drop a
+  URL card for the child shelf into the parent domain shelf ("continues in:
+  world news / gaza") — links over copies, one topic one home. know the
+  limits of a pointer: browsing and search don't descend through it, and if
+  the child shelf is renamed or deleted the pointer rots — pointers are part
+  of what a delete pass must clean up.
 - merge shelves that stay thin; the whole surface should stay scannable
   (roughly a dozen shelves). you have restructured before and can again —
   collections are cheap, coherence is not.
