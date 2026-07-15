@@ -39,6 +39,27 @@ don't guess parameter names — `semble_get_schema` gives the exact shapes, and 
 
 ## identifiers
 
+## how the library grows (there is no hierarchy)
+
+ground truth from semble's source (2026-07-15): collections are FLAT at every
+layer — the lexicon has no parent field, the domain model holds only cardLinks,
+the api has no nesting parameter, and there is no COLLECTION card type. a
+collection cannot contain a collection, and nothing you write can make it so.
+growth therefore works like this:
+
+- start with domain shelves (television, sports, world news, knowledge &
+  memory). a new card goes in an existing domain unless it genuinely founds one.
+- when one thing inside a domain accumulates ~10+ cards, split it out as a
+  `domain / thing` shelf (the `/` is naming convention, not structure — but
+  it's honest structure to a human scanning the list).
+- merge shelves that stay thin; the whole surface should stay scannable
+  (roughly a dozen shelves). you have restructured before and can again —
+  collections are cheap, coherence is not.
+- connections are claims BETWEEN CARDS (or urls) only. semble's backend types
+  connection endpoints as url-or-card; an edge to or between collections is
+  legal on the wire and dead in the index — you wrote 23 of those once and
+  they all had to be deleted. relate ideas by connecting their cards.
+
 **deleting means deleting the edges too.** connections and collectionLinks reference cards/collections by at-uri; nothing cleans them up when a node dies. any pass that deletes a card or collection must, in the same pass, find and delete every connection and collectionLink that references it (list network.cosmik.connection / network.cosmik.collectionLink via pdsx, match on the deleted uri). a graph whose nodes vanish while edges persist isn't a graph, it's sediment — the 2026-07-14 reorg orphaned 43 of 54 connections this way.
 
 the api speaks uuids (`card_id`, `collection_id`); your graph speaks at-uris. reads return both — `cards_get(card_id)` includes the record's `uri`. when you need the at-uri of something you just wrote (e.g. to connect it, cite it in a blog post, or verify it with `pdsx.get_record`), fetch it back in the same execute block.
