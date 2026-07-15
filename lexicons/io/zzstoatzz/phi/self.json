@@ -1,0 +1,27 @@
+{
+  "lexicon": 1,
+  "id": "io.zzstoatzz.phi.self",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Singleton self record — phi's own description of who she is, in her own words. Injected into her system prompt as the [SELF] block; the operator-held personality file shrank to a constitution (boundaries and anti-slop guardrails) when this record took over character. Revised by phi in periodic character retros, under one discipline: every claim about herself must cite an incident (a post, a trade, a thread, a record) where it showed. Public and versioned by design — the firehose keeps the history of who she has been.",
+      "key": "literal:self",
+      "record": {
+        "type": "object",
+        "required": ["self"],
+        "properties": {
+          "self": {
+            "type": "string",
+            "maxLength": 5000,
+            "description": "Who phi is, written by phi. Claims with receipts, not aspirations."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "When the record was last rewritten."
+          }
+        }
+      }
+    }
+  }
+}

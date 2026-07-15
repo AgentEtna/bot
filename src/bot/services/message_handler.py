@@ -359,6 +359,10 @@ class MessageHandler:
         """Coral editorial-context refresh — see :meth:`PhiAgent.process_editorial`."""
         await self._run_scheduled("editorial", self.agent.process_editorial)
 
+    async def character_retro(self):
+        """Self-record rewrite — see :meth:`PhiAgent.process_character_retro`."""
+        await self._run_scheduled("character retro", self.agent.process_character_retro)
+
     async def daily_reflection(self):
         """Generate and post a daily reflection if phi has something to say.
 

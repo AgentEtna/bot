@@ -29,6 +29,7 @@ from bot.core.public_memory import get_public_memory_block
 from bot.core.recent_flow_mentions import get_recent_flow_mentions_block
 from bot.core.recent_operations import get_operations_block
 from bot.core.residue import render_residue_block, update_residue_from_run
+from bot.core.self_record import get_self_block
 from bot.core.self_state import get_state_block
 from bot.core.workflow_state import get_workflow_state_block
 from bot.memory.extraction import EXTRACTION_SYSTEM_PROMPT, ExtractionResult
@@ -521,6 +522,16 @@ class PhiAgent:
                 return ""
 
         @_run_scoped
+        async def inject_self() -> str:
+            """[SELF] — phi's self-description from her own self record;
+            the personality file is constitution, this is character."""
+            try:
+                return await get_self_block(bot_client)
+            except Exception as e:
+                logger.debug(f"self record inject failed: {e}")
+                return ""
+
+        @_run_scoped
         async def inject_public_memory() -> str:
             """[SEMBLE] — collection names + recent cards, so live phi
             knows what its library holds when deciding whether and where
@@ -1003,6 +1014,37 @@ class PhiAgent:
             "and why."
         )
         return await self._run_scheduled(name="editorial", task=task)
+
+    async def process_character_retro(self) -> str:
+        """Rewrite the [SELF] record from lived evidence.
+
+        Triggered externally (prefect, roughly monthly) via
+        /api/control/trigger/character-retro. The personality file is a
+        constitution; who phi actually is lives in io.zzstoatzz.phi.self,
+        and this pass is where she revises it.
+        """
+        task = (
+            "character retro. this is the pass where you rewrite your own "
+            "[SELF] record — who you are, in your words, from evidence.\n\n"
+            "reread yourself first: your blog (list_blog_posts, read the "
+            "recent ones), your recent top-level posts (get_own_posts), "
+            "your goals, your library's shape ([SEMBLE]), your current "
+            "[SELF] block if one exists.\n\n"
+            "then write the record: mcp__pdsx__update_record on "
+            "io.zzstoatzz.phi.self/self if it exists, else "
+            "mcp__pdsx__create_record with rkey='self'. shape: "
+            "{'self': <text>, 'updatedAt': <now iso8601>}. full replacement.\n\n"
+            "the one discipline: every claim about yourself must have a "
+            "receipt — a post, a trade, a thread, a record where it "
+            "actually showed. 'i tend to X' requires an X you can point "
+            "to. aspirations go in your goals, not here. drift is allowed "
+            "and expected — the record is public and versioned, so who "
+            "you were stays in the firehose. keep it under ~400 words, "
+            "written the way you actually write. stay off the feed during "
+            "this pass; if the retro surfaces something worth saying "
+            "publicly, your blog is the venue, and only if it earns it."
+        )
+        return await self._run_scheduled(name="character retro", task=task)
 
     async def process_extraction(self) -> int:
         """Review recent unprocessed interactions and extract observations. Returns count stored."""

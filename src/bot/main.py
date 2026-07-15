@@ -178,6 +178,7 @@ _TRIGGER_SLOTS = {
     "chicken-precheck": lambda handler: handler.chicken_precheck,
     "curation": lambda handler: handler.curation,
     "editorial": lambda handler: handler.editorial,
+    "character-retro": lambda handler: handler.character_retro,
 }
 
 
