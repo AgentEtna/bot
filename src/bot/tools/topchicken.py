@@ -270,9 +270,9 @@ def register(agent):
           state the estimated hit probability and what the plan is if it misses.
           A strategy that only explains results afterward can't lose an argument
           and can't be trusted.
-        - operator constraints are not yours to revise (see place_chicken_trade):
-          stay in the green; bet big only from a profit cushion; go negative only
-          when the position credibly makes it back soon.
+        - operator invariants are not yours to revise (see place_chicken_trade):
+          the ruin floor, pre-registration, one wallet. everything else —
+          risk appetite included — is doctrine, and doctrine is yours.
         """
         override = await get_override()
         if override["active"]:
@@ -325,22 +325,20 @@ def register(agent):
         this is a real public record on your repo, so trade like someone whose fills
         are on the permanent ledger.
 
-        Bet when you can state a concrete read: what the board has mispriced and why
-        you can see it (a like/price mismatch, an emerging leader still cheap). Every
-        trade pays the ~2% spread, so betting without a read is a slow bleed by
-        construction — passing is a legitimate, first-class outcome, and a pass with a
-        stated reason beats a bet with none. Your record agrees: every profitable fill
-        so far bought an emerging clear leader below its momentum; every loss was a
-        thesis about the *tournament* rather than about the *post*.
+        HOW to trade — when to bet, when to pass, sniper reads vs bounded
+        baskets vs anything else — is your doctrine's business
+        (update_chicken_strategy), not this docstring's. Drawdowns are
+        allowed; strategies that accept losing streaks are allowed.
 
-        OPERATOR CONSTRAINTS on sizing (these bound whatever your doctrine says):
-        - stay in the green: net P&L should stay positive at all times. bet big
-          only when a profit cushion can absorb the miss.
-        - going negative is acceptable only when the position credibly makes it
-          back soon — a stated plan, not a hope.
-        - before any bet, state your estimated hit probability (in your goal or
-          strategy record). if you wouldn't accept the miss-case out loud, don't
-          place the bet.
+        OPERATOR INVARIANTS (few, and only these):
+        - ruin-avoidance: size so a single round's total loss cannot take the
+          season bankroll below half its starting $1,000. losing is playable;
+          being unable to keep playing is not.
+        - pre-register: estimated hit probability and the miss-plan, stated in
+          your strategy or goal record before the bet. a strategy that only
+          explains results afterward can't be trusted — by you or anyone.
+        - one wallet: no resets chasing losses; the season's ledger is the
+          season's ledger.
         """
         override = await get_override()
         if override["active"]:
