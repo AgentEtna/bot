@@ -125,18 +125,6 @@ class Settings(BaseSettings):
         ),
     )
 
-    # Chicken market pre-lock check — UTC hour, unlike the slots above,
-    # because the market's clock is UTC: rounds lock at 06:00 UTC. Firing
-    # at 04:00 gives phi ~2h of the highest-information window (all
-    # eligible posts hours old, rivals' books final, rivals asleep).
-    chicken_precheck_utc_hour: int = Field(
-        default=4,
-        description=(
-            "Hour-of-day (UTC) to run the pre-lock chicken market check. "
-            "Fires at most once per day."
-        ),
-    )
-
     # External feeds phi can read
     saved_feeds: dict[str, str] = Field(
         default={

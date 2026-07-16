@@ -351,6 +351,10 @@ class MessageHandler:
             "chicken precheck", self.agent.process_chicken_precheck
         )
 
+    async def chicken_scout(self):
+        """Mid-round market scout — see :meth:`PhiAgent.process_chicken_scout`."""
+        await self._run_scheduled("chicken scout", self.agent.process_chicken_scout)
+
     async def curation(self):
         """Weekly publication curation pass — see :meth:`PhiAgent.process_curation`."""
         await self._run_scheduled("curation", self.agent.process_curation)

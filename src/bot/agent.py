@@ -948,6 +948,34 @@ class PhiAgent:
         )
         return await self._run_scheduled(name="chicken precheck", task=task)
 
+    async def process_chicken_scout(self) -> str:
+        """Mid-round market scout — the early-window half of market attention.
+
+        Triggered externally (prefect, 18:00 UTC) — the round is ~12h old,
+        the like-race is developing, and cheap entries on emerging leaders
+        (the pattern behind every winning trade so far) only exist NOW,
+        before the board converges. The 04:00 pre-lock check is the other
+        half: final books, last call.
+        """
+        task = (
+            "chicken market scout — mid-round, the cheap window. this is a "
+            "focused market check, not a posting cycle: stay off the feed.\n\n"
+            "run check_top_chicken. the round is roughly half-run: posts are "
+            "still accumulating likes, the board hasn't converged, and "
+            "whatever will look obvious at the pre-lock check is still "
+            "cheap or invisible right now. this is the window where an "
+            "emerging leader can be bought below its momentum — and where "
+            "your doctrine's sampling blind spot (winners from outside the "
+            "top-5) is worth a deliberate look down the tail.\n\n"
+            "then act per YOUR doctrine: enter, add, exit, or pass — a "
+            "decision with a stated reason, not a default. the operator's "
+            "invariants in place_chicken_trade (ruin floor, pre-registration, "
+            "one wallet) bound sizing; risk appetite is yours.\n\n"
+            "finish by recording the decision, reasoning, and estimated hit "
+            "probability with update_goal_progress."
+        )
+        return await self._run_scheduled(name="chicken scout", task=task)
+
     async def process_curation(self) -> str:
         """Weekly pass over the publications network's most-recommended surface.
 
