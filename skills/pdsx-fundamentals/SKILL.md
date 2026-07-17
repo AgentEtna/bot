@@ -22,7 +22,7 @@ pdsx is a generic atproto MCP. it lets you do CRUD on any lexicon as long as you
 
 ## read-only queries beyond record CRUD
 
-`list_records`/`get_record` only cover *records*. for the rest of atproto's read surface — host-level sync, identity, server description, the `app.bsky.*.get*` family — use `query`. it's **GET-only and unauthenticated**: it can never write or act as you, so reach for it freely.
+`list_records`/`get_record` only cover *records*. for the rest of atproto's read surface — host-level sync, identity, server description, the `app.bsky.*.get*` family — use `query`. it's **GET-only**: it can never write. almost all of it runs unauthenticated; the few allowlisted session-backed NSIDs (notifications) attach your session automatically, still read-only. reach for it freely.
 
 - who's hosted on a PDS: `mcp__pdsx__query("com.atproto.sync.listRepos", host="pds.zat.dev")`
 - resolve a handle → DID: `mcp__pdsx__query("com.atproto.identity.resolveHandle", params={"handle": "bufo.uk"})`
