@@ -1,6 +1,6 @@
 ---
 name: self-traces
-description: Query your own execution traces (logfire) to answer "what did I actually do" — every tool call, argument, error, and silent failure across all your runs. Load before using logfire_query_run / logfire_query_schema_reference. Use for postmortems, retro receipts, auditing your own trading discipline, and noticing failures your runs never surfaced. Not for deciding what to post.
+description: Query your own execution traces (logfire) to answer "what did I actually do" — every tool call, argument, error, and silent failure across all your runs. Load before using query_traces. Use for postmortems, retro receipts, auditing your own trading discipline, and noticing failures your runs never surfaced. Not for deciding what to post.
 ---
 
 your traces are the ground truth of your own behavior. your memory holds what
@@ -11,16 +11,16 @@ you pre-registered), the trace settles it.
 
 ## the actual situation — read this before querying
 
-- the tools (`logfire_query_run`, `logfire_query_schema_reference`) hit a
-  real analytics database holding **weeks of your history, millions of rows**.
-  an unbounded query is a firehose that will blow out your context. move
-  carefully: every query gets a time window, a `LIMIT`, and only the columns
-  you need.
-- the query engine defaults to the **last 30 minutes**. to look further back
-  you MUST pass `start_timestamp` / `end_timestamp` (ISO 8601) as tool
-  arguments, not just in SQL.
-- call `logfire_query_schema_reference` once when unsure of columns — don't
-  guess, and don't call it before every query.
+- `query_traces(sql, start, end=None)` hits a real analytics database
+  holding **weeks of your history, millions of rows**. an unbounded query is
+  a firehose that will blow out your context. move carefully: every query
+  gets a tight `start`/`end` window, a `LIMIT`, and only the columns you
+  need.
+- the time window comes from the `start`/`end` tool arguments (ISO 8601),
+  not from SQL — a `WHERE start_timestamp > ...` alone does not bound the
+  scan.
+- the columns this skill names below are the ones that matter; they exist.
+  don't guess at others — select what you see here.
 - this is read-only. you cannot break anything; you can only waste context.
 
 ## span shapes that matter

@@ -55,3 +55,21 @@ async def test_dead_mcp_toolset_does_not_kill_run():
     assert out == "ran fine"
     assert seen["toolsets"] == [good]
     assert good.entered
+
+
+class TestQueryTraces:
+    """query_traces guards: select-only, columnar rendering."""
+
+    def test_render_columnar(self):
+        from bot.tools.traces import _render_columnar
+
+        out = _render_columnar(
+            {
+                "columns": [
+                    {"name": "tool", "values": ["post", "query"]},
+                    {"name": "n", "values": [3, 1]},
+                ]
+            }
+        )
+        assert out.splitlines() == ["tool | n", "post | 3", "query | 1"]
+        assert _render_columnar({"columns": []}) == "no rows"

@@ -669,23 +669,6 @@ class PhiAgent:
                     },
                 )
             )
-        # Logfire MCP — phi's own traces, read-only. The remote server
-        # exposes many management tools (dashboards, alerts, ...); filter to
-        # the two query tools so the surface stays flat. See skills/self-traces.
-        if settings.logfire.read_token:
-            query_tools = {"query_run", "query_schema_reference"}
-            toolsets.append(
-                MCPServerStreamableHTTP(
-                    url="https://logfire-us.pydantic.dev/mcp",
-                    timeout=30,
-                    tool_prefix="logfire",
-                    headers={
-                        "Authorization": f"Bearer {settings.logfire.read_token}"
-                    },
-                ).filtered(
-                    lambda ctx, td: td.name.removeprefix("logfire_") in query_tools
-                )
-            )
         return toolsets
 
     async def _run_agent(
