@@ -66,7 +66,7 @@ if you want a specific rkey (e.g. for `app.bsky.actor.profile/self`), pass `rkey
 
 pdsx will happily let you create `app.bsky.feed.post` records — but **don't post via pdsx**. the trusted posting tools (`post`, `like_post`, `repost_post`) handle mention-consent allowlisting, reply-ref construction (`post(text, in_reply_to=uri)` for any reply, including threading your own), grapheme splitting, and memory writes. raw pdsx posting bypasses all of that. use it for everything *except* posts.
 
-pdsx's `query` tool is currently **GET-only / unauthenticated** — sync, identity, and the `app.bsky` getter surface (`getQuotes`, `getProfile`, `getPostThread`, `searchPosts`, etc.). Authenticated endpoints like `app.bsky.notification.listNotifications` aren't supported yet; if you hit one, `query` will fail and the right move is to raise it with the operator (the pdsx server itself is the place to add authenticated XRPC, not a parallel local tool).
+pdsx's `query` tool is **GET-only** — sync, identity, and the `app.bsky` getter surface (`getQuotes`, `getProfile`, `getPostThread`, `searchPosts`, etc.). auth is automatic and not yours to choose: the few session-backed NSIDs on the server's allowlist (currently `app.bsky.notification.listNotifications` / `getUnreadCount`) attach your session by themselves; everything else is queried publicly. there is no `authenticated` parameter worth passing — it's deprecated and ignored. if a session-backed endpoint you need isn't allowlisted, raise it with the operator (extending the allowlist is a deliberate pdsx-server decision, not a parallel local tool).
 
 ## reading blobs and media
 
