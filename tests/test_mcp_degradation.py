@@ -1,0 +1,57 @@
+"""Regression test: an unreachable MCP server degrades to a missing toolset.
+
+2026-07-17: a 403 from the logfire MCP (wrong token kind) killed entire
+agent runs at toolset-enter time — the daily reflection died on a toolset
+it never needed. _run_agent must drop toolsets that fail to connect and
+run with the rest.
+"""
+
+from unittest.mock import patch
+
+from bot.agent import PhiAgent
+
+
+class _GoodToolset:
+    label = "good"
+    entered = False
+
+    async def __aenter__(self):
+        self.entered = True
+        return self
+
+    async def __aexit__(self, *exc):
+        return None
+
+
+class _DeadToolset:
+    label = "dead"
+
+    async def __aenter__(self):
+        raise RuntimeError("403 Forbidden")
+
+    async def __aexit__(self, *exc):
+        return None
+
+
+async def test_dead_mcp_toolset_does_not_kill_run():
+    phi = PhiAgent.__new__(PhiAgent)  # skip __init__ — only _run_agent matters
+    good, dead = _GoodToolset(), _DeadToolset()
+    seen: dict = {}
+
+    class _FakeResult:
+        output = "ran fine"
+
+    async def fake_run(prompt, deps=None, toolsets=None):
+        seen["toolsets"] = toolsets
+        return _FakeResult()
+
+    phi.agent = type("A", (), {"run": staticmethod(fake_run)})()
+    with (
+        patch.object(PhiAgent, "_mcp_toolsets", return_value=[dead, good]),
+        patch("bot.agent.update_residue_from_run"),
+    ):
+        out = await phi._run_agent(label="test run", prompt="hi", deps=None)
+
+    assert out == "ran fine"
+    assert seen["toolsets"] == [good]
+    assert good.entered

@@ -699,9 +699,20 @@ class PhiAgent:
         toolsets = self._mcp_toolsets(run_label=label)
         try:
             async with contextlib.AsyncExitStack() as stack:
+                # a single unreachable MCP server (bad token, outage) must
+                # cost phi that toolset, not the whole run
+                connected = []
                 for ts in toolsets:
-                    await stack.enter_async_context(ts)
-                result = await self.agent.run(prompt, deps=deps, toolsets=toolsets)
+                    try:
+                        await stack.enter_async_context(ts)
+                    except Exception as e:
+                        logger.warning(
+                            f"mcp toolset {ts.label} unavailable for {label}, "
+                            f"running without it: {type(e).__name__}: {str(e)[:200]}"
+                        )
+                        continue
+                    connected.append(ts)
+                result = await self.agent.run(prompt, deps=deps, toolsets=connected)
         except Exception as e:
             err_type = type(e).__name__
             logger.exception(f"agent.run failed during {label}: {err_type}: {e}")
