@@ -13,6 +13,9 @@ class LogfireSettings(BaseSettings):
     )
 
     write_token: str | None = None
+    # read token (project-scoped, query-only) — when set, phi gets the
+    # logfire MCP query tools and can read her own traces
+    read_token: str | None = None
     environment: str | None = None
     send_to_logfire: Literal["if-token-present"] | None = "if-token-present"
 

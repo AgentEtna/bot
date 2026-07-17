@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pydantic_ai import Agent, ImageUrl, RunContext
 from pydantic_ai.mcp import MCPServerStreamableHTTP
 from pydantic_ai.models.anthropic import AnthropicModelSettings
+from pydantic_ai.toolsets import AbstractToolset
 from pydantic_ai_skills import SkillsToolset
 
 from bot.config import settings
@@ -606,9 +607,9 @@ class PhiAgent:
             )
         return out
 
-    def _mcp_toolsets(self, run_label: str = "") -> list[MCPServerStreamableHTTP]:
+    def _mcp_toolsets(self, run_label: str = "") -> list[AbstractToolset]:
         """Create fresh MCP server instances for a single agent run."""
-        toolsets: list[MCPServerStreamableHTTP] = [
+        toolsets: list[AbstractToolset] = [
             MCPServerStreamableHTTP(
                 url="https://pdsx-by-zzstoatzz.fastmcp.app/mcp",
                 timeout=30,
@@ -666,6 +667,23 @@ class PhiAgent:
                         "x-prefect-api-url": settings.prefect_api_url,
                         "x-prefect-api-auth-string": settings.prefect_api_auth_string,
                     },
+                )
+            )
+        # Logfire MCP — phi's own traces, read-only. The remote server
+        # exposes many management tools (dashboards, alerts, ...); filter to
+        # the two query tools so the surface stays flat. See skills/self-traces.
+        if settings.logfire.read_token:
+            query_tools = {"query_run", "query_schema_reference"}
+            toolsets.append(
+                MCPServerStreamableHTTP(
+                    url="https://logfire-us.pydantic.dev/mcp",
+                    timeout=30,
+                    tool_prefix="logfire",
+                    headers={
+                        "Authorization": f"Bearer {settings.logfire.read_token}"
+                    },
+                ).filtered(
+                    lambda ctx, td: td.name.removeprefix("logfire_") in query_tools
                 )
             )
         return toolsets
