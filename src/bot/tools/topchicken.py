@@ -71,6 +71,25 @@ async def _get_json(url: str, params: dict | None = None) -> dict:
         return r.json()
 
 
+def _contender_line(c: dict) -> str:
+    """One board row: identity, likes, momentum, and price."""
+    deltas = c.get("deltas") or {}
+    d1h = (deltas.get("1h") or {}).get("likes")
+    d6h = (deltas.get("6h") or {}).get("likes")
+    momentum = ""
+    if d1h is not None or d6h is not None:
+        momentum = f", Δ1h {d1h if d1h is not None else '?'}L Δ6h {d6h if d6h is not None else '?'}L"
+    ask = c.get("ask_subc")
+    ask_s = f"{ask / 100:.1f}¢" if ask else "—"
+    p = c.get("p")
+    p_s = f"{p:.2f}" if p is not None else "—"
+    vel = c.get("velocity") or 0
+    return (
+        f"@{c['handle']} {c.get('likes', 0)}L (v={vel:.1f}/hr{momentum}, "
+        f"p={p_s}, ask {ask_s})"
+    )
+
+
 async def _market_section(handle: str | None) -> list[str]:
     """Current round: board, status, and bisk's advice garnish."""
     try:
@@ -85,11 +104,49 @@ async def _market_section(handle: str | None) -> list[str]:
         f"round {round_.get('id')} · {round_.get('status')} · {len(contenders)} contenders"
     ]
     if contenders:
-        top = ", ".join(
-            f"@{c['handle']} {c['likes']}L (p={c.get('p') or 0:.2f}, ask {c['ask_subc'] / 100:.1f}¢)"
-            for c in sorted(contenders, key=lambda c: c.get("p") or 0, reverse=True)[:5]
-        )
-        lines.append(f"board (top 5 by win-probability): {top}")
+        by_p = sorted(contenders, key=lambda c: c.get("p") or 0, reverse=True)
+        leaders = by_p[:12]
+        lines.append("board (top 12 by win-probability):")
+        for c in leaders:
+            lines.append("  " + _contender_line(c))
+
+        # movers: the emerging-leader radar. season 3's only wins came from
+        # catching a leader while it was still cheap; rank alone can't show
+        # that, likes-velocity can.
+        shown = {c["did"] for c in leaders}
+        movers = sorted(
+            (c for c in contenders if c["did"] not in shown),
+            key=lambda c: (
+                ((c.get("deltas") or {}).get("1h") or {}).get("likes") or 0,
+                c.get("velocity") or 0,
+            ),
+            reverse=True,
+        )[:6]
+        movers = [
+            c
+            for c in movers
+            if (((c.get("deltas") or {}).get("1h") or {}).get("likes") or 0) > 0
+            or (c.get("velocity") or 0) > 0
+        ]
+        if movers:
+            lines.append("movers outside the leaders (by 1h like-gain):")
+            for c in movers:
+                lines.append("  " + _contender_line(c))
+
+        rest = [c for c in by_p[12:] if c["did"] not in {m["did"] for m in movers}]
+        with_likes = [c for c in rest if (c.get("likes") or 0) > 0]
+        if with_likes:
+            # the whole tail, compactly — this is where every big payout this
+            # season came from, so it is never summarized away
+            tail = ", ".join(
+                f"@{c['handle']} {c['likes']}L "
+                f"{(c.get('ask_subc') or 0) / 100:.1f}¢"
+                for c in with_likes
+            )
+            lines.append(f"tail ({len(with_likes)} with likes): {tail}")
+        zero = len(rest) - len(with_likes)
+        if zero:
+            lines.append(f"(+{zero} contenders at 0 likes)")
 
     # bisk's strategy advice is garnish on top of the live board — its tracker
     # can desync (empty board, "@undefined" leader), so only relay it when it
@@ -229,7 +286,11 @@ def register(agent):
         Posts on the board being a day old is normal, not staleness.
 
         Returns three sections in one report:
-        - the current ROUND: board with win-probabilities and asks, plus bisk advice
+        - the current ROUND: the FULL board — leaders with momentum
+          (likes-velocity, 1h/6h deltas), movers gaining likes outside the
+          leaders, and the entire tail with asks. every big payout in market
+          history came from the tail; do not evaluate a round on the leaders
+          alone. plus bisk advice
         - your WALLET: balance, open positions, recent trades (all play money)
         - the SEASON: week-long tournament standings, rivals' public books, and your
           own strategy doctrine (evolve it with update_chicken_strategy)
