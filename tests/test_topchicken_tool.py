@@ -105,7 +105,7 @@ async def test_board_comes_from_the_market_with_bisk_advice_as_garnish():
         out = await fn(SimpleNamespace(), handle="@zzstoatzz.io")
 
     assert "round 2026-07-02 · open · 1 contenders" in out
-    assert "@goose.art 246L (p=0.34, ask 34.7¢)" in out
+    assert "@goose.art 246L (v=0.0/hr, p=0.34, ask 34.7¢)" in out
     assert "Mind the 2% spread" in out
 
 
