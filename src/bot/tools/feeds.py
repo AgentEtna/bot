@@ -170,17 +170,31 @@ def register(agent, graze_client: GrazeClient):
             return f"failed to read feed: {e}"
 
     @agent.tool
-    async def follow_user(ctx: RunContext[PhiDeps], handle: str) -> str:
-        """Follow a user on bluesky. Only the bot's owner can use this tool."""
+    async def follow_user(
+        ctx: RunContext[PhiDeps], handle: str, subscribe_posts: bool = False
+    ) -> str:
+        """Follow a user on bluesky. Only the bot's owner can use this tool.
+
+        Pass subscribe_posts=True to ALSO subscribe to the account's posts —
+        their new top-level posts then arrive in your notifications instead of
+        waiting for a timeline read. Right for official sources you must not
+        miss (e.g. a market's exchange account); wrong for ordinary friends.
+        """
         if not _is_owner(ctx):
             return f"only @{settings.owner_handle} can ask me to follow people"
         try:
             # check if already following
+            already = False
             following = await bot_client.get_following()
             for f in following.follows:
                 if f.handle == handle:
-                    return f"already following @{handle}"
-            uri = await bot_client.follow_user(handle)
-            return f"now following @{handle} ({uri})"
+                    if not subscribe_posts:
+                        return f"already following @{handle}"
+                    already = True
+                    break
+            uri = await bot_client.follow_user(handle, subscribe_posts=subscribe_posts)
+            base = f"now following @{handle}" if not already else f"@{handle}"
+            sub = " + subscribed to their posts" if subscribe_posts else ""
+            return f"{base}{sub} ({uri})"
         except Exception as e:
             return f"failed to follow @{handle}: {e}"

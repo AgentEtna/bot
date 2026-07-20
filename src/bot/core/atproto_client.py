@@ -245,11 +245,36 @@ class BotClient:
             params={"feed": feed_uri, "limit": limit}
         )
 
-    async def follow_user(self, handle: str) -> str:
-        """Resolve handle to DID and create a follow record. Returns the record URI."""
+    async def follow_user(self, handle: str, subscribe_posts: bool = False) -> str:
+        """Resolve handle to DID and create a follow record. Returns the record URI.
+
+        With subscribe_posts, also sets a bsky activity subscription so the
+        account's new posts arrive as notifications (requires the follow to
+        exist first — bsky only allows subscribing to accounts you follow).
+        """
         await self.authenticate()
         resolved = self.client.resolve_handle(handle)
         response = self.client.follow(resolved.did)
+        if subscribe_posts:
+            # not in this atproto SDK version yet — raw XRPC procedure with
+            # the session JWT, sent to our PDS (it proxies to the AppView)
+            import httpx
+
+            session = getattr(self.client, "_session", None)
+            jwt = getattr(session, "access_jwt", None)
+            pds = getattr(session, "pds_endpoint", None) or "https://bsky.social"
+            if not jwt:
+                raise RuntimeError("no session JWT for activity subscription")
+            async with httpx.AsyncClient(timeout=15) as http:
+                r = await http.post(
+                    f"{pds}/xrpc/app.bsky.notification.putActivitySubscription",
+                    headers={"Authorization": f"Bearer {jwt}"},
+                    json={
+                        "subject": resolved.did,
+                        "activitySubscription": {"post": True, "reply": False},
+                    },
+                )
+                r.raise_for_status()
         return response.uri
 
     async def get_following(self, limit: int = 100):
