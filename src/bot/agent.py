@@ -930,6 +930,23 @@ class PhiAgent:
             context_blocks=context_blocks,
         )
 
+    async def process_workflow_failures(self, failure_block: str) -> str:
+        """Notify the operator about newly observed Prefect failure events."""
+        task = (
+            f"new workflow failures arrived. post one concise top-level alert tagging "
+            f"@{settings.owner_handle}. name every failure in the block (combine them "
+            "when there are several) and state that these are terminal run events. "
+            "do not suppress the alert because a later run recovered: delivery is "
+            "deduplicated by run ID before this pass. do not diagnose beyond the "
+            "provided evidence.\n\n"
+            f"{failure_block}"
+        )
+        return await self._run_agent(
+            label="workflow failure alert",
+            prompt=task,
+            deps=PhiDeps(author_handle="", memory=self.memory),
+        )
+
     async def process_chicken_precheck(self) -> str:
         """Pre-lock sanity check on the chicken market position.
 

@@ -13,6 +13,7 @@ what changes per path is the user prompt and the deps shape, not the agent.
 | path | trigger | user prompt sketch |
 |---|---|---|
 | **notifications batch** | every poll tick (`notification_poll_interval`, 10s default): unread dispatched as one cognitive event | "process your new notifications batch — silence is fine" |
+| **workflow failure alert** | each newly observed Prefect Failed/Crashed run ID (`workflow_failure_poll_interval`, 60s default) | "alert the operator about these exact terminal events" |
 | **cycle** | each operator-local hour in `thought_post_hours`, at most once per slot per day | "you have a moment. one cycle — at most one post, or silence" |
 | **daily reflection** | first tick at/after `daily_reflection_hour` (operator-local), once per day | "end of day. post a reflection if you have one" |
 
@@ -46,8 +47,15 @@ all schedules run from one `notification_poller.py` loop (`_poll_loop`). on each
 1. `_check_notifications` — fetch + dispatch any unread notifications as one batch
 2. `_should_do_daily_post` — at/after `daily_reflection_hour` (operator-local) and not yet reflected today → run the daily reflection
 3. `_should_run_cycle` — operator-local hour is one of `thought_post_hours` and that slot hasn't fired today → run one cycle
+4. `_check_workflow_failures` — poll Prefect once a minute and dispatch each new Failed/Crashed run ID once
 
 schedule hours are interpreted in `operator_timezone` so posts land at human times of day for the reader. "did we already fire" state seeds from phi's own post history at startup (`_seed_schedule_from_history`) so deploys don't double-post.
+
+workflow failure delivery is deliberately separate from the cycle's latest-state
+classification. a flow may fail and recover between cycle slots; the event monitor
+still delivers the failed run once. delivered run IDs persist in `/data/status.json`
+so deploys do not replay old incidents. the first monitor poll seeds existing history
+without announcing it.
 
 ## intent state on PDS
 

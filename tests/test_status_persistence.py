@@ -79,3 +79,25 @@ def test_persisted_format_includes_paused_key(monkeypatch, tmp_path):
     data = json.loads(f.read_text())
     assert data.get("paused") is True
     assert data.get("paused_at") is not None
+
+
+def test_workflow_failure_ids_persist_and_deduplicate(monkeypatch, tmp_path):
+    _patch_status_file(monkeypatch, tmp_path)
+    status = BotStatus()
+    status.record_workflow_failures(["run-a", "run-b", "run-a"])
+
+    restored = BotStatus()
+    restored._load()
+    assert restored.workflow_failure_monitor_seeded is True
+    assert restored.workflow_failure_run_ids == ["run-a", "run-b"]
+
+
+def test_empty_workflow_failure_seed_persists(monkeypatch, tmp_path):
+    _patch_status_file(monkeypatch, tmp_path)
+    status = BotStatus()
+    status.record_workflow_failures([])
+
+    restored = BotStatus()
+    restored._load()
+    assert restored.workflow_failure_monitor_seeded is True
+    assert restored.workflow_failure_run_ids == []

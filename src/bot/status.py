@@ -28,6 +28,8 @@ class BotStatus:
     # knows when she was offline — informs how to handle a catchup batch.
     paused_at: datetime | None = None
     resumed_at: datetime | None = None
+    workflow_failure_monitor_seeded: bool = False
+    workflow_failure_run_ids: list[str] = field(default_factory=list)
 
     @property
     def uptime_seconds(self) -> float:
@@ -76,6 +78,17 @@ class BotStatus:
         self.resumed_at = datetime.now(UTC)
         self._save()
 
+    def record_workflow_failures(self, run_ids: list[str]):
+        """Persist delivered Prefect failure IDs so alerts survive restarts."""
+        self.workflow_failure_monitor_seeded = True
+        known = set(self.workflow_failure_run_ids)
+        for run_id in run_ids:
+            if run_id not in known:
+                self.workflow_failure_run_ids.append(run_id)
+                known.add(run_id)
+        self.workflow_failure_run_ids = self.workflow_failure_run_ids[-200:]
+        self._save()
+
     def _save(self):
         """Persist counters to disk."""
         if not STATUS_FILE.parent.exists():
@@ -98,6 +111,8 @@ class BotStatus:
                 "paused": self.paused,
                 "paused_at": self.paused_at.isoformat() if self.paused_at else None,
                 "resumed_at": self.resumed_at.isoformat() if self.resumed_at else None,
+                "workflow_failure_run_ids": self.workflow_failure_run_ids,
+                "workflow_failure_monitor_seeded": self.workflow_failure_monitor_seeded,
             }
             STATUS_FILE.write_text(json.dumps(data))
         except Exception as e:
@@ -125,6 +140,12 @@ class BotStatus:
                 self.paused_at = datetime.fromisoformat(data["paused_at"])
             if data.get("resumed_at"):
                 self.resumed_at = datetime.fromisoformat(data["resumed_at"])
+            self.workflow_failure_run_ids = list(
+                data.get("workflow_failure_run_ids") or []
+            )[-200:]
+            self.workflow_failure_monitor_seeded = bool(
+                data.get("workflow_failure_monitor_seeded", False)
+            )
             logger.info(
                 f"restored status: {self.mentions_received} mentions, {self.responses_sent} responses"
             )

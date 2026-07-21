@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import time
 from datetime import UTC, date, datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -9,6 +10,11 @@ import logfire
 
 from bot.config import settings
 from bot.core.atproto_client import BotClient
+from bot.core.workflow_failures import (
+    fetch_recent_failures,
+    render_failure_block,
+    unseen_failures,
+)
 from bot.services.message_handler import MessageHandler
 from bot.status import bot_status
 
@@ -50,6 +56,7 @@ class NotificationPoller:
         self._last_thought_date: date | None = None
         self._semaphore = asyncio.Semaphore(MAX_CONCURRENT)
         self._background_tasks: set[asyncio.Task] = set()
+        self._next_workflow_failure_poll = 0.0
 
     async def start(self) -> asyncio.Task:
         """Start polling for notifications."""
@@ -165,6 +172,15 @@ class NotificationPoller:
                 logger.error(f"cycle error: {e}", exc_info=settings.debug)
 
             try:
+                if time.monotonic() >= self._next_workflow_failure_poll:
+                    self._next_workflow_failure_poll = (
+                        time.monotonic() + settings.workflow_failure_poll_interval
+                    )
+                    await self._check_workflow_failures()
+            except Exception as e:
+                logger.error(f"workflow failure poll error: {e}", exc_info=True)
+
+            try:
                 await asyncio.sleep(settings.notification_poll_interval)
             except asyncio.CancelledError:
                 logger.info("notification poller shutting down")
@@ -241,6 +257,39 @@ class NotificationPoller:
 
         if len(self._processed_uris) > 1000:
             self._processed_uris = set(list(self._processed_uris)[-500:])
+
+    async def _check_workflow_failures(self):
+        """Wake Phi promptly for each new Failed/Crashed run ID."""
+        failures = await fetch_recent_failures()
+        if failures is None:
+            return
+
+        # The field did not exist before this monitor. Seed current history on
+        # first deployment instead of announcing up to 50 stale incidents.
+        if not bot_status.workflow_failure_monitor_seeded:
+            bot_status.record_workflow_failures(
+                [run["id"] for run in failures if run.get("id")]
+            )
+            logger.info(f"seeded workflow failure monitor with {len(failures)} runs")
+            return
+
+        if bot_status.paused:
+            return
+        new = unseen_failures(failures, bot_status.workflow_failure_run_ids)
+        if not new:
+            return
+
+        bot_status.record_workflow_failures([run["id"] for run in new])
+        task = asyncio.create_task(
+            self._handle_workflow_failures_with_semaphore(render_failure_block(new))
+        )
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+        logger.info(f"dispatched {len(new)} new workflow failure(s) to phi")
+
+    async def _handle_workflow_failures_with_semaphore(self, failure_block: str):
+        async with self._semaphore:
+            await self.handler.workflow_failures(failure_block)
 
     async def _handle_batch_with_semaphore(self, batch: list):
         """Handle a notification batch with concurrency limiting."""
