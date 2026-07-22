@@ -103,3 +103,46 @@ def test_reply_provenance_out_of_batch_is_unprompted():
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestOperatorAuthorizationNote:
+    """regression (2026-07-21): the judge blocked the botnana introduction
+    minutes after the operator's like authorized it — the like lived only in
+    phi's reasoning and never reached the judge's provenance."""
+
+    def test_owner_like_in_batch_surfaces_authorization(self):
+        from bot.config import settings
+        from bot.tools.posting import _operator_authorization_note
+
+        note = _operator_authorization_note(
+            {
+                "at://x/app.bsky.feed.post/1": {
+                    "reason": "like",
+                    "author_handle": settings.owner_handle,
+                    "post_text": "like this to authorize tagging @someone",
+                }
+            }
+        )
+        assert "operator" in note
+        assert "authorize tagging @someone" in note
+
+    def test_stranger_like_is_not_authorization(self):
+        from bot.tools.posting import _operator_authorization_note
+
+        assert (
+            _operator_authorization_note(
+                {
+                    "at://x/1": {
+                        "reason": "like",
+                        "author_handle": "stranger.bsky.social",
+                        "post_text": "like this to authorize",
+                    },
+                    "at://x/2": {
+                        "reason": "reply",
+                        "author_handle": "zzstoatzz.io",
+                        "post_text": "not a like",
+                    },
+                }
+            )
+            == ""
+        )

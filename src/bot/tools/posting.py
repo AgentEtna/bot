@@ -77,6 +77,28 @@ def _recent_own_posts(limit: int = 6) -> str:
         return ""
 
 
+def _operator_authorization_note(ctx_notifs: dict) -> str:
+    """Evidence of an owner like on phi's own post in the current batch.
+
+    The owner-like-as-approval flow lives in phi's reasoning; the policy
+    judge runs as a separate model call and can't see it unless provenance
+    carries it. Without this, the judge blocks actions the operator just
+    authorized (the botnana introduction, 2026-07-21).
+    """
+    for entry in ctx_notifs.values():
+        if (
+            entry.get("reason") == "like"
+            and entry.get("author_handle") == settings.owner_handle
+        ):
+            liked = (entry.get("post_text") or "")[:200]
+            return (
+                " NOTE: this batch contains the operator's like on phi's own "
+                f"post ({liked!r}) — if that post proposed this action, the "
+                "operator has explicitly authorized it."
+            )
+    return ""
+
+
 def _reply_provenance(uri: str, ctx_notifs: dict) -> str:
     """Describe how phi came to hold this reply target — the judge's
     load-bearing input. Invited (in the notification batch), self
@@ -279,7 +301,8 @@ def register(agent):
                     "notification handling."
                     if not unprompted
                     else "a scheduled cycle (nobody prompted this)."
-                ),
+                )
+                + _operator_authorization_note(notifs),
                 unprompted=unprompted,
             )
             if refusal:
@@ -308,7 +331,8 @@ def register(agent):
             f"reply to {in_reply_to}"
             + (f" (by @{author_handle})" if author_handle else "")
             + f": {text}",
-            _reply_provenance(in_reply_to, ctx.deps.notifications_context or {}),
+            _reply_provenance(in_reply_to, ctx.deps.notifications_context or {})
+            + _operator_authorization_note(ctx.deps.notifications_context or {}),
             unprompted=unprompted,
         )
         if refusal:
