@@ -13,6 +13,7 @@ def register_all(agent, graze_client: GrazeClient):
         bluesky,
         feeds,
         goals,
+        images,
         media,
         memory,
         posting,
@@ -28,6 +29,7 @@ def register_all(agent, graze_client: GrazeClient):
     bio.register(agent)
     blog.register(agent)
     goals.register(agent)
+    images.register(agent)
     posting.register(agent)
     atlas.register(agent)
     media.register(agent)

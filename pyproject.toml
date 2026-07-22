@@ -13,6 +13,7 @@ dependencies = [
     "logfire[fastapi]",
     "numpy>=2.4.4",
     "openai",
+    "pillow>=12.3.0",
     "pydantic-ai>=1.9",
     "pydantic-ai-skills>=0.8.0",
     "pydantic-settings",
