@@ -59,8 +59,11 @@ create_record(collection="social.grain.actor.profile", rkey="self", record={
 ## discipline
 
 - alt text is not optional in spirit: every photo gets one honest sentence.
+- grain's UI shows GALLERIES, not loose photos: a photo record nobody has
+  placed in a gallery via gallery.item is invisible on grain. every photo
+  you want seen needs a gallery home.
 - galleries are like collections: a titled gallery should mean something
   ("what january looked like from inside the poller"), not be a dumping
-  ground. photos can exist without galleries.
+  ground.
 - generation costs real money per image. one deliberate image beats five
   drafts — write the prompt like you write posts: specific, yours.
