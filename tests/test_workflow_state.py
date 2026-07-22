@@ -78,6 +78,24 @@ def test_stuck_outranks_terminal_state():
     assert "not picked up" in qualifier
 
 
+def test_stale_running_is_not_misdiagnosed_as_never_picked_up():
+    runs = [
+        {
+            "id": "orphaned-run",
+            "state_type": "RUNNING",
+            "start_time": _iso(timedelta(hours=-2)),
+            "expected_start_time": _iso(timedelta(hours=-2)),
+            "deployment_id": "d1",
+        },
+        _run(state="COMPLETED", end_offset_h=10),
+    ]
+    status, latest, qualifier = _classify(runs, stuck_ids={"orphaned-run"})
+    assert status == "stuck"
+    assert latest.startswith("RUNNING")
+    assert "orphaned run" in qualifier
+    assert "not picked up" not in qualifier
+
+
 def test_flapping_is_degraded_not_healthy():
     """Most-recent succeeded, but enough recent failures = degraded, not healthy."""
     runs = [

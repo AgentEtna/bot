@@ -155,16 +155,23 @@ def _classify(runs: list[dict], stuck_ids: set[str]) -> tuple[str, str, str]:
     if not runs:
         return "", "", ""
 
-    # If a stuck PENDING/RUNNING row exists for this deployment, that
-    # outranks the terminal-state classification — the work isn't getting
-    # picked up, regardless of past completions.
+    # If a stale PENDING/RUNNING row exists for this deployment, it outranks
+    # the terminal-state classification. These states mean different things:
+    # PENDING was never picked up; RUNNING was picked up but may have lost its
+    # execution process or terminal-state write. Do not collapse both into a
+    # false "not picked up" diagnosis.
     for r in runs:
         if r["id"] in stuck_ids:
             start = r.get("start_time") or r.get("expected_start_time", "")
             when = relative_when(start) if start else ""
             state = _state_type(r).upper() or "PENDING"
             latest = f"{state} since {when}" if when else state
-            return "stuck", latest, "work not picked up"
+            qualifier = (
+                "work not picked up"
+                if state == "PENDING"
+                else "execution still marked active; inspect for an orphaned run"
+            )
+            return "stuck", latest, qualifier
 
     # Most recent terminal-state run = ground truth for healthy vs broken.
     terminal = [r for r in runs if _state_type(r) in _TERMINAL_STATES]
