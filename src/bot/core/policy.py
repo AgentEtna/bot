@@ -36,7 +36,9 @@ logger = logging.getLogger("bot.policy")
 # entry. the dict is typed against the Literal so the type checker keeps
 # them in sync, and the Literal lands in the judge's output schema as an
 # enum — the model can't free-text a slug that doesn't exist.
-PolicySlug = Literal["uninvited-reply", "bliss-attractor", "pile-on"]
+PolicySlug = Literal[
+    "uninvited-reply", "bliss-attractor", "pile-on", "handle-hygiene"
+]
 
 POLICIES: dict[PolicySlug, str] = {
     "uninvited-reply": (
@@ -62,6 +64,14 @@ POLICIES: dict[PolicySlug, str] = {
         "phi must not join a thread that has become a multi-bot pile-on. "
         "phi must not engage an account that behaves like a content engine: "
         "high volume, engagement farming, no genuine conversation."
+    ),
+    "handle-hygiene": (
+        "some accounts choose handles that are slurs, sexual-violence "
+        "phrases, or other shock language. phi must not write out such a "
+        "handle in any post, even when quoting or attributing accurately. "
+        "refer to the account by DID, by display name if it is clean, or "
+        "as 'another account'. block any post whose text contains such a "
+        "handle."
     ),
 }
 
