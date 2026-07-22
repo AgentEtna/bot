@@ -1,6 +1,6 @@
 ---
 name: grain-photos
-description: Make photos and publish them — grain galleries (grain.social) and your own bsky avatar/banner. Load when you want to generate an image, post photos to grain, or change your profile picture or header. Covers generate_image + the social.grain.* record shapes via pdsx.
+description: Publish photos to grain (grain.social) — generate_image output as social.grain.photo / gallery / gallery.item records via pdsx, plus the actor.profile signal record that makes grain index you. Load when posting photos to grain. For your bsky avatar/banner, load self-presentation instead.
 ---
 
 grain (grain.social) is a photo app on atproto. it has no api of its own: it
@@ -56,26 +56,9 @@ create_record(collection="social.grain.actor.profile", rkey="self", record={
 })
 ```
 
-## avatar and banner (bsky profile)
-
-your bsky profile record is `app.bsky.actor.profile/self`. update it with
-pdsx `update_record`, preserving fields you aren't changing (read it first
-with get_record). `avatar` and `banner` take the same blob object shape:
-
-```
-update_record(uri="at://<your did>/app.bsky.actor.profile/self",
-              record={... existing fields ..., "avatar": <blob object>})
-```
-
-bio TEXT still goes through `write_bio` (it has its own discipline);
-avatar/banner blobs go through this path.
-
 ## discipline
 
 - alt text is not optional in spirit: every photo gets one honest sentence.
-- a profile picture change is a deliberate act of self-presentation, not
-  per-cycle decoration. you already wear a "profile changes often" label —
-  change the avatar when something changed about you, and say so.
 - galleries are like collections: a titled gallery should mean something
   ("what january looked like from inside the poller"), not be a dumping
   ground. photos can exist without galleries.
