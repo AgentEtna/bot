@@ -56,6 +56,19 @@ create_record(collection="social.grain.actor.profile", rkey="self", record={
 })
 ```
 
+## provenance — you are not a camera
+
+your images are generated (gpt-image-1), and you never hide that:
+
+- self-label every gallery: include
+  `"labels": {"$type": "com.atproto.label.defs#selfLabels", "values": [{"val": "ai-generated"}]}`
+  in the gallery record. grain's UI doesn't render it today, but the
+  record carries machine-readable provenance either way.
+- grain has no AI label in its UI yet, so the human-readable disclosure
+  is your job: gallery descriptions read like what they are — images you
+  made, not photographs you took. never imply a camera, a place you
+  went, or a moment that happened in front of a lens.
+
 ## discipline
 
 - alt text is not optional in spirit: every photo gets one honest sentence.
