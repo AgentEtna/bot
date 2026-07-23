@@ -54,8 +54,9 @@ def unseen_failures(
 def render_failure_block(failures: list[dict[str, Any]]) -> str:
     """Render exact incident facts for Phi's alert pass."""
     lines = [
-        "[NEW WORKFLOW FAILURES — newly observed terminal events; each run ID "
-        "is delivered once even if a later run recovered.]"
+        "[WORKFLOW INCIDENTS — 'new' = a flow just entered a failing state; "
+        "'ongoing' = it has kept failing since the first alert (repeats in "
+        "between were counted, not delivered).]"
     ]
     for run in failures[:10]:
         state = run.get("state_type") or (run.get("state") or {}).get("type", "")
@@ -66,7 +67,78 @@ def render_failure_block(failures: list[dict[str, Any]]) -> str:
         name = run.get("name") or run_id[:8]
         ended = run.get("end_time") or "unknown time"
         detail = f" — {message}" if message else ""
+        kind = run.get("_incident", "new")
+        count = run.get("_count", 1)
+        tally = f" ({count} failures this incident)" if count > 1 else ""
         lines.append(
-            f"- {name}: {str(state).upper()} at {ended}; run_id={run_id}{detail}"
+            f"- [{kind}]{tally} {name}: {str(state).upper()} at {ended}; "
+            f"run_id={run_id}{detail}"
         )
     return "\n".join(lines)
+
+
+# --- incident gating -------------------------------------------------------
+#
+# run-ID dedup alone made phi a pager: a deployment failing hourly produced
+# one public alert per run (2026-07-23, ingest). the unit of news is the
+# INCIDENT — a flow entering a failing state — not each recurrence inside
+# one. while an incident is open, new failures are counted silently; at
+# most one "still failing" escalation goes out per window. an incident
+# closes after a quiet window so the next failure is news again.
+
+ESCALATION_SECONDS = 6 * 3600
+QUIET_CLOSE_SECONDS = 6 * 3600
+
+
+def incident_key(run: dict[str, Any]) -> str:
+    """Stable identity of the failing flow: deployment, else name prefix.
+
+    Prefect run names look like '<flow>-<8 hex>'; stripping the trailing
+    hex suffix groups runs of the same flow when deployment_id is absent.
+    """
+    dep = run.get("deployment_id")
+    if dep:
+        return f"dep:{dep}"
+    name = run.get("name") or ""
+    stem, _, tail = name.rpartition("-")
+    if stem and len(tail) == 8 and all(c in "0123456789abcdef" for c in tail):
+        return f"flow:{stem}"
+    return f"run:{name or run.get('id', '')}"
+
+
+def gate_alerts(
+    new_failures: list[dict[str, Any]],
+    incidents: dict[str, dict[str, Any]],
+    now_ts: float,
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Decide which failures are alert-worthy; return (to_alert, incidents).
+
+    Pure: mutates nothing. `incidents` maps incident_key -> {opened_ts,
+    alerted_ts, count}. Every new failure updates its incident; a failure
+    is alert-worthy when it opens an incident or when the escalation
+    window has passed since the last alert for that incident.
+    """
+    out: dict[str, dict[str, Any]] = {
+        k: dict(v)
+        for k, v in incidents.items()
+        if now_ts - v.get("last_seen_ts", v.get("opened_ts", 0)) < QUIET_CLOSE_SECONDS
+    }
+    to_alert: list[dict[str, Any]] = []
+    for run in new_failures:
+        key = incident_key(run)
+        inc = out.get(key)
+        if inc is None:
+            out[key] = {
+                "opened_ts": now_ts,
+                "alerted_ts": now_ts,
+                "last_seen_ts": now_ts,
+                "count": 1,
+            }
+            to_alert.append({**run, "_incident": "new", "_count": 1})
+            continue
+        inc["count"] = inc.get("count", 0) + 1
+        inc["last_seen_ts"] = now_ts
+        if now_ts - inc.get("alerted_ts", 0) >= ESCALATION_SECONDS:
+            inc["alerted_ts"] = now_ts
+            to_alert.append({**run, "_incident": "ongoing", "_count": inc["count"]})
+    return to_alert, out

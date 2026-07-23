@@ -30,6 +30,7 @@ class BotStatus:
     resumed_at: datetime | None = None
     workflow_failure_monitor_seeded: bool = False
     workflow_failure_run_ids: list[str] = field(default_factory=list)
+    workflow_incidents: dict = field(default_factory=dict)
 
     @property
     def uptime_seconds(self) -> float:
@@ -112,6 +113,7 @@ class BotStatus:
                 "paused_at": self.paused_at.isoformat() if self.paused_at else None,
                 "resumed_at": self.resumed_at.isoformat() if self.resumed_at else None,
                 "workflow_failure_run_ids": self.workflow_failure_run_ids,
+                "workflow_incidents": self.workflow_incidents,
                 "workflow_failure_monitor_seeded": self.workflow_failure_monitor_seeded,
             }
             STATUS_FILE.write_text(json.dumps(data))
@@ -143,6 +145,7 @@ class BotStatus:
             self.workflow_failure_run_ids = list(
                 data.get("workflow_failure_run_ids") or []
             )[-200:]
+            self.workflow_incidents = dict(data.get("workflow_incidents") or {})
             self.workflow_failure_monitor_seeded = bool(
                 data.get("workflow_failure_monitor_seeded", False)
             )

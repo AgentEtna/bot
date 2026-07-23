@@ -12,6 +12,7 @@ from bot.config import settings
 from bot.core.atproto_client import BotClient
 from bot.core.workflow_failures import (
     fetch_recent_failures,
+    gate_alerts,
     render_failure_block,
     unseen_failures,
 )
@@ -280,8 +281,22 @@ class NotificationPoller:
             return
 
         bot_status.record_workflow_failures([run["id"] for run in new])
+        # incident gating: a flow failing repeatedly is one incident, not a
+        # post per run. only opens and windowed escalations reach phi.
+        to_alert, incidents = gate_alerts(
+            new, bot_status.workflow_incidents, time.time()
+        )
+        bot_status.workflow_incidents = incidents
+        bot_status._save()
+        if not to_alert:
+            logger.info(
+                f"{len(new)} repeat failure(s) folded into open incidents, no alert"
+            )
+            return
         task = asyncio.create_task(
-            self._handle_workflow_failures_with_semaphore(render_failure_block(new))
+            self._handle_workflow_failures_with_semaphore(
+                render_failure_block(to_alert)
+            )
         )
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
