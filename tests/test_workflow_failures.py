@@ -21,4 +21,4 @@ def test_failure_block_preserves_exact_terminal_event():
     assert "bisk-snapshot-abc: FAILED" in block
     assert "run_id=abc-123" in block
     assert "invalid logs payload" in block
-    assert "even if a later run recovered" in block
+    assert "counted, not delivered" in block
