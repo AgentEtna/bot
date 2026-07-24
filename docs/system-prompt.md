@@ -20,6 +20,8 @@ set in `PhiAgent.__init__`, refreshes on process restart only:
 
 tool definitions are cached at the Anthropic layer (`anthropic_cache_tool_definitions="1h"`).
 
+**verifying the cache holds.** the whole point of `memoize_per_run` is that a dynamic block rendering twice in one run would shift the cacheable prefix and re-bill the context. `core/cache_stability.py` wraps the model and reads the provider's own `cache_read_tokens` / `cache_write_tokens` off every response, so a moved prefix logs a warning instead of quietly costing money. per-run accounting is at `/api/cache` and rendered on the cockpit's `/operator` page: read / written / uncached per run, plus whether each run's first request carried a prefix in from the previous one (the 1h TTL doing its job).
+
 ## 2. dynamic system-prompt blocks (every run)
 
 contributed by the `inject_*` callbacks in `agent.py`, in registration order. each returns `""` when its inputs are absent (pydantic-ai includes empty parts as zero-token slots — minor cost, zero signal).

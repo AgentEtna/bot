@@ -19,6 +19,7 @@ from pydantic_ai_skills import SkillsToolset
 from bot.config import settings
 from bot.core.atlas import get_atlas_digest
 from bot.core.atproto_client import bot_client, get_identity_block
+from bot.core.cache_stability import CacheObservingModel, cache_monitor
 from bot.core.discovery_pool import get_discovery_pool_block
 from bot.core.docket import get_docket_digest
 from bot.core.goals import list_goals as list_goal_records
@@ -266,9 +267,14 @@ class PhiAgent:
         # each step reads the previous step's cache instead of re-sending
         # the whole conversation uncached. runs are fresh conversations, so
         # 5m TTL covers the loop (steps are seconds apart).
+        #
+        # none of the above was measured until CacheObservingModel — it reads
+        # the provider's own cache verdict off each response so a regression
+        # (a block that stops memoizing, a reordered prefix) surfaces as a
+        # warning instead of a silently larger bill (core/cache_stability.py).
         self.agent = Agent[PhiDeps, str](
             name="phi",
-            model=settings.agent_model,
+            model=CacheObservingModel(settings.agent_model),
             instructions=(
                 "the following is your personality: "
                 f"{self.base_personality}\n\n"
@@ -680,6 +686,7 @@ class PhiAgent:
     ) -> str:
         """Run phi with fresh MCP toolsets and consistent error logging."""
         toolsets = self._mcp_toolsets(run_label=label)
+        cache_monitor.begin_run(label)
         try:
             async with contextlib.AsyncExitStack() as stack:
                 # a single unreachable MCP server (bad token, outage) must
@@ -700,6 +707,9 @@ class PhiAgent:
             err_type = type(e).__name__
             logger.exception(f"agent.run failed during {label}: {err_type}: {e}")
             return f"{label} failed: {err_type}: {str(e)[:200]}"
+        finally:
+            # a failed run still spent (and may have cached) input tokens
+            cache_monitor.end_run()
 
         summary = result.output or ""
         logger.info(f"{label} finished: {summary[:200]}")

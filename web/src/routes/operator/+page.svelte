@@ -4,6 +4,7 @@
 	import type { OAuthSession } from '@atproto/oauth-client-browser';
 	import { initOAuth, OVERRIDE_COLLECTION } from '$lib/operator/oauth';
 	import { fetchOverride, OPERATOR_DID, type Override } from '$lib/operator/override';
+	import CachePanel from '$lib/components/CachePanel.svelte';
 
 	let oauth = $state<Awaited<ReturnType<typeof initOAuth>> | null>(null);
 	let session = $state<OAuthSession | null>(null);
@@ -151,6 +152,8 @@
 		{#if status}
 			<div class="status">{status}</div>
 		{/if}
+
+		<CachePanel />
 	</div>
 </main>
 

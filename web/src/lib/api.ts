@@ -8,6 +8,7 @@ import type {
 	Atlas,
 	BlogDoc,
 	BskyFeedItem,
+	CacheStability,
 	Capability,
 	ChickenResultRound,
 	ChickenRound,
@@ -225,4 +226,20 @@ export async function getChickenResults(): Promise<ChickenResultRound[]> {
 	if (!res.ok) return [];
 	const data: { rounds?: ChickenResultRound[] } = await res.json();
 	return data.rounds ?? [];
+}
+
+// --- prompt cache stability ---
+//
+// per-run cache read/write/uncached token accounting, straight from the
+// provider's usage numbers. this is the only check that phi's 1h tool +
+// instruction cache and 5m message cache are doing what agent.py claims.
+
+export async function getCacheStability(): Promise<CacheStability | null> {
+	try {
+		const res = await fetch('/api/cache');
+		if (!res.ok) return null;
+		return await res.json();
+	} catch {
+		return null;
+	}
 }

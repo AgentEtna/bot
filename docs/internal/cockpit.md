@@ -17,7 +17,7 @@ SPA: `ssr`/`prerender` disabled globally, unknown routes fall back to
 | `/docket` | daily promotion candidates from the docket flow |
 | `/capabilities` | phi's registered tools, from `/api/abilities` (ground truth, not hand-curated) |
 | `/market` | phi's top chicken market book: current position (with round context), all-time p&l + net-worth sparkline banded by market round, trade ledger with settlement outcomes and profile links. reads topchicken.cee.wtf via the bot's `/api/chicken/*` proxy (upstream has no CORS headers) |
-| `/operator` | **operator override editor** — atproto OAuth login, write your `io.zzstoatzz.phi.override` record, see the live state phi obeys. see [../safety.md](../safety.md) |
+| `/operator` | **operator override editor** — atproto OAuth login, write your `io.zzstoatzz.phi.override` record, see the live state phi obeys. see [../safety.md](../safety.md). below it, the **prompt cache** readout (`/api/cache`): one stacked bar per recent run — tokens read from cache / written at a premium / paid in full — plus collapse flags. public read, no auth |
 
 `OverrideBanner` renders cockpit-wide when the operator's override is
 active (public read of the record, ~60s cadence), linking to `/operator`.

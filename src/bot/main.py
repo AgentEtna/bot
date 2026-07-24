@@ -27,6 +27,7 @@ from slowapi.util import get_remote_address
 from bot.config import settings
 from bot.core.atlas import get_atlas
 from bot.core.atproto_client import bot_client
+from bot.core.cache_stability import cache_monitor
 from bot.core.discovery_pool import get_filtered_pool
 from bot.core.docket import get_docket
 from bot.core.profile_manager import ProfileManager
@@ -546,6 +547,18 @@ async def docket():
     if data is None:
         return JSONResponse({"error": "no docket record on PDS yet"}, status_code=404)
     return JSONResponse(data)
+
+
+@app.get("/api/cache")
+async def cache_stability():
+    """Prompt-cache behavior over the last N agent runs.
+
+    Reads the provider's own `cache_read_tokens` / `cache_write_tokens`
+    verdict per model request (bot/core/cache_stability.py) — the only way to
+    tell whether the 1h tool/instruction cache and the 5m message cache are
+    actually paying off, or whether something moved the cacheable prefix.
+    """
+    return JSONResponse(cache_monitor.summary())
 
 
 _graph_cache_data: dict | None = None

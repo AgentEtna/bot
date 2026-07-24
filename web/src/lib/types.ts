@@ -330,3 +330,43 @@ export interface ChickenResultRound {
 	winner_handle: string;
 	winner_likes: number;
 }
+
+// --- prompt cache stability (/api/cache) ---
+//
+// the provider's own verdict on whether phi's cacheable prefix held. see
+// bot/core/cache_stability.py for what each field means.
+
+export interface CacheSample {
+	at: string;
+	model: string;
+	input_tokens: number;
+	cache_read: number;
+	cache_write: number;
+	gap_seconds: number | null;
+	collapsed: boolean;
+	maybe_expiry: boolean;
+}
+
+export interface CacheRun {
+	label: string;
+	started_at: string;
+	requests: number;
+	cache_read: number;
+	cache_write: number;
+	uncached: number;
+	hit_rate: number;
+	collapses: number;
+	carried_in: boolean;
+	samples: CacheSample[];
+}
+
+export interface CacheStability {
+	window_runs: number;
+	cache_read: number;
+	cache_write: number;
+	uncached: number;
+	hit_rate: number;
+	collapses: number;
+	carried_in: number;
+	runs: CacheRun[];
+}
