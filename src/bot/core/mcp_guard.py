@@ -226,12 +226,3 @@ async def _invoke(
             "rest of the task — mention the outage in your summary so the "
             "operator sees it."
         )
-
-
-# Back-compat aliases: agent.py and tests reference these names.
-guard_pdsx_tool_call = make_mcp_guard("pdsx")
-
-
-def make_semble_write_logger(run_label: str):
-    """Deprecated alias — the semble hook is now `make_mcp_guard`."""
-    return make_mcp_guard("semble", run_label)

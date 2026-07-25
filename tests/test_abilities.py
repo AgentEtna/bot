@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from bot.core.abilities import ORDER, RISK, at_least, describe, risk_of
+from bot.core.abilities import ORDER, RISK, describe, risk_of
 
 LEXICON = json.loads(Path("lexicons/io/zzstoatzz/phi/getAbilities.json").read_text())
 
@@ -102,13 +102,6 @@ def test_the_lexicon_requires_risk_on_every_ability():
 def test_representative_magnitudes(tool: str, expected: str):
     declared = risk_of(tool)
     assert declared is not None and declared["magnitude"] == expected
-
-
-def test_at_least_orders_by_reach_not_frequency():
-    assert at_least("post", "high")
-    assert at_least("post", "none")
-    assert not at_least("search_posts", "low")
-    assert not at_least("nonexistent_tool", "none")
 
 
 def test_spending_real_money_is_always_high():

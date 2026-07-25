@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from bot.core import override as override_mod
-from bot.core.mcp_guard import guard_pdsx_tool_call
+from bot.core.mcp_guard import make_mcp_guard
 from bot.core.override import (
     Override,
     get_override_block,
@@ -114,7 +114,7 @@ async def test_post_refuses_under_override():
 
 async def test_guard_blocks_feed_post_create():
     call_tool = AsyncMock()
-    result = await guard_pdsx_tool_call(
+    result = await make_mcp_guard("pdsx")(
         None,
         call_tool,
         "create_record",
@@ -127,7 +127,7 @@ async def test_guard_blocks_feed_post_create():
 
 async def test_guard_passes_non_feed_collections():
     call_tool = AsyncMock(return_value={"uri": "at://..."})
-    result = await guard_pdsx_tool_call(
+    result = await make_mcp_guard("pdsx")(
         None,
         call_tool,
         "create_record",
@@ -139,7 +139,7 @@ async def test_guard_passes_non_feed_collections():
 
 async def test_guard_passes_reads():
     call_tool = AsyncMock(return_value={"records": []})
-    await guard_pdsx_tool_call(
+    await make_mcp_guard("pdsx")(
         None, call_tool, "list_records", {"collection": "app.bsky.feed.post"}
     )
     call_tool.assert_awaited_once()

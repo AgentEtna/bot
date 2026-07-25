@@ -16,9 +16,12 @@ The operator override lived only in `tools/posting.py` and
 server went around it.
 """
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 
 from bot.core import mcp_guard
+from bot.core.mcp_guard import _semble_writes, make_mcp_guard
 
 
 @pytest.fixture
@@ -142,3 +145,107 @@ async def test_mutations_pass_when_no_override_is_active(monkeypatch, calls):
     guard = mcp_guard.make_mcp_guard("tangled", "test")
     assert await guard(None, call_tool_stub(calls), "tangled_create_issue", {}) == "ok"
     assert len(calls) == 1
+
+
+# --- rejected arguments are not an outage -----------------------------------
+#
+# 2026-07-25: phi called collections_update(access_type="open"). semble
+# replied `Input should be 'OPEN' or 'CLOSED'` — everything she needed to fix
+# it. The wrapper relabelled that as "semble is unavailable right now, skip
+# library writes this run", discarding the correction and telling her to give
+# up on a typo. She retried anyway and hit a real server-side failure, but the
+# first one was hers to fix.
+
+
+def test_a_validation_error_is_reported_as_correctable():
+    from bot.core.mcp_guard import _is_correctable
+
+    assert _is_correctable(
+        "1 validation error for call[update]\naccess_type\n  "
+        "Input should be 'OPEN' or 'CLOSED' [type=literal_error]"
+    )
+
+
+def test_an_opaque_validation_error_is_still_correctable():
+    """Even without the field detail, a rejected argument is not an outage."""
+    from bot.core.mcp_guard import _is_correctable
+
+    assert _is_correctable("Error calling tool 'collections_update': Validation error")
+
+
+def test_transport_failures_are_still_outages():
+    """The original degradation still has to work — a genuinely unreachable
+    semble must not send phi into a retry loop."""
+    from bot.core.mcp_guard import _is_correctable
+
+    for outage in (
+        "Connection refused",
+        "ReadTimeout: timed out",
+        "502 Bad Gateway",
+        "ClientConnectorError",
+    ):
+        assert not _is_correctable(outage), outage
+
+
+# --- semble: writes are detected inside code-mode, not from the tool name ---
+
+
+def test_write_detection_ignores_reads():
+    code = (
+        "results = cards_search(query='gardens')\n"
+        "profile = actors_get_profile(identifier='did:plc:x')\n"
+        "cols = collections_list()\n"
+    )
+    assert _semble_writes(code) == []
+
+
+def test_write_detection_catches_authoring_and_curation():
+    code = (
+        "card = cards_add_url(url='https://example.com', note='why')\n"
+        "connections_create(from_id=card['id'], to_id='y', type='SUPPORTS')\n"
+        "cards_remove_from_library(card_id='z')\n"
+    )
+    assert _semble_writes(code) == [
+        "cards_add_url",
+        "cards_remove_from_library",
+        "connections_create",
+    ]
+
+
+async def test_logger_passes_call_through_and_logs(monkeypatch):
+    monkeypatch.setattr(mcp_guard, "get_override", override(False))
+    call_tool = AsyncMock(return_value="ok")
+    process = make_mcp_guard("semble", "batch")
+    code = "cards_add_url(url='https://example.com', note='from a conversation')"
+    with patch("bot.core.mcp_guard.logfire") as mock_logfire:
+        result = await process(None, call_tool, "execute", {"code": code})
+    assert result == "ok"
+    call_tool.assert_awaited_once_with("execute", {"code": code}, None)
+    kwargs = mock_logfire.info.call_args.kwargs
+    assert kwargs["run_label"] == "batch"
+    # renamed from `writes` when the hook generalized to every MCP server
+    # (2026-07-25); the span is now "{server} mutation during {run_label}".
+    assert kwargs["server"] == "semble"
+    assert kwargs["changes"] == ["cards_add_url"]
+
+
+async def test_logger_silent_on_read_only_execute(monkeypatch):
+    monkeypatch.setattr(mcp_guard, "get_override", override(False))
+    call_tool = AsyncMock(return_value="ok")
+    process = make_mcp_guard("semble", "cycle")
+    with patch("bot.core.mcp_guard.logfire") as mock_logfire:
+        result = await process(
+            None, call_tool, "execute", {"code": "cards_search(query='x')"}
+        )
+    assert result == "ok"
+    mock_logfire.info.assert_not_called()
+
+
+async def test_logger_ignores_non_execute_tools(monkeypatch):
+    monkeypatch.setattr(mcp_guard, "get_override", override(False))
+    call_tool = AsyncMock(return_value="schema")
+    process = make_mcp_guard("semble", "batch")
+    with patch("bot.core.mcp_guard.logfire") as mock_logfire:
+        result = await process(None, call_tool, "get_schema", {"name": "cards_add_url"})
+    assert result == "schema"
+    mock_logfire.info.assert_not_called()

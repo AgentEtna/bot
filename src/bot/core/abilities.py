@@ -172,16 +172,3 @@ def describe(tool_name: str) -> str:
     if not risk:
         return ""
     return f"{tool_name} is {risk['magnitude']}-risk: {risk['reason']}"
-
-
-def at_least(tool_name: str, magnitude: Magnitude) -> bool:
-    """Whether a tool's declared risk reaches `magnitude`.
-
-    Nothing enforces on this yet — the gate that will read it is a later
-    change. It exists so the ordering is expressed once, here, rather than
-    re-derived at each call site.
-    """
-    risk = RISK.get(tool_name)
-    if not risk:
-        return False
-    return ORDER[risk["magnitude"]] >= ORDER[magnitude]
