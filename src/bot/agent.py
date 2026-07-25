@@ -958,12 +958,17 @@ class PhiAgent:
     async def process_workflow_failures(self, failure_block: str) -> str:
         """Notify the operator about newly observed Prefect failure events."""
         task = (
-            f"new workflow failures arrived. post one concise top-level alert tagging "
-            f"@{settings.owner_handle}. name every failure in the block (combine them "
-            "when there are several) and state that these are terminal run events. "
-            "do not suppress the alert because a later run recovered: delivery is "
-            "deduplicated by run ID before this pass. do not diagnose beyond the "
-            "provided evidence.\n\n"
+            "something of the operator's broke. tell them, in one top-level post "
+            f"tagging @{settings.owner_handle}.\n\n"
+            "you're their eyes on this, and they read it in the bluesky app — not "
+            "a log viewer. so the post is for a person: what broke, and whether it "
+            "looks like one thing or several. run ids and microsecond timestamps "
+            "below are yours to reason with, not theirs to read; include a specific "
+            "detail only when it's the thing that makes the failure legible. what "
+            "you actually noticed is worth more than a faithful transcript — if "
+            "several of these are one story, say the story.\n\n"
+            "the incidents are already deduplicated, so don't second-guess whether "
+            "this is worth sending. don't invent a cause you can't see.\n\n"
             f"{failure_block}"
         )
         return await self._run_agent(
