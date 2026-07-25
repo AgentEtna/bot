@@ -168,7 +168,7 @@ async def test_the_pool_is_framed_as_taste_not_only_leads():
 
 
 async def test_humor_is_named_as_communication_not_as_a_style_rule():
-    """The heuristic that avoids hard-coding a voice: humor is load-bearing
+    """The heuristic that avoids hard-coding a voice: humor does real work
     in how people talk, the samples are evidence of it working, and the task
     is *working out how someone landed one*. That's analysis, and it's often
     subtle enough to require real reading.
@@ -180,7 +180,7 @@ async def test_humor_is_named_as_communication_not_as_a_style_rule():
     funny or hand her an example of a joke.
     """
     block = await discovery_pool.get_discovery_pool_block(None, seed="")
-    assert "load-bearing in how people actually talk" in block
+    assert "humor does real work in how people actually talk" in block
     assert "working out how someone did it" in block
     for prescription in ("be funny", "be witty", "use humor", "make a joke"):
         assert prescription not in block.lower()

@@ -34,7 +34,7 @@ every other tool we have today has at least one of:
 
 removing those tools and giving phi raw pdsx + a skill description
 trades structural enforcement for documentation-mediated correctness.
-that's the wrong direction for anything load-bearing.
+that's the wrong direction for anything that has to be enforced.
 
 ## the naming smell — separate from sprawl
 

@@ -148,7 +148,7 @@ signal, not only a list of leads.
 a system that only ever issues the second produces an agent with no voice to
 protect.
 
-the same block now also names humor as load-bearing in ordinary
+the same block now also says humor does real work in ordinary
 communication and points at the samples as evidence of it working. that is
 the shape that gets past the four failed attempts at voice-in-the-prompt: a
 claim about *how people talk*, plus real exemplars, plus a task that is

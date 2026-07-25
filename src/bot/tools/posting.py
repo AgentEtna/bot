@@ -100,8 +100,8 @@ def _operator_authorization_note(ctx_notifs: dict) -> str:
 
 
 def _reply_provenance(uri: str, ctx_notifs: dict) -> str:
-    """Describe how phi came to hold this reply target — the judge's
-    load-bearing input. Invited (in the notification batch), self
+    """Describe how phi came to hold this reply target — the single input
+    the judge weighs most. Invited (in the notification batch), self
     (threading), operator, or uninvited stranger."""
     entry = ctx_notifs.get(uri)
     if entry is not None:

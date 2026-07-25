@@ -146,7 +146,7 @@ def _classify(runs: list[dict], stuck_ids: set[str]) -> tuple[str, str, str]:
 
     Returns ``(status, latest, qualifier)`` where:
       - ``status`` is one of healthy/broken/stuck/degraded (the decision label)
-      - ``latest`` is the most-recent run state + age (the load-bearing fact —
+      - ``latest`` is the most-recent run state + age (the fact to reason from —
         always shown first so phi can't miss it). e.g. ``"COMPLETED 42m ago"``
       - ``qualifier`` is the secondary clause that justifies the status
         (e.g. ``"4/5 recent terminals failed"``), or ``""`` if the status is
@@ -273,7 +273,7 @@ def _compose(raw: dict) -> str:
         # read as an infrastructure shift regardless of what phi had
         # actually been thinking about.
         "each line reads `- name: LATEST_RUN_STATE when [label — qualifier]`; "
-        "the run state is the load-bearing fact. broken = the most recent "
+        "the run state is the fact to reason from. broken = the most recent "
         "terminal run failed. stuck = PENDING means work was never picked "
         "up, RUNNING means it is still marked active past the health window "
         "and may be orphaned — different problems, worth distinguishing. "
