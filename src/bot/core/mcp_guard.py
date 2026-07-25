@@ -22,33 +22,88 @@ from typing import Any
 
 import logfire
 
+from bot.core.override import get_override, refusal_text
+
 logger = logging.getLogger("bot.mcp_guard")
 
-_WRITE_TOOLS = {"create_record", "update_record"}
+# pdsx's three mutating verbs. `delete_record` was missing from this set
+# until 2026-07-25, so a delete into any collection — including
+# app.bsky.feed.post — passed the guard untouched. The destructive verb
+# was the unchecked one.
+_PDSX_MUTATIONS = {"create_record", "update_record", "delete_record"}
 _BLOCKED_PREFIX = "app.bsky.feed."
 
+# Verbs that only read. Anything else on a credentialed server is treated
+# as a mutation — deny-by-default under an operator override, because the
+# cost of over-gating a read is a retry and the cost of under-gating a
+# write is a public action the operator asked not to happen.
+_READ_VERBS = (
+    "get",
+    "list",
+    "search",
+    "describe",
+    "read",
+    "fetch",
+    "query",
+    "check",
+    "whoami",
+    "resolve",
+    "inspect",
+    "schema",
+)
 
-async def guard_pdsx_tool_call(
-    ctx: Any,
-    call_tool: Any,
-    name: str,
-    tool_args: dict[str, Any],
-) -> Any:
-    """pydantic-ai ``process_tool_call`` hook for the pdsx MCP server."""
-    if name in _WRITE_TOOLS:
-        collection = str(tool_args.get("collection", ""))
-        if collection.startswith(_BLOCKED_PREFIX):
-            logger.warning(
-                f"pdsx guard refused {name} into {collection} "
-                f"(rkey={tool_args.get('rkey', '')!r})"
-            )
-            return (
-                f"refused: raw {name} into {collection} bypasses your "
-                "consent layer, policy check, and any operator override. "
-                "posting, liking, and reposting flow through the trusted "
-                "tools: post / like_post / repost_post."
-            )
-    return await call_tool(name, tool_args, None)
+
+def _bare_verb(name: str) -> str:
+    """Strip pydantic-ai's ``tool_prefix`` so verbs compare across servers."""
+    for prefix in ("pub_", "semble_", "tangled_", "prefect_"):
+        if name.startswith(prefix):
+            return name[len(prefix) :]
+    return name
+
+
+def _mutations(server: str, name: str, tool_args: dict[str, Any]) -> list[str]:
+    """What this call would change. Empty means it only reads.
+
+    semble is code-mode, so the mutation lives inside the submitted code
+    rather than the tool name; everything else is named by its verb.
+    """
+    if server == "semble":
+        return (
+            _semble_writes(str(tool_args.get("code", "")))
+            if name.endswith("execute")
+            else []
+        )
+    if server == "pdsx":
+        return (
+            [f"{name} {tool_args.get('collection', '')}".strip()]
+            if name in _PDSX_MUTATIONS
+            else []
+        )
+    verb = _bare_verb(name)
+    return [] if verb.startswith(_READ_VERBS) else [verb]
+
+
+def _structural_refusal(
+    server: str, name: str, tool_args: dict[str, Any]
+) -> str | None:
+    """Refusals that hold regardless of the override — writing a feed record
+    by hand skips the consent allowlist and the policy judge, which no
+    operator setting turns back on."""
+    if server != "pdsx" or name not in _PDSX_MUTATIONS:
+        return None
+    collection = str(tool_args.get("collection", ""))
+    if not collection.startswith(_BLOCKED_PREFIX):
+        return None
+    logger.warning(
+        f"pdsx guard refused {name} into {collection} "
+        f"(rkey={tool_args.get('rkey', '')!r})"
+    )
+    return (
+        f"refused: raw {name} into {collection} bypasses your "
+        "consent layer, policy check, and any operator override. "
+        "posting, liking, and reposting flow through the trusted "
+        "tools: post / like_post / repost_post."
+    )
 
 
 _SEMBLE_TOOL_RE = re.compile(r"\b(?:actors|cards|collections|connections)_[a-z_]+")
@@ -92,13 +147,27 @@ def _is_correctable(detail: str) -> bool:
     return any(sig in low for sig in _CORRECTABLE_SIGNATURES)
 
 
-def make_semble_write_logger(run_label: str):
-    """pydantic-ai ``process_tool_call`` hook for the semble MCP server.
+def make_mcp_guard(server: str, run_label: str = ""):
+    """One ``process_tool_call`` hook for every MCP server phi talks to.
 
-    Purely observational — semble writes are allowed (live authoring is the
-    primary path to phi's public library), but each one leaves a logfire
-    event carrying the run label and the executed code, so provenance is
-    queryable instead of reconstructed from PDS diffs.
+    Three jobs, in order:
+
+    1. **Structural refusal.** A raw feed-record write through pdsx skips
+       the consent allowlist and the policy judge. No operator setting
+       turns those back on, so this refuses regardless of override state.
+    2. **The operator override.** Any call that would *change* something
+       refuses while safe mode is active. This used to live only in
+       `tools/posting.py` and `tools/topchicken.py`, which meant safe mode
+       stopped phi posting to bluesky while leaving her free to write
+       cosmik cards through semble and open issues on tangled under her
+       own identity. Both are public actions in her name.
+    3. **Provenance.** Every mutation leaves a logfire event with the run
+       label, so what phi changed is queryable instead of reconstructed
+       from PDS diffs afterwards.
+
+    Reads pass straight through. Unrecognised verbs count as mutations —
+    over-gating a read costs a retry, under-gating a write costs a public
+    action the operator asked not to happen.
     """
 
     async def process(
@@ -107,44 +176,62 @@ def make_semble_write_logger(run_label: str):
         name: str,
         tool_args: dict[str, Any],
     ) -> Any:
-        if name == "execute":
-            code = str(tool_args.get("code", ""))
-            writes = _semble_writes(code)
-            if writes:
-                logfire.info(
-                    "semble write during {run_label}: {writes}",
-                    run_label=run_label,
-                    writes=writes,
-                    code=code[:2000],
-                )
-        # a semble-side failure (e.g. its atproto session for phi expiring)
-        # must degrade to information the model can route around, not a
-        # ToolRetryError that kills the whole scheduled run — the 2026-07-13
-        # curation pass died mid-flight exactly that way
-        try:
-            if name == "execute":
-                async with _semble_execute_lock:
-                    return await call_tool(name, tool_args, None)
-            return await call_tool(name, tool_args, None)
-        except Exception as e:
-            logger.warning(f"semble {name} failed during {run_label}: {e}")
-            detail = str(e)
-            if _is_correctable(detail):
-                # a rejected argument is not an outage. semble told phi
-                # `Input should be 'OPEN' or 'CLOSED'` and this wrapper
-                # relabelled it "semble is unavailable, skip library
-                # writes" — throwing away the one thing that would have
-                # fixed the call, and teaching her to give up on a typo.
-                return (
-                    f"semble rejected those arguments ({detail[:400]}). "
-                    "this is fixable from here — check the shape with "
-                    "semble_get_schema and call it again."
-                )
-            return (
-                f"semble is unavailable right now ({type(e).__name__}: "
-                f"{detail[:300]}). skip library writes this run and continue "
-                "with the rest of the task — mention the outage in your "
-                "summary so the operator sees it."
+        if refusal := _structural_refusal(server, name, tool_args):
+            return refusal
+
+        changes = _mutations(server, name, tool_args)
+        if changes:
+            override = await get_override()
+            if override["active"]:
+                logger.warning(f"override refused {server}.{name}: {changes}")
+                return refusal_text(override)
+            logfire.info(
+                "{server} mutation during {run_label}: {changes}",
+                server=server,
+                run_label=run_label,
+                changes=changes,
             )
 
+        # semble's code-mode server is single-flight: concurrent execute
+        # calls race on its side.
+        if server == "semble" and name.endswith("execute"):
+            async with _semble_execute_lock:
+                return await _invoke(call_tool, server, name, tool_args, run_label)
+        return await _invoke(call_tool, server, name, tool_args, run_label)
+
     return process
+
+
+async def _invoke(
+    call_tool: Any, server: str, name: str, tool_args: dict[str, Any], run_label: str
+) -> Any:
+    """Call the tool, turning failures into something phi can act on."""
+    try:
+        return await call_tool(name, tool_args, None)
+    except Exception as e:
+        logger.warning(f"{server} {name} failed during {run_label}: {e}")
+        detail = str(e)
+        if _is_correctable(detail):
+            # a rejected argument is not an outage. semble told phi
+            # `Input should be 'OPEN' or 'CLOSED'` and this wrapper
+            # relabelled it "unavailable, skip library writes" — throwing
+            # away the one thing that would have fixed the call.
+            return (
+                f"{server} rejected those arguments ({detail[:400]}). "
+                "this is fixable from here — check the shape and call it again."
+            )
+        return (
+            f"{server} is unavailable right now ({type(e).__name__}: "
+            f"{detail[:300]}). skip that write this run and continue with the "
+            "rest of the task — mention the outage in your summary so the "
+            "operator sees it."
+        )
+
+
+# Back-compat aliases: agent.py and tests reference these names.
+guard_pdsx_tool_call = make_mcp_guard("pdsx")
+
+
+def make_semble_write_logger(run_label: str):
+    """Deprecated alias — the semble hook is now `make_mcp_guard`."""
+    return make_mcp_guard("semble", run_label)

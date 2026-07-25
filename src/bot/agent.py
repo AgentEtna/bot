@@ -29,7 +29,7 @@ from bot.core.discovery_pool import get_discovery_pool_block
 from bot.core.docket import get_docket_digest
 from bot.core.goals import list_goals as list_goal_records
 from bot.core.graze_client import GrazeClient
-from bot.core.mcp_guard import guard_pdsx_tool_call, make_semble_write_logger
+from bot.core.mcp_guard import make_mcp_guard
 from bot.core.operator import get_operator_profile
 from bot.core.owned_feeds import get_owned_feeds_block
 from bot.core.public_memory import get_public_memory_block
@@ -693,12 +693,13 @@ class PhiAgent:
                 # structural guard: raw feed-collection writes bypass the
                 # consent layer / policy judge / operator override — refuse
                 # them here, not just in the prompt (bot/core/mcp_guard.py)
-                process_tool_call=guard_pdsx_tool_call,
+                process_tool_call=make_mcp_guard("pdsx", run_label),
             ),
             MCPServerStreamableHTTP(
                 url="https://pub-search-by-zzstoatzz.fastmcp.app/mcp",
                 timeout=30,
                 tool_prefix="pub",
+                process_tool_call=make_mcp_guard("pub-search", run_label),
             ),
             # Semble code-mode server (search/get_schema/execute). Keyless =
             # public reads only; the header makes writes attribute to phi.
@@ -713,7 +714,7 @@ class PhiAgent:
                 ),
                 # observational: every library write leaves a logfire event
                 # with the run label + executed code (bot/core/mcp_guard.py)
-                process_tool_call=make_semble_write_logger(run_label),
+                process_tool_call=make_mcp_guard("semble", run_label),
             ),
             # Tangled code-collab server. Reads (repos, files, commits,
             # issues) need no auth; the headers carry phi's own PDS
@@ -726,6 +727,10 @@ class PhiAgent:
                     "x-tangled-handle": settings.bluesky_handle,
                     "x-tangled-password": settings.bluesky_password,
                 },
+                # issues and comments here are public actions in phi's own
+                # name; before 2026-07-25 nothing gated them, so safe mode
+                # stopped her posting to bluesky and left tangled open.
+                process_tool_call=make_mcp_guard("tangled", run_label),
             ),
         ]
         # Prefect MCP — only included when auth is configured, so phi degrades
@@ -736,6 +741,7 @@ class PhiAgent:
                     url=settings.prefect_mcp_url,
                     timeout=30,
                     tool_prefix="prefect",
+                    process_tool_call=make_mcp_guard("prefect", run_label),
                     headers={
                         "x-prefect-api-url": settings.prefect_api_url,
                         "x-prefect-api-auth-string": settings.prefect_api_auth_string,

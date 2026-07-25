@@ -42,7 +42,10 @@ async def test_logger_passes_call_through_and_logs():
     call_tool.assert_awaited_once_with("execute", {"code": code}, None)
     kwargs = mock_logfire.info.call_args.kwargs
     assert kwargs["run_label"] == "batch"
-    assert kwargs["writes"] == ["cards_add_url"]
+    # renamed from `writes` when the hook generalized to every MCP server
+    # (2026-07-25); the span is now "{server} mutation during {run_label}".
+    assert kwargs["server"] == "semble"
+    assert kwargs["changes"] == ["cards_add_url"]
 
 
 async def test_logger_silent_on_read_only_execute():

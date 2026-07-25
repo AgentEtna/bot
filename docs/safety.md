@@ -101,3 +101,37 @@ tool that can write a record to their repo.
    switches) and must never gate phi's channel back to the operator.
 4. policies live in one place (`POLICIES`) and render into both the
    judge's input and phi's prompt.
+
+## the MCP guard (generalized 2026-07-25)
+
+Every MCP server phi talks to routes through one `process_tool_call` hook,
+`core/mcp_guard.py:make_mcp_guard(server, run_label)`. It does three things in
+order:
+
+1. **structural refusal** — a raw `create_record` / `update_record` /
+   `delete_record` into `app.bsky.feed.*` through pdsx refuses regardless of
+   override state, because it skips the consent allowlist and the policy
+   judge and no operator setting turns those back on.
+2. **the operator override** — any call that would *change* something refuses
+   while safe mode is active.
+3. **provenance** — every mutation leaves a logfire event
+   (`{server} mutation during {run_label}`) carrying what changed.
+
+Reads pass straight through, on every server, including under an override:
+safe mode stops phi acting, not thinking. Verbs that aren't recognisably
+reads (`get list search describe read fetch query check whoami resolve
+inspect schema`) count as mutations — over-gating a read costs a retry,
+under-gating a write costs a public action the operator asked not to happen.
+
+**What this closed.** Before it, the guard was pdsx-only and the override
+lived in `tools/posting.py` and `tools/topchicken.py`, so anything reaching
+the network through an MCP server went around it:
+
+- `delete_record` was absent from pdsx's write set — a delete into any
+  collection, `app.bsky.feed.post` included, passed untouched. The one
+  destructive verb was the unchecked one.
+- semble writes were logged and never gated, so safe mode stopped phi posting
+  to bluesky while leaving her free to publish cosmik cards.
+- tangled had no hook at all, and it carries phi's PDS credentials — issues
+  and comments there are public actions in her own name.
+
