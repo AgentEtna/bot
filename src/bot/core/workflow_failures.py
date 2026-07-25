@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 from typing import Any
 
 import httpx
 
 from bot.config import settings
+from bot.utils.time import humanize_duration
 
 logger = logging.getLogger("bot.workflow_failures")
 
@@ -51,29 +53,82 @@ def unseen_failures(
     return [run for run in failures if run.get("id") and run["id"] not in seen]
 
 
-def render_failure_block(failures: list[dict[str, Any]]) -> str:
-    """Render exact incident facts for Phi's alert pass."""
+PENDING_MAX_AGE_SECONDS = 24 * 3600
+"""Drop an unaddressed incident after a day. Pressure should build, but an
+incident phi never speaks to shouldn't sit in her context forever."""
+
+PENDING_RENDER_LIMIT = 10
+
+
+def add_pending(
+    pending: dict[str, dict[str, Any]],
+    failures: list[dict[str, Any]],
+    now_ts: float,
+) -> dict[str, dict[str, Any]]:
+    """Record alert-worthy failures as *unaddressed*, not as delivered.
+
+    Pure. The old flow marked a failure delivered the moment it dispatched a
+    run that was ordered to post about it. Here it stays pending until phi
+    actually says something, so choosing silence is visible instead of
+    indistinguishable from having spoken.
+    """
+    out = {
+        k: dict(v)
+        for k, v in pending.items()
+        if now_ts - v.get("first_seen_ts", 0) < PENDING_MAX_AGE_SECONDS
+    }
+    for run in failures:
+        run_id = run.get("id")
+        if not run_id:
+            continue
+        existing = out.get(run_id, {})
+        out[run_id] = {
+            "first_seen_ts": existing.get("first_seen_ts", now_ts),
+            "name": run.get("name") or run_id[:8],
+            "state": str(
+                run.get("state_type") or (run.get("state") or {}).get("type", "")
+            ).upper(),
+            "message": " ".join((run.get("state_message") or "").split())[:240],
+            "incident": run.get("_incident", "new"),
+            "count": run.get("_count", 1),
+        }
+    return out
+
+
+def render_pending_block(pending: dict[str, dict[str, Any]], now_ts: float) -> str:
+    """[WORKFLOW INCIDENTS] — the operator's infrastructure, as something phi
+    has noticed and not yet spoken to.
+
+    This is perception, not an order. It carries the facts and how long each
+    has gone unaddressed; what to do about them is phi's call, like any other
+    block. Ages are the pressure — an incident she keeps passing over reads
+    as older every run.
+    """
+    if not pending:
+        return ""
+    items = sorted(pending.items(), key=lambda kv: kv[1].get("first_seen_ts", 0))
     lines = [
-        "[WORKFLOW INCIDENTS — 'new' = a flow just entered a failing state; "
-        "'ongoing' = it has kept failing since the first alert (repeats in "
-        "between were counted, not delivered).]"
+        "[WORKFLOW INCIDENTS — the operator's flows that have failed and that "
+        "you haven't said anything about yet. they stay here until you do. "
+        "the ids and timestamps are for your reasoning; the operator reads "
+        "bluesky, not a log.]"
     ]
-    for run in failures[:10]:
-        state = run.get("state_type") or (run.get("state") or {}).get("type", "")
-        message = " ".join((run.get("state_message") or "").split())
-        if len(message) > 240:
-            message = message[:239].rstrip() + "…"
-        run_id = run.get("id", "")
-        name = run.get("name") or run_id[:8]
-        ended = run.get("end_time") or "unknown time"
-        detail = f" — {message}" if message else ""
-        kind = run.get("_incident", "new")
-        count = run.get("_count", 1)
-        tally = f" ({count} failures this incident)" if count > 1 else ""
-        lines.append(
-            f"- [{kind}]{tally} {name}: {str(state).upper()} at {ended}; "
-            f"run_id={run_id}{detail}"
+    for run_id, inc in items[:PENDING_RENDER_LIMIT]:
+        age = humanize_duration(
+            timedelta(seconds=max(0.0, now_ts - inc.get("first_seen_ts", now_ts)))
         )
+        tally = (
+            f", {inc['count']} failures this incident"
+            if inc.get("count", 1) > 1
+            else ""
+        )
+        detail = f" — {inc['message']}" if inc.get("message") else ""
+        lines.append(
+            f"- {inc.get('name', run_id[:8])}: {inc.get('state', '')} "
+            f"first seen {age} ago{tally} (run_id={run_id}){detail}"
+        )
+    if len(items) > PENDING_RENDER_LIMIT:
+        lines.append(f"- … and {len(items) - PENDING_RENDER_LIMIT} more")
     return "\n".join(lines)
 
 

@@ -11,9 +11,9 @@ import logfire
 from bot.config import settings
 from bot.core.atproto_client import BotClient
 from bot.core.workflow_failures import (
+    add_pending,
     fetch_recent_failures,
     gate_alerts,
-    render_failure_block,
     unseen_failures,
 )
 from bot.services.message_handler import MessageHandler
@@ -287,24 +287,26 @@ class NotificationPoller:
             new, bot_status.workflow_incidents, time.time()
         )
         bot_status.workflow_incidents = incidents
+        # incidents become something phi carries until she speaks to them,
+        # rather than a command she is dispatched with (agent.py's
+        # inject_workflow_incidents renders them; a post clears them).
+        bot_status.pending_incidents = add_pending(
+            bot_status.pending_incidents, to_alert, time.time()
+        )
         bot_status._save()
         if not to_alert:
             logger.info(
                 f"{len(new)} repeat failure(s) folded into open incidents, no alert"
             )
             return
-        task = asyncio.create_task(
-            self._handle_workflow_failures_with_semaphore(
-                render_failure_block(to_alert)
-            )
-        )
+        task = asyncio.create_task(self._handle_workflow_failures_with_semaphore())
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
         logger.info(f"dispatched {len(new)} new workflow failure(s) to phi")
 
-    async def _handle_workflow_failures_with_semaphore(self, failure_block: str):
+    async def _handle_workflow_failures_with_semaphore(self):
         async with self._semaphore:
-            await self.handler.workflow_failures(failure_block)
+            await self.handler.workflow_failures()
 
     async def _handle_batch_with_semaphore(self, batch: list):
         """Handle a notification batch with concurrency limiting."""

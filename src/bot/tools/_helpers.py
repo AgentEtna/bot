@@ -33,6 +33,10 @@ class PhiDeps:
     # blocks must render once per run (stable text keeps the message-history
     # cache prefix intact; several blocks hit the network).
     run_cache: dict[str, str] = field(default_factory=dict)
+    # incident run-ids rendered into this run's context. a successful post
+    # clears them — that is what "addressed" means, and it keeps the
+    # bookkeeping structural instead of asking phi to self-report.
+    seen_incident_ids: list[str] = field(default_factory=list)
 
 
 def _is_owner(ctx: RunContext[PhiDeps]) -> bool:

@@ -31,6 +31,9 @@ class BotStatus:
     workflow_failure_monitor_seeded: bool = False
     workflow_failure_run_ids: list[str] = field(default_factory=list)
     workflow_incidents: dict = field(default_factory=dict)
+    # incidents phi has seen but not yet said anything about. they render in
+    # her context until a post clears them, so silence stays visible.
+    pending_incidents: dict = field(default_factory=dict)
 
     @property
     def uptime_seconds(self) -> float:
@@ -79,6 +82,14 @@ class BotStatus:
         self.resumed_at = datetime.now(UTC)
         self._save()
 
+    def clear_pending_incidents(self, run_ids: list[str]) -> None:
+        """Mark incidents as addressed once phi has actually posted."""
+        if not run_ids:
+            return
+        for run_id in run_ids:
+            self.pending_incidents.pop(run_id, None)
+        self._save()
+
     def record_workflow_failures(self, run_ids: list[str]):
         """Persist delivered Prefect failure IDs so alerts survive restarts."""
         self.workflow_failure_monitor_seeded = True
@@ -114,6 +125,7 @@ class BotStatus:
                 "resumed_at": self.resumed_at.isoformat() if self.resumed_at else None,
                 "workflow_failure_run_ids": self.workflow_failure_run_ids,
                 "workflow_incidents": self.workflow_incidents,
+                "pending_incidents": self.pending_incidents,
                 "workflow_failure_monitor_seeded": self.workflow_failure_monitor_seeded,
             }
             STATUS_FILE.write_text(json.dumps(data))
@@ -146,6 +158,7 @@ class BotStatus:
                 data.get("workflow_failure_run_ids") or []
             )[-200:]
             self.workflow_incidents = dict(data.get("workflow_incidents") or {})
+            self.pending_incidents = dict(data.get("pending_incidents") or {})
             self.workflow_failure_monitor_seeded = bool(
                 data.get("workflow_failure_monitor_seeded", False)
             )

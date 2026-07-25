@@ -345,11 +345,15 @@ class MessageHandler:
         """One cognitive cycle — see :meth:`PhiAgent.process_cycle`."""
         await self._run_scheduled("cycle", self.agent.process_cycle)
 
-    async def workflow_failures(self, failure_block: str):
-        """Deliver newly observed Prefect failures to Phi once."""
+    async def workflow_failures(self):
+        """Wake phi because a flow just failed.
+
+        The incidents ride in her context, not in the prompt — see
+        agent.process_workflow_failures.
+        """
         await self._run_scheduled(
             "workflow failure alert",
-            lambda: self.agent.process_workflow_failures(failure_block),
+            lambda: self.agent.process_workflow_failures(),
         )
 
     async def chicken_precheck(self):

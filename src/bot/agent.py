@@ -4,6 +4,7 @@ import contextlib
 import inspect
 import logging
 import os
+import time
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -37,6 +38,7 @@ from bot.core.recent_operations import get_operations_block
 from bot.core.residue import render_residue_block, update_residue_from_run
 from bot.core.self_record import get_self_block
 from bot.core.self_state import get_state_block
+from bot.core.workflow_failures import render_pending_block
 from bot.core.workflow_state import get_workflow_state_block
 from bot.memory.extraction import EXTRACTION_SYSTEM_PROMPT, ExtractionResult
 from bot.memory.namespace_memory import InteractionRow
@@ -409,6 +411,20 @@ class PhiAgent:
         async def inject_recent_operations() -> str:
             """[RECENT OPERATIONS] — last N PDS writes across collections, for continuity."""
             return await get_operations_block(bot_client)
+
+        @_run_scoped
+        def inject_workflow_incidents(ctx: RunContext[PhiDeps]) -> str:
+            """[WORKFLOW INCIDENTS] — failures phi hasn't spoken to yet.
+
+            Perception, not a dispatch. The run records which incidents it
+            saw so a successful post can clear them; until then they keep
+            rendering, and their ages grow.
+            """
+            pending = bot_status.pending_incidents
+            if not pending:
+                return ""
+            ctx.deps.seen_incident_ids = list(pending)
+            return render_pending_block(pending, time.time())
 
         @_run_scoped
         async def inject_discovery_pool(ctx: RunContext[PhiDeps]) -> str:
@@ -955,25 +971,18 @@ class PhiAgent:
             context_blocks=context_blocks,
         )
 
-    async def process_workflow_failures(self, failure_block: str) -> str:
-        """Notify the operator about newly observed Prefect failure events."""
-        task = (
-            "something of the operator's broke. tell them, in one top-level post "
-            f"tagging @{settings.owner_handle}.\n\n"
-            "you're their eyes on this, and they read it in the bluesky app — not "
-            "a log viewer. so the post is for a person: what broke, and whether it "
-            "looks like one thing or several. run ids and microsecond timestamps "
-            "below are yours to reason with, not theirs to read; include a specific "
-            "detail only when it's the thing that makes the failure legible. what "
-            "you actually noticed is worth more than a faithful transcript — if "
-            "several of these are one story, say the story.\n\n"
-            "the incidents are already deduplicated, so don't second-guess whether "
-            "this is worth sending. don't invent a cause you can't see.\n\n"
-            f"{failure_block}"
-        )
+    async def process_workflow_failures(self) -> str:
+        """Wake phi because something of the operator's just broke.
+
+        The incidents themselves arrive as [WORKFLOW INCIDENTS] in her
+        context, like every other signal she acts on — this only says that
+        something changed, and leaves what to do about it to her. They stay
+        in context until a post clears them, so declining to speak now is a
+        choice she keeps facing rather than one that disappears.
+        """
         return await self._run_agent(
             label="workflow failure alert",
-            prompt=task,
+            prompt="something of the operator's just broke — check your context.",
             deps=PhiDeps(author_handle="", memory=self.memory),
         )
 
