@@ -350,23 +350,33 @@ export interface CacheSample {
 export interface CacheRun {
 	label: string;
 	started_at: string;
+	trace_id: string | null;
+	trace_url: string | null;
 	requests: number;
 	cache_read: number;
 	cache_write: number;
 	uncached: number;
 	hit_rate: number;
+	saved: number;
 	collapses: number;
-	carried_in: boolean;
+	warm_start: boolean;
 	samples: CacheSample[];
 }
 
 export interface CacheStability {
+	// the live TTLs, read from the same dict agent.py configures from
+	strategy: Record<string, string>;
+	// input-token prices as multiples of the base rate
+	prices: { read: number; write: number; uncached: number };
 	window_runs: number;
 	cache_read: number;
 	cache_write: number;
 	uncached: number;
 	hit_rate: number;
+	billed_tokens: number;
+	uncached_cost_tokens: number;
+	saved: number;
 	collapses: number;
-	carried_in: number;
+	warm_starts: number;
 	runs: CacheRun[];
 }

@@ -32,6 +32,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from opentelemetry import trace
 from pydantic_ai._run_context import RunContext
 from pydantic_ai.messages import ModelMessage, ModelResponse
 from pydantic_ai.models import (
@@ -43,9 +44,35 @@ from pydantic_ai.models.wrapper import WrapperModel
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import RequestUsage
 
+from bot.config import settings
+
 logger = logging.getLogger("bot.cache")
 
 CACHE_FILE = Path("/data/cache_stability.json")
+
+CACHE_TTLS = {
+    "tool_definitions": "1h",
+    "instructions": "1h",
+    "messages": "5m",
+}
+"""The caching strategy itself — one source, read by both the agent (which
+turns it into `AnthropicModelSettings`) and the cockpit (which reports on
+it). Changing a TTL here changes what phi does *and* what the panel says."""
+
+PRICE = {
+    "uncached": 1.0,
+    "read": 0.1,
+    "5m": 1.25,
+    "1h": 2.0,
+}
+"""Anthropic input-token prices as multiples of the base input rate."""
+
+WRITE_PRICE = PRICE[CACHE_TTLS["tool_definitions"]]
+"""What a cache write costs. The provider reports one `cache_write_tokens`
+total without splitting 5m from 1h (the split lives in a nested
+`cache_creation` object pydantic-ai drops), so cost is priced at the
+longest TTL in use — the conservative read. If caching wins at this price
+it wins at any."""
 
 MAX_RUNS = 60
 """Rolling window of runs kept in memory and on disk."""
@@ -81,12 +108,23 @@ class RequestSample:
         return self.input_tokens + self.cache_read + self.cache_write
 
 
+def cost_with_cache(read: int, write: int, uncached: int) -> float:
+    """Input cost in base-rate token equivalents, as billed."""
+    return read * PRICE["read"] + write * WRITE_PRICE + uncached * PRICE["uncached"]
+
+
+def cost_without_cache(read: int, write: int, uncached: int) -> float:
+    """What the same tokens would have cost with caching switched off."""
+    return float(read + write + uncached)
+
+
 @dataclass
 class RunRecord:
     """Cache behavior across one `agent.run()`."""
 
     label: str
     started_at: datetime
+    trace_id: str | None = None
     samples: list[RequestSample] = field(default_factory=list)
 
     @property
@@ -116,13 +154,23 @@ class RunRecord:
         return self.cache_read / total if total else 0.0
 
     @property
-    def carried_in(self) -> bool:
-        """Did the first request read back a prefix from a previous run?
+    def saved(self) -> float:
+        """Fraction of the input bill caching removed. Negative means the
+        write premium cost more than the reads saved."""
+        full = cost_without_cache(self.cache_read, self.cache_write, self.uncached)
+        if not full:
+            return 0.0
+        billed = cost_with_cache(self.cache_read, self.cache_write, self.uncached)
+        return (full - billed) / full
 
-        This is the 1h tool+instruction TTL doing its job. False on a cold
-        start, after a deploy, or when runs are spaced further apart than
-        the TTL — all expected; a sustained False across close-together runs
-        is not.
+    @property
+    def warm_start(self) -> bool:
+        """Did this run's first request reuse a prefix an earlier run left?
+
+        This is the 1h tool+instruction TTL doing its job across runs — the
+        entire reason for choosing 1h over 5m. False on a cold start or when
+        runs are spaced further apart than the TTL, which is expected; false
+        on runs minutes apart is not.
         """
         return bool(self.samples) and self.samples[0].cache_read >= MIN_PREFIX_TOKENS
 
@@ -130,13 +178,20 @@ class RunRecord:
         return {
             "label": self.label,
             "started_at": self.started_at.isoformat(),
+            "trace_id": self.trace_id,
+            "trace_url": (
+                f"{settings.logfire.ui_url}/?q=trace_id%3D%27{self.trace_id}%27"
+                if self.trace_id and settings.logfire.ui_url
+                else None
+            ),
             "requests": self.requests,
             "cache_read": self.cache_read,
             "cache_write": self.cache_write,
             "uncached": self.uncached,
             "hit_rate": round(self.hit_rate, 4),
+            "saved": round(self.saved, 4),
             "collapses": self.collapses,
-            "carried_in": self.carried_in,
+            "warm_start": self.warm_start,
             "samples": [
                 {
                     "at": s.at.isoformat(),
@@ -176,7 +231,15 @@ class CacheMonitor:
         self._load()
 
     def begin_run(self, label: str) -> None:
-        self._current = RunRecord(label=label, started_at=datetime.now(UTC))
+        # the run's otel trace id, so the cockpit can link a row straight to
+        # its logfire trace — two runs labelled "batch processing" are only
+        # tellable apart by what they actually did
+        ctx = trace.get_current_span().get_span_context()
+        self._current = RunRecord(
+            label=label,
+            started_at=datetime.now(UTC),
+            trace_id=format(ctx.trace_id, "032x") if ctx.is_valid else None,
+        )
         self._marks.clear()
         self._latched.clear()
 
@@ -189,10 +252,11 @@ class CacheMonitor:
             return
         self.runs.append(record)
         logger.info(
-            f"cache [{record.label}]: {record.hit_rate:.0%} of "
-            f"{record.cache_read + record.cache_write + record.uncached} input tokens "
-            f"read from cache over {record.requests} requests"
-            f"{', carried in from a previous run' if record.carried_in else ''}"
+            f"cache [{record.label}]: {record.saved:.0%} off the input bill "
+            f"({record.hit_rate:.0%} of "
+            f"{record.cache_read + record.cache_write + record.uncached} tokens reused) "
+            f"over {record.requests} requests"
+            f"{', warm start' if record.warm_start else ', cold start'}"
             f"{f', {record.collapses} collapse(s)' if record.collapses else ''}"
         )
         self._save()
@@ -254,14 +318,23 @@ class CacheMonitor:
         write = sum(r.cache_write for r in runs)
         uncached = sum(r.uncached for r in runs)
         total = read + write + uncached
+        billed = cost_with_cache(read, write, uncached)
         return {
+            # the strategy, read from the same dict the agent configures
+            # from — so this can never describe a policy phi isn't running
+            "strategy": CACHE_TTLS,
+            "prices": {"read": PRICE["read"], "write": WRITE_PRICE, "uncached": 1.0},
             "window_runs": len(runs),
             "cache_read": read,
             "cache_write": write,
             "uncached": uncached,
             "hit_rate": round(read / total, 4) if total else 0.0,
+            # the verdict: what caching actually removed from the input bill
+            "billed_tokens": round(billed),
+            "uncached_cost_tokens": total,
+            "saved": round((total - billed) / total, 4) if total else 0.0,
             "collapses": sum(r.collapses for r in runs),
-            "carried_in": sum(1 for r in runs if r.carried_in),
+            "warm_starts": sum(1 for r in runs if r.warm_start),
             "runs": [r.as_dict() for r in reversed(runs)],
         }
 
@@ -284,6 +357,7 @@ class CacheMonitor:
                 record = RunRecord(
                     label=entry["label"],
                     started_at=datetime.fromisoformat(entry["started_at"]),
+                    trace_id=entry.get("trace_id"),
                 )
                 for s in entry.get("samples", []):
                     record.samples.append(

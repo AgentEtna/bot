@@ -20,7 +20,7 @@ set in `PhiAgent.__init__`, refreshes on process restart only:
 
 tool definitions are cached at the Anthropic layer (`anthropic_cache_tool_definitions="1h"`).
 
-**verifying the cache holds.** the whole point of `memoize_per_run` is that a dynamic block rendering twice in one run would shift the cacheable prefix and re-bill the context. `core/cache_stability.py` wraps the model and reads the provider's own `cache_read_tokens` / `cache_write_tokens` off every response, so a moved prefix logs a warning instead of quietly costing money. per-run accounting is at `/api/cache` and rendered on the cockpit's `/operator` page: read / written / uncached per run, plus whether each run's first request carried a prefix in from the previous one (the 1h TTL doing its job).
+**verifying the cache holds.** the whole point of `memoize_per_run` is that a dynamic block rendering twice in one run would shift the cacheable prefix and re-bill the context. `core/cache_stability.py` wraps the model and reads the provider's own `cache_read_tokens` / `cache_write_tokens` off every response, so a moved prefix logs a warning instead of quietly costing money. per-run accounting is at `/api/cache` and rendered on the cockpit's `/operator` page. the headline there is cost, not tokens: what the input bill would have been with caching off, against what phi was actually billed. the TTLs themselves live in `CACHE_TTLS` and `agent.py` builds its `AnthropicModelSettings` from that dict, so the panel reports the policy phi is running rather than a copy of it. each run links to its logfire trace.
 
 ## 2. dynamic system-prompt blocks (every run)
 

@@ -103,19 +103,19 @@ def test_marks_are_per_model_so_a_switch_does_not_warn():
     assert run.collapses == 0
 
 
-def test_carried_in_reflects_first_request_read_back():
+def test_warm_start_reflects_first_request_read_back():
     """The 1h tool+instruction TTL bridging two runs is the thing it proves."""
     cold = monitor()
     cold.begin_run("cycle")
     observe(cold, input_tokens=14_000, write=14_000)
     cold.end_run()
-    assert cold.runs[0].carried_in is False
+    assert cold.runs[0].warm_start is False
 
     warm = monitor()
     warm.begin_run("cycle")
     observe(warm, input_tokens=300, read=14_000)
     warm.end_run()
-    assert warm.runs[0].carried_in is True
+    assert warm.runs[0].warm_start is True
 
 
 def test_marks_reset_between_runs():
@@ -154,7 +154,7 @@ def test_summary_aggregates_the_window():
     assert summary["cache_read"] == 10_000
     assert summary["cache_write"] == 10_000
     assert summary["uncached"] == 1_500
-    assert summary["carried_in"] == 1
+    assert summary["warm_starts"] == 1
     # newest run first, so the cockpit reads top-down
     assert [r["label"] for r in summary["runs"]] == ["b", "a"]
 
@@ -180,3 +180,71 @@ def test_observation_failure_does_not_break_the_run(monkeypatch):
 class _FakeModel:
     model_name = "claude-opus-5"
     system = "anthropic"
+
+
+def test_saving_is_measured_against_a_no_cache_bill():
+    """The panel's headline: what caching removed from the input bill.
+
+    Priced at the 1h write premium (2x) because the provider reports one
+    write total without splitting 5m from 1h — the conservative read.
+    """
+    m = monitor()
+    m.begin_run("batch processing")
+    observe(m, input_tokens=10_000, read=80_000, write=10_000)
+    m.end_run()
+
+    (run,) = m.runs
+    # no cache: 100k tokens at 1x. billed: 80k*0.1 + 10k*2 + 10k*1 = 38k
+    assert round(run.saved, 3) == 0.62
+
+
+def test_a_write_only_run_costs_more_than_no_cache_at_all():
+    """Storing a prefix nothing reads back is a loss — the panel must be
+    able to say so rather than always reporting a win."""
+    m = monitor()
+    m.begin_run("cold cycle")
+    observe(m, input_tokens=1_000, write=40_000)
+    m.end_run()
+
+    (run,) = m.runs
+    assert run.saved < 0
+
+
+def test_summary_reports_the_live_strategy_not_a_copy():
+    """The cockpit renders TTLs from this, so it can never describe a
+    policy phi isn't running."""
+    from bot.core.cache_stability import CACHE_TTLS
+
+    m = monitor()
+    m.begin_run("a")
+    observe(m, input_tokens=100, read=5_000)
+    m.end_run()
+
+    summary = m.summary()
+    assert summary["strategy"] == CACHE_TTLS
+    assert summary["prices"]["read"] == 0.1
+
+
+def test_run_carries_a_trace_link_when_a_span_is_active():
+    from opentelemetry.sdk.trace import TracerProvider
+
+    m = monitor()
+    # a real recording span — logfire isn't configured under pytest, so its
+    # spans have no valid context to read a trace id from
+    with TracerProvider().get_tracer("test").start_as_current_span("agent run"):
+        m.begin_run("cycle")
+    observe(m, input_tokens=100, read=5_000)
+    m.end_run()
+
+    entry = m.summary()["runs"][0]
+    assert entry["trace_id"] and len(entry["trace_id"]) == 32
+    assert entry["trace_id"] in (entry["trace_url"] or "")
+
+
+def test_no_trace_link_outside_a_span():
+    m = monitor()
+    m.begin_run("cycle")
+    observe(m, input_tokens=100, read=5_000)
+    m.end_run()
+
+    assert m.summary()["runs"][0]["trace_url"] is None

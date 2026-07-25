@@ -19,7 +19,11 @@ from pydantic_ai_skills import SkillsToolset
 from bot.config import settings
 from bot.core.atlas import get_atlas_digest
 from bot.core.atproto_client import bot_client, get_identity_block
-from bot.core.cache_stability import CacheObservingModel, cache_monitor
+from bot.core.cache_stability import (
+    CACHE_TTLS,
+    CacheObservingModel,
+    cache_monitor,
+)
 from bot.core.discovery_pool import get_discovery_pool_block
 from bot.core.docket import get_docket_digest
 from bot.core.goals import list_goals as list_goal_records
@@ -282,9 +286,11 @@ class PhiAgent:
                 f"{_build_operational_instructions()}"
             ),
             model_settings=AnthropicModelSettings(
-                anthropic_cache_tool_definitions="1h",
-                anthropic_cache_instructions="1h",
-                anthropic_cache_messages="5m",
+                # TTLs live in CACHE_TTLS so the cockpit reports the policy
+                # phi is actually running, not a copy of it
+                anthropic_cache_tool_definitions=CACHE_TTLS["tool_definitions"],
+                anthropic_cache_instructions=CACHE_TTLS["instructions"],
+                anthropic_cache_messages=CACHE_TTLS["messages"],
                 # the 2026-07-10 chicken precheck died on the provider-default
                 # output cap before producing anything — a scheduled slot must
                 # not be able to fail that way

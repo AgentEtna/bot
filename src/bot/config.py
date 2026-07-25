@@ -18,6 +18,10 @@ class LogfireSettings(BaseSettings):
     read_token: str | None = None
     environment: str | None = None
     send_to_logfire: Literal["if-token-present"] | None = "if-token-present"
+    # project UI root, used to deep-link a run to its trace from the
+    # cockpit. the SDK doesn't expose this without a credentials fetch, so
+    # it's configuration; set to None to render the cockpit without links.
+    ui_url: str | None = "https://logfire-us.pydantic.dev/waow/phi"
 
 
 class Settings(BaseSettings):
