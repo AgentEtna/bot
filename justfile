@@ -12,14 +12,9 @@ test:
 evals:
     uv run pytest evals/ -v
 
-# deployment — CI deploys on v* tags, `just deploy` for manual
+# deployment — this is the only path; there is no deploy CI
 deploy:
     flyctl deploy
-
-# tag and push a release (triggers CI deploy)
-release version:
-    git tag "v{{version}}"
-    git push origin "v{{version}}"
 
 # code quality
 fmt:

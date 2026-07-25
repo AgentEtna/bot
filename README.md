@@ -37,8 +37,7 @@ just run        # run bot
 just dev        # hot-reload
 just check      # lint + typecheck + test
 just evals      # behavioral tests
-just deploy     # fly.io
-just release X  # tag vX, CI deploys
+just deploy     # fly.io (the only deploy path)
 ```
 
 ## docs

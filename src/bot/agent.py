@@ -397,7 +397,7 @@ class PhiAgent:
 
         @_run_scoped
         async def inject_self_state() -> str:
-            """How phi looks from outside + canonical pointers (last follow, queue)."""
+            """phi's goals and how her recent posting looks from outside."""
             return await get_state_block(bot_client, self.memory)
 
         @_run_scoped

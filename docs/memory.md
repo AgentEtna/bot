@@ -75,7 +75,6 @@ when phi processes a notification batch, the system prompt assembles blocks from
 [RESIDUE]                              ← what recent runs left behind (PDS, decaying, descriptive-only)
 [GOALS AND INTERESTS]                  ← goals + interests, w/ next step + staleness (PDS)
 [SELF-AWARENESS]                       ← haiku description of what recent posts have been about, first person
-[SELF STATE]                           ← last-follow age
 [NEW NOTIFICATIONS]                    ← the batch itself
 [PHI'S SYNTHESIZED IMPRESSION OF @alice]  ← per-author relationship summary (trust: low, may hallucinate)
 [OBSERVATIONS ABOUT @alice]            ← per-author observations (active only, trust: medium)

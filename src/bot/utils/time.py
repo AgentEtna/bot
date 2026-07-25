@@ -1,7 +1,7 @@
 """Shared relative-time rendering for system prompt blocks.
 
 Single canonical helper used by every block that surfaces "when did this
-happen" — `[RECENT OPERATIONS]`, `[SELF STATE]`, `[OBSERVATIONS]`,
+happen" — `[RECENT OPERATIONS]`, `[OBSERVATIONS]`,
 interaction render. Granularity is fine enough for continuity signals
 (seconds → days) without paginating into months/years (use the date-based
 helper in `tools/_helpers.py:_relative_age` for that — different shape).

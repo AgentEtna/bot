@@ -40,7 +40,7 @@ doc — bot_client/bsky.social only works for bsky-hosted accounts.
 the personality file has moved from behavior contract → voice description →
 disposition, repeatedly stripped of rules, glossaries, and sticky phrases phi
 parrots verbatim. meanwhile the system prompt moved the opposite way: named
-blocks ([SELF STATE], [GOALS], [WORKFLOW STATE], ...) each backed by real
+blocks ([GOALS], [RESIDUE], [WORKFLOW STATE], ...) each backed by real
 state, documented in system-prompt.md. don't put rules in the personality or
 vibes in the context blocks.
 

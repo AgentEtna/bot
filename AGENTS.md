@@ -2,7 +2,7 @@ phi — a bluesky bot. python + pydantic-ai + atproto + turbopuffer + cosmik/sem
 
 ## development
 
-- `just run` / `just dev` (hot-reload) / `just deploy` (manual fly.io) / `just release X` (tag vX, CI deploys)
+- `just run` / `just dev` (hot-reload) / `just deploy` (fly.io — the only deploy path)
 - `just check` — lint + typecheck + test
 - `just evals` — behavioral tests (llm-as-judge)
 - `just loq-relax <file>` — relax line limit for a file. never edit loq.toml manually or compress code to fit
@@ -79,6 +79,8 @@ deeper reference in `docs/`:
 
 ## deployment
 
-fly.io app `zzstoatzz-phi`. CI deploys on `v*` tag push (tangled `.tangled/workflows/deploy.yml`). `just release X.Y.Z` tags + pushes; `just deploy` runs fly deploy directly when CI is backed up. push to both `origin` (tangled) and `github` mirror.
+fly.io app `zzstoatzz-phi`. `just deploy` is the only deploy path — run it yourself after pushing, and expect a couple of minutes. push to both `origin` (tangled) and the `github` mirror; the mirror is what phi's `changelog` tool reads.
+
+there was a tag-triggered deploy workflow (`.tangled/workflows/deploy.yml`, `just release`). it stopped firing at some point and nobody noticed because every real deploy was already manual — pushing `v0.10.49` on 2026-07-24 produced no release while five `just deploy` runs that day all landed. it was deleted rather than left as decoration; `git show f811181` has it if CI deploys are wanted again, and it would need a `FLY_API_TOKEN` secret configured in tangled.
 
 secrets via `fly secrets set` or `fly secrets import` (pipe `grep ^KEY .env` into it to keep values off the terminal).

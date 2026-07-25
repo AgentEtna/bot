@@ -1,4 +1,4 @@
-"""[GOALS AND INTERESTS] + [SELF-AWARENESS] + [SELF STATE] — phi sees its compass, its recent posting inventory, and its operational pointers.
+"""[GOALS AND INTERESTS] + [SELF-AWARENESS] — phi sees its compass and its recent posting inventory.
 
 GOALS are intent: what phi is for. Stored on PDS as canonical state.
 SELF-AWARENESS is a recent-posting inventory: a structured, third-person
@@ -7,7 +7,6 @@ people / mode / missing lately). Compiled by a small dedicated agent;
 written deliberately plain. The block is NOT phi's voice — exemplar
 pressure beats abstract rules, so the inventory itself must stay out of
 phi's register or it teaches the bad voice it was meant to describe.
-SELF STATE is operational: last follow.
 
 The inventory pass is *derived* (not duplicated state) and cached in
 memory: 1h TTL, invalidated when the latest post URI changes. The whole
@@ -19,7 +18,6 @@ import logging
 import time
 from datetime import UTC, datetime, timedelta
 
-from atproto_client.models.utils import get_model_as_dict
 from pydantic_ai import Agent
 
 from bot.config import settings
@@ -44,7 +42,7 @@ _block_cache: dict = {"text": "", "fetched_at": 0.0}
 
 
 def invalidate_state_cache() -> None:
-    """Force [GOALS AND INTERESTS] + [SELF-AWARENESS] + [SELF STATE] to recompose on the next read.
+    """Force [GOALS AND INTERESTS] + [SELF-AWARENESS] to recompose on the next read.
 
     Called by goal mutation tools (propose_goal_change, update_goal_progress)
     so phi doesn't see her own just-written progress as stale for up to 5min
@@ -115,31 +113,6 @@ async def _compile_inventory(posts: list[str]) -> str:
         return (result.output or "").strip()
     except Exception as e:
         logger.warning(f"posting inventory compile failed: {e}")
-        return ""
-
-
-async def _last_follow_when(client: BotClient) -> str:
-    try:
-        await client.authenticate()
-        if not client.client.me:
-            return ""
-        response = client.client.com.atproto.repo.list_records(
-            {
-                "repo": client.client.me.did,
-                "collection": "app.bsky.graph.follow",
-                "limit": 1,
-            }
-        )
-        if not response.records:
-            return ""
-        record = response.records[0]
-        # get_model_as_dict, not dict(): a typed atproto Record serializes to
-        # snake_case (`created_at`), so dict(...).get("createdAt") silently
-        # returned "" and this block never rendered. see docs/patterns.md.
-        value = get_model_as_dict(record.value) if record.value else {}
-        return relative_when(value.get("createdAt", ""))
-    except Exception as e:
-        logger.debug(f"last_follow lookup failed: {e}")
         return ""
 
 
@@ -276,7 +249,7 @@ def _format_goals_block(
 async def get_state_block(
     client: BotClient, memory: NamespaceMemory | None = None
 ) -> str:
-    """Compose [GOALS AND INTERESTS] + [SELF-AWARENESS] + [SELF STATE].
+    """Compose [GOALS AND INTERESTS] + [SELF-AWARENESS].
 
     Cached at the block level (5min) and inventory level (1h, invalidated
     on new post). `memory` is used to live-compute the friends progress
@@ -324,11 +297,6 @@ async def get_state_block(
             )
     except Exception as e:
         logger.debug(f"posting inventory compose failed: {e}")
-
-    # Operational pointers.
-    follow_age = await _last_follow_when(client)
-    if follow_age:
-        parts.append(f"[SELF STATE]\nlast follow: {follow_age}")
 
     block = "\n\n".join(parts)
     _block_cache["text"] = block
