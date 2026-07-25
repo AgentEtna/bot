@@ -218,6 +218,15 @@ class NamespaceMemory:
         data = f"{namespace}-{label}-{timestamp}-{content}"
         return hashlib.sha256(data.encode()).hexdigest()[:16]
 
+    async def embed(self, text: str) -> list[float]:
+        """Public embedding access for callers outside the memory pipeline.
+
+        `core/discovery_pool.py` ranks strangers against the current
+        conversation with plain cosine — a similarity score is arithmetic,
+        not judgment, so it does not warrant an LLM pass (docs/patterns.md).
+        """
+        return await self._get_embedding(text)
+
     async def _get_embedding(self, text: str) -> list[float]:
         """Get embedding for text using OpenAI."""
         response = await self.openai_client.embeddings.create(

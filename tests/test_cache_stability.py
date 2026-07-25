@@ -253,6 +253,7 @@ def test_trace_id_is_taken_from_the_first_request_only():
     m.begin_run("cycle")
     with tracer.start_as_current_span("chat 1"):
         observe(m, input_tokens=100, write=5_000)
+    assert m._current is not None
     first = m._current.trace_id
     with tracer.start_as_current_span("chat 2"):
         observe(m, input_tokens=100, read=5_000)

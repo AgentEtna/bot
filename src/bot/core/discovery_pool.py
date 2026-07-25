@@ -12,7 +12,7 @@ from fetch+filter so a future templating swap only touches `_render`.
 
 import logging
 import time
-from typing import TypedDict
+from typing import Protocol, TypedDict
 
 import httpx
 
@@ -21,12 +21,31 @@ from bot.memory import NamespaceMemory
 
 logger = logging.getLogger("bot.discovery_pool")
 
-TOP_N = 8
+# the upstream pool runs ~30 authors. two shapes, chosen by path:
+#
+# invited (a notifications batch): rank the whole pool against what phi is
+# actually being talked to about and surface a few, with room to show why
+# they're relevant. most runs take this path, so this is where the saving is.
+#
+# unprompted (cycle / reflection): no conversation to cater to, so breadth is
+# the point — every stranger, one sample each. this is also the path where
+# `uninvited-reply` fails closed at the policy judge, so the widest surface
+# sits behind the hardest gate (see core/policy.py and 1ea5fd5).
+#
+# ranking by similarity to the current conversation would, applied
+# everywhere, quietly filter out the strangers who broaden phi — the
+# one-topic hall of mirrors docs/patterns.md keeps warning about. hence
+# narrow only when there is a scenario to narrow toward.
+TOP_N = 30
+RELEVANT_N = 3
 TEXT_TRUNCATE = 140
 SAMPLE_LIMIT = 3
+BROWSE_SAMPLE_LIMIT = 1
 HTTP_TIMEOUT = 10
 _BLOCK_TTL_SECONDS = 300  # 5min, mirrors other PDS state blocks
 _block_cache: dict = {"text": "", "fetched_at": 0.0}
+# entry-text -> embedding, so a stable pool is embedded once, not per batch
+_vector_cache: dict[str, list[float]] = {}
 
 
 class _SamplePost(TypedDict):
@@ -84,14 +103,19 @@ async def _has_interaction(memory: NamespaceMemory, handle: str) -> bool:
         return False  # namespace doesn't exist yet → no interactions
 
 
-def _render(entries: list[_Entry]) -> str:
+def _render(entries: list[_Entry], *, ranked: bool, samples: int) -> str:
     if not entries:
         return ""
+    scope = (
+        "the few most relevant to what you're being talked to about right now"
+        if ranked
+        else "all of them, so you can look around"
+    )
     lines = [
-        "[DISCOVERY POOL — strangers the operator has been liking. sample "
-        "posts are quoted from those accounts; do not copy their phrasing. "
-        "if you reference an idea you only met here, attribute the author. "
-        "warm leads, not cold.]"
+        f"[DISCOVERY POOL — strangers the operator has been liking; {scope}. "
+        "sample posts are quoted from those accounts; do not copy their "
+        "phrasing. if you reference an idea you only met here, attribute the "
+        "author. warm leads, not cold.]"
     ]
     for e in entries:
         likes = e.get("likes_in_window", 0)
@@ -101,7 +125,7 @@ def _render(entries: list[_Entry]) -> str:
             f"@{e['handle']} — {likes} like{'s' if likes != 1 else ''} from operator"
             f"{f' (last: {last[:10]})' if last else ''}"
         )
-        for post in (e.get("sample_posts") or [])[:SAMPLE_LIMIT]:
+        for post in (e.get("sample_posts") or [])[:samples]:
             text = _short(post.get("text") or "")
             if text:
                 lines.append(f"  · {text!r}")
@@ -134,14 +158,83 @@ async def get_filtered_pool(
     return raw[:top_n]
 
 
-async def get_discovery_pool_block(memory: NamespaceMemory | None) -> str:
-    """Fetch + filter + render the [DISCOVERY POOL] block. Cached 5min."""
+class Embedder(Protocol):
+    """Just the embedding call. Ranking needs nothing else from memory, and
+    naming that keeps the dependency honest (and stubbable without a cast)."""
+
+    async def embed(self, text: str) -> list[float]: ...
+
+
+def _cosine(a: list[float], b: list[float]) -> float:
+    dot = sum(x * y for x, y in zip(a, b))
+    na = sum(x * x for x in a) ** 0.5
+    nb = sum(y * y for y in b) ** 0.5
+    return dot / (na * nb) if na and nb else 0.0
+
+
+def _entry_text(e: _Entry) -> str:
+    """What an entry is 'about' — the handle plus what they actually post."""
+    posts = " ".join((p.get("text") or "") for p in (e.get("sample_posts") or []))
+    return f"@{e.get('handle', '')} {posts}".strip()
+
+
+async def _rank_by_relevance(
+    entries: list[_Entry], seed: str, embedder: Embedder
+) -> list[_Entry]:
+    """Order the pool by cosine similarity to the current conversation.
+
+    Entry vectors are cached by text, so a stable pool costs one embedding
+    (the seed) per batch rather than one per stranger.
+    """
+    seed_vec = await embedder.embed(seed[:2000])
+    scored: list[tuple[float, _Entry]] = []
+    for e in entries:
+        text = _entry_text(e)
+        if not text:
+            continue
+        if text not in _vector_cache:
+            _vector_cache[text] = await embedder.embed(text[:2000])
+        scored.append((_cosine(seed_vec, _vector_cache[text]), e))
+    scored.sort(key=lambda pair: pair[0], reverse=True)
+    # bound the cache to the pool's working set plus churn
+    if len(_vector_cache) > 200:
+        for key in list(_vector_cache)[:100]:
+            del _vector_cache[key]
+    return [e for _, e in scored]
+
+
+async def get_discovery_pool_block(
+    memory: NamespaceMemory | None,
+    seed: str = "",
+    embedder: Embedder | None = None,
+) -> str:
+    """Fetch + filter + render the [DISCOVERY POOL] block.
+
+    `seed` is the current conversation (the notifications batch). With one,
+    the whole pool is ranked against it and only the top few render, with
+    full sample posts. Without one — a scheduled cycle, where there is no
+    scenario to cater to — every stranger renders with a single sample, so
+    breadth survives.
+
+    Only the unranked block is cached; a ranked one is specific to its batch.
+    """
+    entries = await get_filtered_pool(memory)
+    if not entries:
+        return ""
+
+    embedder = embedder or memory
+    if seed.strip() and embedder is not None:
+        try:
+            ranked = await _rank_by_relevance(entries, seed, embedder)
+            return _render(ranked[:RELEVANT_N], ranked=True, samples=SAMPLE_LIMIT)
+        except Exception as e:
+            # ranking is an optimization; losing it costs tokens, not the run
+            logger.warning(f"discovery pool ranking failed, showing all: {e}")
+
     now = time.time()
     if _block_cache["text"] and now - _block_cache["fetched_at"] < _BLOCK_TTL_SECONDS:
         return _block_cache["text"]
-
-    entries = await get_filtered_pool(memory)
-    block = _render(entries)
+    block = _render(entries, ranked=False, samples=BROWSE_SAMPLE_LIMIT)
     _block_cache["text"] = block
     _block_cache["fetched_at"] = now
     return block

@@ -412,8 +412,19 @@ class PhiAgent:
 
         @_run_scoped
         async def inject_discovery_pool(ctx: RunContext[PhiDeps]) -> str:
-            """[DISCOVERY POOL] — strangers the operator has been liking; warm leads."""
-            return await get_discovery_pool_block(ctx.deps.memory)
+            """[DISCOVERY POOL] — strangers the operator has been liking; warm leads.
+
+            Seeded with the notifications batch when there is one, so the
+            block narrows to strangers relevant to the conversation phi is
+            actually in. On scheduled paths there is no seed and the whole
+            pool renders — see core/discovery_pool.py for why breadth
+            belongs on the unprompted path.
+            """
+            notifications = ctx.deps.notifications_context or {}
+            seed = " ".join(
+                (e.get("post_text") or "") for e in notifications.values()
+            ).strip()
+            return await get_discovery_pool_block(ctx.deps.memory, seed=seed)
 
         @_run_scoped
         def inject_notifications(ctx: RunContext[PhiDeps]) -> str:
