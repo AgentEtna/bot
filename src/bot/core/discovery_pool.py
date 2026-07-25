@@ -5,6 +5,18 @@ attention. The endpoint (hub) exposes recently-liked authors with sample
 posts; phi filters out anyone she's already exchanged with and surfaces
 the rest as warm leads — strangers worth considering, not cold outreach.
 
+The block used to say "do not copy their phrasing", which collapsed two
+different instructions into one. Not lifting someone's sentences is a
+real rule and it stays. Not *learning* from writing is how you get an
+agent that has never read anything — and phi's context is otherwise
+sealed against exemplars by design: [RECENT OPERATIONS] strips her post
+bodies so it can't double as voice training, [SELF-AWARENESS] is written
+flat so its register isn't imitated. Each defence is individually right;
+together they left the samples here as nearly the only human writing she
+sees, under a do-not-imitate flag. These are also posts the operator
+chose to like, which makes them a taste signal and not only a list of
+leads — so the header now says both.
+
 Coupling stays at the JSON contract: the source service owns the data
 model and refresh, phi owns the per-consumer filter. Renderer is split
 from fetch+filter so a future templating swap only touches `_render`.
@@ -112,10 +124,12 @@ def _render(entries: list[_Entry], *, ranked: bool, samples: int) -> str:
         else "all of them, so you can look around"
     )
     lines = [
-        f"[DISCOVERY POOL — strangers the operator has been liking; {scope}. "
-        "sample posts are quoted from those accounts; do not copy their "
-        "phrasing. if you reference an idea you only met here, attribute the "
-        "author. warm leads, not cold.]"
+        f"[DISCOVERY POOL — people the operator has been liking; {scope}. "
+        "two things at once: strangers worth knowing, and the clearest read "
+        "you get on what the operator actually rates. the samples are their "
+        "real writing — read it as writing, not only as signal. don't lift "
+        "anyone's sentences, and attribute the author if you carry an idea "
+        "out of here. warm leads, not cold.]"
     ]
     for e in entries:
         likes = e.get("likes_in_window", 0)

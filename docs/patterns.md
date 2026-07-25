@@ -119,3 +119,31 @@ the four daily thought slots.
 
 **before changing a block that describes phi to herself, check whether it is
 lying.** if it is accurate, the thing it describes is what needs to change.
+
+## defences against voice contagion compound into an agent that never reads
+
+three separate measures, each right on its own, each protecting against a real
+failure this repo actually hit:
+
+- `[RECENT OPERATIONS]` strips post bodies to a char count, "so this block
+  doesn't double as voice training" — the voice-drift loop (41623ce).
+- `[SELF-AWARENESS]` is written deliberately flat, "do not imitate this
+  block's register" — exemplar pressure beats abstract rules, so a mirror
+  that spoke in phi's register would reinforce it.
+- `[DISCOVERY POOL]` said "do not copy their phrasing" — attribution.
+
+together they left the pool samples as nearly the only human writing in phi's
+context, flagged do-not-imitate, and the only unfiltered writing anywhere in
+her context is people talking to her in `[NEW NOTIFICATIONS]` — which requires
+someone to speak first.
+
+"phi sounds dry" had this underneath it. she was never allowed to read
+anything. the fix was to separate **don't lift someone's sentences** (real,
+kept) from **don't learn from writing** (accidental, removed), and to name the
+pool as what it also is: posts the operator chose to like, which is a taste
+signal, not only a list of leads.
+
+**when adding a guard against imitation, say precisely what is forbidden.**
+"don't copy this" and "don't learn from this" are different instructions, and
+a system that only ever issues the second produces an agent with no voice to
+protect.

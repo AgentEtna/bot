@@ -136,3 +136,32 @@ async def test_no_embedder_means_no_ranking_not_an_error():
     pool, not to an empty block."""
     block = await discovery_pool.get_discovery_pool_block(None, seed="atproto")
     assert "@zeu.dev" in block and "@baker.bsky.social" in block
+
+
+async def test_the_block_permits_reading_as_writing():
+    """phi's context is otherwise sealed against exemplars: [RECENT
+    OPERATIONS] strips her post bodies so it can't double as voice
+    training, [SELF-AWARENESS] is deliberately flat so its register isn't
+    imitated. Each is right on its own; together they left these samples as
+    nearly the only human writing she sees — under a blanket "do not copy
+    their phrasing". An agent that is never allowed to read anything does
+    not develop a voice.
+    """
+    block = await discovery_pool.get_discovery_pool_block(None, seed="")
+    assert "read it as writing" in block
+    assert "do not copy their phrasing" not in block
+
+
+async def test_the_real_protections_survive():
+    """Loosening absorption must not loosen attribution or lifting."""
+    block = await discovery_pool.get_discovery_pool_block(None, seed="")
+    assert "don't lift anyone's sentences" in block
+    assert "attribute the author" in block
+
+
+async def test_the_pool_is_framed_as_taste_not_only_leads():
+    """These are posts the operator chose to like — the clearest read phi
+    gets on what he actually rates, which teaches taste without naming a
+    single stylistic rule."""
+    block = await discovery_pool.get_discovery_pool_block(None, seed="")
+    assert "what the operator actually rates" in block
