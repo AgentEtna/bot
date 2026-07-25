@@ -45,6 +45,10 @@ MEANINGFUL_COLLECTIONS: tuple[str, ...] = (
     "app.greengale.document",
 )
 
+POST_PREVIEW = 220
+"""How much of a top-level post to show. Enough to recognise a subject she
+has already covered; not the whole feed re-rendered into her context."""
+
 PER_COLLECTION_LIMIT = 10
 TOP_N = 10
 
@@ -91,23 +95,26 @@ def _links_in(value: dict) -> list[str]:
 def _summarize(nsid: str, value: dict) -> str:
     """One-line salient summary of a record value, by NSID.
 
-    Communicates WHAT phi did, not WHAT she said — post prose is deliberately
-    omitted so this block doesn't double as style training data feeding
-    phi's voice back to her (41623ce).
+    Top-level posts show what they said. 41623ce stripped every post body to
+    an action and a char count, to stop this block reflecting phi's register
+    back at her as identity — the mirror it was taking down was
+    [SELF-AWARENESS], a *characterization* written in her voice, and that one
+    stays flat. A chronological log of what she published is a different
+    thing, and without it she cannot tell that she has already said
+    something: on 2026-07-25 she posted the same essay, with the same link,
+    at 14:04 and again at 19:01.
 
-    Links are the exception, on the same footing as the goal titles and blog
-    doc titles that commit already preserved: a URL identifies the subject
-    without carrying any of the register. Stripping them cost more than it
-    saved — on 2026-07-25 phi posted the same essay link at 14:04 and again
-    at 19:01, five hours apart, because nothing in her context could tell her
-    she had already shared it.
+    Replies stay summarised. They are high-volume, they are half of someone
+    else's conversation, and they are not what she repeats.
     """
     if nsid == "app.bsky.feed.post":
-        text = value.get("text", "") or ""
-        kind = "reply" if value.get("reply") else "top-level post"
-        line = f"{kind} ({len(text)} chars)"
+        text = " ".join((value.get("text", "") or "").split())
+        if value.get("reply"):
+            return f"reply ({len(text)} chars)"
+        said = text if len(text) <= POST_PREVIEW else text[: POST_PREVIEW - 1] + "…"
+        line = f'top-level post: "{said}"'
         if links := _links_in(value):
-            line += " — linked: " + ", ".join(links)
+            line += f" [linked: {', '.join(links)}]"
         return line
     if nsid == "app.bsky.feed.like":
         subject = value.get("subject") or {}
@@ -195,11 +202,12 @@ def _render(rows: list[_Row]) -> str:
         return ""
     nsid_width = max(len(r["nsid"]) for r in rows)
     lines = [
-        "[RECENT OPERATIONS — your last writes on PDS, chronological. the "
-        "prose of your posts is hidden on purpose; any links in them are "
-        "shown, because a link you have already shared is the clearest sign "
-        "you have already covered something. this is what you did, not how "
-        "you said it.]"
+        "[RECENT OPERATIONS — your last writes on PDS, chronological, so you "
+        "always know what you have already said. this is a record of what "
+        "went out, not a model for how to write: if something here is "
+        "already covered, the reason to look is to avoid saying it twice, "
+        "not to match its phrasing. replies are summarised; they are half of "
+        "someone else's conversation.]"
     ]
     for r in rows:
         ts = r["created_at"]

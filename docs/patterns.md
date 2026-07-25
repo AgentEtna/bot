@@ -155,3 +155,27 @@ claim about *how people talk*, plus real exemplars, plus a task that is
 **analysis** — work out how someone landed one, they're often quiet about it.
 a handed-down voice gets parroted; a noticed one gets learned. never state
 the register you want.
+
+## "don't imitate this" and "don't know this" are different instructions
+
+three times in one day the same shape turned up: a guard against imitation,
+written in the cheap form, that also removed knowledge phi needed.
+
+- `[DISCOVERY POOL]` said "do not copy their phrasing", which also made the
+  only human writing in her context off-limits to learn from.
+- `[RECENT OPERATIONS]` stripped post bodies so it could not double as voice
+  training, which also meant she could not tell she had already posted
+  something — and she posted the same essay twice in one day, five hours
+  apart, in near-identical words.
+- both were correct defences against real failures this repo had actually
+  hit. neither was wrong to exist. both were wrong in scope.
+
+**when writing a guard against imitation, say precisely what is forbidden.**
+copying someone's sentences, and knowing what is in front of you, are not the
+same act. a system that keeps issuing the second instruction produces an agent
+that has read nothing and remembers nothing.
+
+and note where the fix went: into the **block header**, not the task prompt.
+a scheduled task saying "check [RECENT OPERATIONS] before you post" is the
+same hardcoding the entry-point work exists to remove — phi should always know
+what she recently said, on every path, rather than be told to go look on one.

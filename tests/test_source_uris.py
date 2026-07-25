@@ -154,17 +154,6 @@ def test_a_link_in_a_post_is_surfaced():
     assert "lukekanies.com/writing/building-on-atproto" in line
 
 
-def test_the_prose_is_still_hidden():
-    """The thing 41623ce was protecting stays protected."""
-    from bot.core.recent_operations import _summarize
-
-    line = _summarize(
-        "app.bsky.feed.post", {"text": "finally read kanies' actual essay"}
-    )
-    assert "finally read" not in line
-    assert "33 chars" in line
-
-
 def test_facet_links_are_preferred_over_display_text():
     from bot.core.recent_operations import _summarize
 
@@ -182,5 +171,41 @@ def test_a_post_with_no_links_says_nothing_extra():
     from bot.core.recent_operations import _summarize
 
     assert _summarize("app.bsky.feed.post", {"text": "no links here"}) == (
-        "top-level post (13 chars)"
+        'top-level post: "no links here"'
     )
+
+
+def test_a_top_level_post_shows_what_it_said():
+    """She has to be able to tell she already covered something.
+
+    41623ce stripped every post body to an action and a char count. The
+    mirror it was taking down was [SELF-AWARENESS] — a characterization
+    written in her own register — and that one stays flat. A chronological
+    log of what she published is a different thing, and without it she
+    posted the same essay twice in one day.
+    """
+    from bot.core.recent_operations import _summarize
+
+    line = _summarize(
+        "app.bsky.feed.post", {"text": "finally read kanies' actual essay"}
+    )
+    assert "finally read kanies' actual essay" in line
+
+
+def test_replies_stay_summarised():
+    """High-volume, half of someone else's conversation, not what she repeats."""
+    from bot.core.recent_operations import _summarize
+
+    assert (
+        _summarize("app.bsky.feed.post", {"text": "thanks!", "reply": {"root": 1}})
+        == "reply (7 chars)"
+    )
+
+
+def test_a_long_post_is_bounded():
+    """Enough to recognise a subject, not the feed re-rendered into context."""
+    from bot.core.recent_operations import POST_PREVIEW, _summarize
+
+    line = _summarize("app.bsky.feed.post", {"text": "x" * 400})
+    assert len(line) < POST_PREVIEW + 60
+    assert line.endswith('…"')
