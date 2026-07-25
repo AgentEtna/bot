@@ -44,10 +44,12 @@ sandbox/                   # experiments (graduate to scripts/ once proven)
 
 ## key architecture
 
-- one agent loop, many entry points (notifications batch, cycle, daily reflection). all end in `agent.run()` with different `PhiDeps`.
+- one agent loop, many entry points (notifications batch, cycle, people pass, daily reflection, market/curation/editorial passes, workflow alert). all end in `agent.run()` with different `PhiDeps`.
+- **signals reach phi as context, not as commands.** a `process_*` task says what she's doing right now; the facts arrive as `[BLOCK]`s she judges. the entry-point prompts still hold ~17k chars of prose that nothing drift-checks — the least-inspected text in the repo, and where over-prescription collects (docs/patterns.md).
 - actions happen as tool calls inside the run, not via structured output. the agent's return value is a brief summary string for logging.
 - public actions are gated (docs/safety.md): written policies + an independent judge on every `post` (`core/policy.py`), a structural guard refusing raw `app.bsky.feed.*` writes via pdsx (`core/mcp_guard.py`), and an operator override — an `io.zzstoatzz.phi.override` record on the *operator's* repo that makes post/like/repost refuse while active (`core/override.py`, editable at the cockpit's `/operator`).
-- personality is separate from operational rules. tool docstrings carry per-tool guidance, not the system prompt.
+- personality is separate from operational rules. tool docstrings carry per-tool guidance, not the system prompt; a block's semantics live in that block's header, next to the labels they define.
+- scheduled attention is deliberate: `thought_post_hours` fires 4 cycles/day in operator-local waking hours, and `people_pass_hours` routes one of those slots to the people pass. what phi is woken up to look at is what she writes about (docs/patterns.md).
 - memory: turbopuffer namespaces (`phi-users-{handle}`, `phi-episodic`). intent state on PDS under `io.zzstoatzz.phi.*` (goals, mention consent, override, atlas, docket).
 - owner-gated mutations (`follow_user`, `propose_goal_change`, `manage_mentionable`, `create_feed`) flow through a like-as-approval mechanism: phi posts an authorization request, owner likes it, next batch lets the action through.
 - MCP servers: pdsx (atproto record CRUD, feed-writes guarded), pub-search (publication search), semble (code-mode public knowledge graph), prefect (workflow state; only when auth configured). connected via `MCPServerStreamableHTTP`, fresh per `agent.run()`.
@@ -73,6 +75,7 @@ deeper reference in `docs/`:
 - `mcp.md` — MCP integration
 - `safety.md` — the policy judge, the pdsx feed-write guard, the operator override, and the incident that shaped them
 - `testing.md` — testing philosophy
+- `patterns.md` — recurring lessons; read before "fixing" anything that looks accidental
 - `internal/cockpit.md` — the web UI (internal, operator-facing)
 
 `docs/system-prompt.md` is drift-checked: `tests/test_docs_sync.py` fails if an `inject_*` prompt function or a policy slug isn't mentioned there. add the row, don't weaken the test.

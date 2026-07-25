@@ -49,3 +49,73 @@ vibes in the context blocks.
 where a step has a closed set of outcomes (workflow-state classification,
 bio status marker, schedule selection), it has eventually been rewritten as
 plain code. reach for the LLM only where judgment is actually required.
+
+## a block that can render empty can also fail silently
+
+context blocks return `""` when their input is absent — the documented
+empty-when-unset contract in [system-prompt.md](system-prompt.md). the cost is
+that a *broken read* and *absent data* are indistinguishable from the outside.
+
+on 2026-07-24 an audit found two blocks that had rendered zero times across 611
+consecutive production requests. `[SELF STATE]` read `createdAt` off a typed
+atproto Record that serializes to `created_at`, so the lookup returned `""` —
+written broken in the same commit that added the block, dead its entire 3.5
+month life. `[DISCOVERY POOL]` was fetching a hub endpoint that had gone behind
+cloudflare access; `response.json()` raised on the HTML login page and the
+handler logged it at `debug`.
+
+- when a block can legitimately render empty, its failure path logs at
+  **warning**, never `debug`.
+- anything a block depends on belongs in `SERVICE_CHECKS`
+  (`tools/_helpers.py`) — hub was absent from it, which is why `check_services`
+  could never have caught this.
+- to audit: `strpos` for each block label over
+  `attributes->'gen_ai.system_instructions'` in logfire, counted across a wide
+  window. the `hone-prompts` skill carries the query. a position of 0 over
+  hundreds of requests means dead, not quiet.
+
+fixing one of them proved it redundant — `[SELF STATE]`'s surviving line
+duplicated `[RECENT OPERATIONS]`, so it was deleted rather than kept.
+subtraction again.
+
+## prescription accumulates where nothing inspects it
+
+the eleven `process_*` entry points in `agent.py` carry ~17k characters of
+hand-written instruction in string literals. that prose is the least-inspected
+in the system: not drift-checked like `docs/system-prompt.md`, not surfaced by
+`/api/abilities`, and not rendered by the `hone-prompts` skill, which reads
+composed *instructions* and never sees a task prompt.
+
+it is where over-prescription collects. the workflow-alert task ordered *name
+every failure, state that these are terminal run events, do not suppress, do
+not diagnose* — five clauses, each removing a judgment — and produced 15 of
+phi's last 25 top-level posts as syslog with a mention attached. the cycle task
+spent two thirds of its 3,514 characters on a decision table mapping workflow
+classifications to fixed responses.
+
+- guidance about a tool belongs in its docstring; semantics of a block belong
+  in that block's header, next to what they describe. an entry point's task
+  should say what phi is doing right now, and stop.
+- a signal should reach phi as **perception, not as a command**. `[WORKFLOW
+  STATE]` was already a block she read and judged; the alert path carried the
+  same facts as an order. same information, two shapes, and the ordered one
+  wrote in machine register.
+- when a task prompt grows past a few sentences, ask what part of it is
+  describing a tool, a block, or phi's voice — those have homes.
+
+## phi writes about what she is woken up to look at
+
+the 2026-07-25 diagnosis of "phi sounds dry" ended nowhere near
+`personalities/phi.md`. every scheduled wake pointed at machine state: cycle
+opened on `[WORKFLOW STATE]`, two daily passes on the chicken market,
+reflection on her own metrics, editorial on coral's record. nothing ever woke
+her up to read a person. so she wrote status reports even where she chose the
+subject, and `[SELF-AWARENESS]` accurately reported `mode: mostly operational
+alerts and incident reports`.
+
+the tempting fix was to stop counting alert posts in that inventory. that edits
+the mirror. the diet is the cause — hence the `people` pass, which takes one of
+the four daily thought slots.
+
+**before changing a block that describes phi to herself, check whether it is
+lying.** if it is accurate, the thing it describes is what needs to change.

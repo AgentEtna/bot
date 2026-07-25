@@ -21,9 +21,12 @@ source you edit to change it.
 
 ## the six live prompts
 
-Every agent logs a `chat {model}` span whose
-`attributes->'gen_ai.input.messages'->0` is the `system` message. Identify the
-agent by `attributes->>'gen_ai.agent.name'`.
+Every agent logs a `chat {model}` span. Instructions live in
+`attributes->'gen_ai.system_instructions'`; `gen_ai.input.messages` holds the
+*conversation* (element 0 is the user task, not the system message — pydantic-ai
+moved instructions to their own attribute, and any query written against the old
+shape returns the task prompt or null). Identify the agent by
+`attributes->>'gen_ai.agent.name'`.
 
 | agent name (logfire) | what it is | source to edit |
 |---|---|---|
@@ -36,10 +39,11 @@ agent by `attributes->>'gen_ai.agent.name'`.
 
 ## 1. render the static base (this is what you hone)
 
-The system message is `attributes->'gen_ai.input.messages'->0`. Its `parts` array
-is **multi-block**: `parts[0]` is the static base (personality + operational
-rules — the bulk of what you edit), and `parts[1..N]` are the live outputs of the
-dynamic `@system_prompt` callbacks (`[NOW]`, `[DISCOVERY POOL]`, `[ATLAS]`, …).
+Instructions arrive as `attributes->'gen_ai.system_instructions'`, a JSON array.
+Logfire concatenates the whole composed instruction set into element 0 — the
+static base (personality + operational rules, the bulk of what you edit) followed
+by every dynamic block (`[NOW]`, `[DISCOVERY POOL]`, `[ATLAS]`, …) in
+registration order. There is no per-block element to index.
 
 **You hone source, not a rendered wall of live values.** So the default render is
 just `parts[0]` — one clean query, no index-chasing. Run this per agent (swap the
@@ -47,7 +51,7 @@ name) via the logfire MCP (`query_run`, project `phi`) and `Write` the result to
 `scratch/prompts/{agent}.md`:
 
 ```sql
-SELECT attributes->'gen_ai.input.messages'->0->'parts'->0->>'content' AS base
+SELECT attributes->'gen_ai.system_instructions'->0->>'content' AS composed
 FROM records
 WHERE span_name LIKE 'chat %'
   AND attributes->>'gen_ai.agent.name' = 'phi'   -- swap per agent
@@ -66,17 +70,29 @@ injected stale data, or blew up the token count — pull a labeled index of the
 blocks instead of concatenating them. Each non-empty part is one callback's
 output; the leading `[BRACKET]` names it. Query the heads:
 
+Blocks are concatenated into one string, so find them by label with `strpos`
+and read sizes from the gaps between positions. Note the labels carry
+descriptive suffixes (`[RESIDUE — what recent runs left behind…`), so match the
+open bracket and the name only — searching `'[RESIDUE]'` finds nothing:
+
 ```sql
-SELECT
-  substr(attributes->'gen_ai.input.messages'->0->'parts'->1->>'content',1,60)  AS b1,
-  substr(attributes->'gen_ai.input.messages'->0->'parts'->2->>'content',1,60)  AS b2,
-  substr(attributes->'gen_ai.input.messages'->0->'parts'->3->>'content',1,60)  AS b3
-  -- …extend to ~b16; empty string = a conditional callback that didn't fire
-  -- this run (healthy); null = past the end of the array.
-FROM records
-WHERE span_name LIKE 'chat %' AND attributes->>'gen_ai.agent.name' = 'phi'
-ORDER BY start_timestamp DESC LIMIT 1
+WITH s AS (
+  SELECT attributes->'gen_ai.system_instructions'->0->>'content' AS c
+  FROM records WHERE span_name LIKE 'chat %'
+    AND attributes->>'gen_ai.agent.name' = 'phi'
+  ORDER BY start_timestamp DESC LIMIT 1
+)
+SELECT length(c) AS total,
+  strpos(c,'[GOALS AND INTERESTS —') AS goals,
+  strpos(c,'[RESIDUE —')             AS residue,
+  strpos(c,'[SEMBLE —')              AS semble,
+  strpos(c,'[NEW NOTIFICATIONS')     AS notifs
+FROM s
 ```
+
+A position of 0 means the block did not render. That is how two blocks were
+found dead on 2026-07-24 after 611 consecutive requests — see
+`docs/patterns.md`. To audit sizes, sort the positions and diff adjacent ones.
 
 Read the bracket label, map it to its callback (`agent.py:236-502`, grep the
 label), pull that one part's full content if it's the suspect. This is a
@@ -131,9 +147,10 @@ same change.
   `attributes->>'gen_ai.tool.name'`, NOT in the span name. (Patterns like
   `span_name LIKE '%running tool: post%'` match nothing — a bug that has bitten
   both this skill's author and `phi-check`.)
-- `gen_ai.input.messages` is a JSON array; element 0 is the system message. Later
-  elements are the conversation and will differ every run — you only want
-  element 0 for prompt honing.
-- Prompt length drifts with injected state (phi's main prompt runs ~9k chars).
+- `gen_ai.input.messages` is the conversation, NOT the instructions. Element 0 is
+  the user task (useful for checking what an entry point actually dispatched with —
+  see the `process_*` methods in `agent.py`). Instructions are in
+  `gen_ai.system_instructions`.
+- Prompt length drifts with injected state (phi's composed instructions ran ~37k chars before the 2026-07-24 de-duplication, ~31k after).
   A sudden large change in rendered length between snapshots is a fast signal
   that a callback started injecting more (or errored out and injected nothing).
