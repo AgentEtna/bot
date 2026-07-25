@@ -345,6 +345,10 @@ class MessageHandler:
         """One cognitive cycle — see :meth:`PhiAgent.process_cycle`."""
         await self._run_scheduled("cycle", self.agent.process_cycle)
 
+    async def people(self):
+        """A scheduled pass pointed at people rather than systems."""
+        await self._run_scheduled("people", lambda: self.agent.process_people())
+
     async def workflow_failures(self):
         """Wake phi because a flow just failed.
 

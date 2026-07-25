@@ -136,6 +136,19 @@ class Settings(BaseSettings):
         ),
     )
 
+    # Which of the thought slots go to people instead of a general cycle.
+    # Every other scheduled wake points phi at machine state, so without
+    # this nothing ever sends her to read a person. A subset rather than a
+    # new cadence: same rhythm, different attention.
+    people_pass_hours: list[int] = Field(
+        default=[17],
+        description=(
+            "Hours-of-day (operator local time) whose thought slot runs the "
+            "people pass instead of a general cycle. Must be a subset of "
+            "thought_post_hours to fire at all."
+        ),
+    )
+
     # External feeds phi can read
     saved_feeds: dict[str, str] = Field(
         default={

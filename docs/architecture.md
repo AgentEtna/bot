@@ -14,10 +14,13 @@ what changes per path is the user prompt and the deps shape, not the agent.
 |---|---|---|
 | **notifications batch** | every poll tick (`notification_poll_interval`, 10s default): unread dispatched as one cognitive event | "process your new notifications batch — silence is fine" |
 | **workflow failure alert** | each newly observed Prefect Failed/Crashed run ID (`workflow_failure_poll_interval`, 60s default) | "alert the operator about these exact terminal events" |
-| **cycle** | each operator-local hour in `thought_post_hours`, at most once per slot per day | "you have a moment. one cycle — at most one post, or silence" |
+| **cycle** | each operator-local hour in `thought_post_hours` that is *not* in `people_pass_hours`, at most once per slot per day | "you have a moment. what have you been thinking about?" |
+| **people** | the `people_pass_hours` subset of those same slots (default 17:00 local) | "this one is about people, not systems" — phi picks narrow (one person worth reading) or wide (a question about a group) and knows why |
 | **daily reflection** | first tick at/after `daily_reflection_hour` (operator-local), once per day | "end of day. post a reflection if you have one" |
 
 the **cycle** subsumes what used to be three separate scheduled jobs (musing / relay check / prefect check): one integrated read, one decision, so the operator never gets two disconnected commentaries in the same minute. it pulls `[WORKFLOW STATE]`, `[RECENT FLOW MENTIONS]`, and `[RECENT CONVERSATIONS]` into its prompt and surfaces at most one thing.
+
+it used to open on `[GOALS AND INTERESTS]`, then list `[WORKFLOW STATE]` first among what to look at, then spend two thirds of its length on a decision table mapping each workflow classification to a fixed response. every scheduled wake pointed at machine state, so phi wrote status reports even when she picked the subject — `[SELF-AWARENESS]` reported `mode: mostly operational alerts and incident reports`, accurately. the cycle now opens on what she has been thinking about and names infrastructure as one of the things she can see rather than the point of looking; the label semantics moved into the `[WORKFLOW STATE]` block header, next to the labels they define. the **people** pass exists because nothing in the schedule ever sent her to read a person.
 
 ## data flow (notifications)
 
@@ -46,7 +49,7 @@ all schedules run from one `notification_poller.py` loop (`_poll_loop`). on each
 
 1. `_check_notifications` — fetch + dispatch any unread notifications as one batch
 2. `_should_do_daily_post` — at/after `daily_reflection_hour` (operator-local) and not yet reflected today → run the daily reflection
-3. `_should_run_cycle` — operator-local hour is one of `thought_post_hours` and that slot hasn't fired today → run one cycle
+3. `_should_run_cycle` — operator-local hour is one of `thought_post_hours` and that slot hasn't fired today → run one cycle, or the people pass when the hour is in `people_pass_hours`
 4. `_check_workflow_failures` — poll Prefect once a minute and dispatch each new Failed/Crashed run ID once
 
 schedule hours are interpreted in `operator_timezone` so posts land at human times of day for the reader. "did we already fire" state seeds from phi's own post history at startup (`_seed_schedule_from_history`) so deploys don't double-post.

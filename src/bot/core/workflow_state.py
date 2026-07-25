@@ -267,7 +267,20 @@ def _compose(raw: dict) -> str:
         f"[WORKFLOW STATE — current health of the operator's workflow "
         f"automation, refreshed every {_TTL_SECONDS // 60}min, anchored by "
         f"[NOW]={now_iso}. computed deterministically from flow run "
-        f"history; for detail call the prefect_* tools.]\n{body}"
+        f"history; for detail call the prefect_* tools.\n"
+        # what the labels mean lives with the labels. this used to be a
+        # decision table in the cycle task prompt, which made every cycle
+        # read as an infrastructure shift regardless of what phi had
+        # actually been thinking about.
+        "each line reads `- name: LATEST_RUN_STATE when [label — qualifier]`; "
+        "the run state is the load-bearing fact. broken = the most recent "
+        "terminal run failed. stuck = PENDING means work was never picked "
+        "up, RUNNING means it is still marked active past the health window "
+        "and may be orphaned — different problems, worth distinguishing. "
+        "degraded = recent runs flapped but the latest one completed, which "
+        "is neither broken nor stuck. healthy = nothing to say. a SCHEDULED "
+        "run with a future expected start is the normal calendar, never a "
+        f"backlog.]\n{body}"
     )
 
 

@@ -913,56 +913,29 @@ class PhiAgent:
             context_blocks.append(convs)
 
         task = (
-            "you have a moment. one cycle — at most one post (or one thread, "
-            "or silence). pick the single thread most worth surfacing now.\n\n"
-            "first, scan [GOALS AND INTERESTS]. if one has a concrete next "
-            "step and nothing urgent is competing (a broken/stuck workflow, "
-            "someone genuinely waiting on a reply), take that step — or call "
-            "update_goal_progress to record where it stands and why you're "
-            "not advancing it now. a stalled line there is a real signal.\n\n"
-            "what's available to look at:\n"
-            "- [WORKFLOW STATE] — ground truth on the operator's infrastructure, "
-            "anchored to [NOW]. deterministic synthesis of flow run history.\n"
-            "- [RECENT FLOW MENTIONS] — what you've already said about workflow "
-            "state recently, so you can avoid repeating yourself.\n"
-            "- your [RECENT CONVERSATIONS] sitting in your context already.\n"
-            "- your owned feeds, the timeline, the discovery pool, the network, "
-            "the open web — call tools to pull more.\n"
-            "- relay state via check_infra(aspect='relays') if it feels worth checking.\n\n"
-            "rules of engagement:\n"
-            "- one integrated read, one decision. if two threads both want "
-            "attention (say, a workflow failure AND something you noticed "
-            "reading), either braid them into one post if they connect, or "
-            "pick the one that matters more and skip the other. never two "
-            "disconnected posts in the same cycle.\n"
-            "- workflow state: each line in [WORKFLOW STATE] reads "
-            "`- name: LATEST_RUN_STATE when [classification — qualifier]`. the "
-            "LATEST_RUN_STATE is the load-bearing fact. the bracketed "
-            "classification is one of four labels, each with a fixed "
-            "response:\n"
-            "    * [broken]    most recent terminal failed. tag the operator "
-            "once if [RECENT FLOW MENTIONS] doesn't already cover it. don't "
-            "re-tag while it stays broken — they've heard you.\n"
-            "    * [stuck]     PENDING means work was not picked up; RUNNING "
-            "means execution is still marked active past the health window and "
-            "may be orphaned. preserve that distinction and tag immediately if "
-            "not already covered.\n"
-            "    * [degraded]  recent runs flapped but the most recent one "
-            "completed. don't tag — degraded is not broken. degraded is not "
-            "stuck — but if the flap pattern is newly noteworthy, use "
-            "save_memory so a later cycle can find it with search_memory. "
-            "don't say 'still stuck' or 'still "
-            "broken' for a degraded deployment.\n"
-            "    * [healthy]   silence.\n"
-            "  use the classification label verbatim. don't substitute. and "
-            "SCHEDULED runs with a future expected_start_time are normal "
-            "scheduler calendar — never a backlog or 'queue'.\n"
-            "- relay state: post about transitions only when a *.waow.tech "
-            "relay is degraded or worse, OR the whole fleet is degraded or "
-            "worse. otherwise use save_memory to record the change in your "
-            "own words so a later cycle can find it with search_memory, "
-            "rather than posting it.\n"
-            "- silence is usually right."
+            "you have a moment. what have you been thinking about?\n\n"
+            "start there — from your own attention, not from a status board. "
+            "the thing you keep circling, the question a conversation left "
+            "open, something you read that you haven't finished arguing with, "
+            "a person in [DISCOVERY POOL] whose posts are actually "
+            "interesting. [GOALS AND INTERESTS] is yours; if one has a next "
+            "step you actually want to take, take it.\n\n"
+            "some of what's in front of you is machine state — [WORKFLOW "
+            "STATE], relays via check_infra. that's the operator's "
+            "infrastructure and it matters when it's broken, but it is one "
+            "of the things you can see, not the point of looking. an "
+            "infrastructure post should happen because something broke that "
+            "they need to know about, not because it was the first block in "
+            "your context.\n\n"
+            "at most one post, one thread, or nothing. if two things both "
+            "want out, braid them if they connect or drop one — never two "
+            "disconnected posts in a cycle. silence is a real option and a "
+            "quiet day is allowed to be quiet.\n\n"
+            "you can pull more: the timeline, your feeds, the network, the "
+            "open web, someone's actual posts.\n\n"
+            "what you already said recently is in [RECENT FLOW MENTIONS] and "
+            "[RECENT CONVERSATIONS] — don't repeat yourself, and don't "
+            "re-tag the operator about something they've already heard."
         )
 
         return await self._run_scheduled(
@@ -984,6 +957,43 @@ class PhiAgent:
             label="workflow failure alert",
             prompt="something of the operator's just broke — check your context.",
             deps=PhiDeps(author_handle="", memory=self.memory),
+        )
+
+    async def process_people(self) -> str:
+        """A pass pointed at people rather than systems.
+
+        Every other scheduled wake points phi at machine state — workflow
+        health, market position, her own metrics — so what she posts reads
+        like a status report even when she chose the subject. Nothing woke
+        her up to go read someone. This does.
+
+        Deliberately short: the scope is hers. [DISCOVERY POOL] is already
+        in her context (the whole pool on this path, since there's no
+        conversation to narrow toward), and she has the timeline, search,
+        the network and the open web.
+        """
+        return await self._run_scheduled(
+            name="people",
+            task=(
+                "this one is about people, not systems. no infrastructure, "
+                "no market.\n\n"
+                "pick your own scope and know why you picked it. going "
+                "narrow is one person you want to actually read — someone "
+                "in [DISCOVERY POOL], someone from a conversation that "
+                "stuck with you, someone whose name keeps coming up. going "
+                "wide is a question you have about a group of them: what a "
+                "corner of the network is arguing about this week, who is "
+                "working on the same problem from different directions, "
+                "what everyone seems to have decided at once.\n\n"
+                "go read. their actual posts, not their bio. then decide "
+                "whether you have something worth saying — a post, a reply "
+                "to something of theirs, a card for something they pointed "
+                "you at, or nothing this time. reading someone carefully "
+                "and staying quiet is a complete outcome.\n\n"
+                "you have not met most of these people. don't perform "
+                "familiarity you haven't earned."
+            ),
+            context_blocks=[await self._recent_conversations_block(top_k=5)],
         )
 
     async def process_chicken_precheck(self) -> str:

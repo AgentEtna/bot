@@ -368,8 +368,12 @@ class NotificationPoller:
         now_local = _now_local()
         self._last_thought_hours.add(now_local.hour)
         self._last_thought_date = now_local.date()
-        logger.info(f"triggering cycle (local hour {now_local.hour})")
+        # a slot is either a general cycle or a people pass. same rhythm,
+        # different attention — see settings.people_pass_hours.
+        is_people = now_local.hour in settings.people_pass_hours
+        kind = "people pass" if is_people else "cycle"
+        logger.info(f"triggering {kind} (local hour {now_local.hour})")
         try:
-            await self.handler.cycle()
+            await (self.handler.people() if is_people else self.handler.cycle())
         except Exception as e:
-            logger.error(f"cycle error: {e}", exc_info=settings.debug)
+            logger.error(f"{kind} error: {e}", exc_info=settings.debug)
