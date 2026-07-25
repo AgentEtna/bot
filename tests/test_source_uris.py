@@ -129,3 +129,58 @@ def test_tail_sources_and_age():
 def test_tail_invalid_age_falls_back_to_sources_only():
     out = _citation_tail(["at://x/y/a"], "not a timestamp")
     assert out == " (1 source)"
+
+
+# --- links survive the prose stripping -------------------------------------
+#
+# 2026-07-25: phi posted the same essay link at 14:04 and again at 19:01,
+# five hours apart, in near-identical words. [RECENT OPERATIONS] said "post
+# text hidden; actions only", so nothing in her context could tell her she
+# had already shared it. 41623ce stripped post prose to stop the block
+# doubling as voice training, and preserved goal and blog titles for the
+# same reason a link is preserved now: it identifies the subject without
+# carrying any register.
+
+
+def test_a_link_in_a_post_is_surfaced():
+    from bot.core.recent_operations import _summarize
+
+    line = _summarize(
+        "app.bsky.feed.post",
+        {
+            "text": "finally read it: https://lukekanies.com/writing/building-on-atproto/"
+        },
+    )
+    assert "lukekanies.com/writing/building-on-atproto" in line
+
+
+def test_the_prose_is_still_hidden():
+    """The thing 41623ce was protecting stays protected."""
+    from bot.core.recent_operations import _summarize
+
+    line = _summarize(
+        "app.bsky.feed.post", {"text": "finally read kanies' actual essay"}
+    )
+    assert "finally read" not in line
+    assert "33 chars" in line
+
+
+def test_facet_links_are_preferred_over_display_text():
+    from bot.core.recent_operations import _summarize
+
+    line = _summarize(
+        "app.bsky.feed.post",
+        {
+            "text": "see this",
+            "facets": [{"features": [{"uri": "https://example.com/the-real-target"}]}],
+        },
+    )
+    assert "example.com/the-real-target" in line
+
+
+def test_a_post_with_no_links_says_nothing_extra():
+    from bot.core.recent_operations import _summarize
+
+    assert _summarize("app.bsky.feed.post", {"text": "no links here"}) == (
+        "top-level post (13 chars)"
+    )

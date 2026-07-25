@@ -920,9 +920,12 @@ class PhiAgent:
         return await self._run_scheduled(
             name="daily reflection",
             task=(
-                "end of day. post a reflection if you have one, or don't. "
-                "use [RECENT OPERATIONS] to avoid repeating what you've "
-                "already posted.\n\n"
+                "end of day. post a reflection if you have one, or don't.\n\n"
+                "check [RECENT OPERATIONS] first for what you already put out "
+                "today — a reflection that restates a post you made this "
+                "afternoon is not a reflection, it is the same post again. if "
+                "the day's finding already went out, either say something you "
+                "haven't yet or say nothing.\n\n"
                 "before posting, if today changed where a goal or interest "
                 "stands — what you did, where it is now, or the next step — "
                 "update one via update_goal_progress."

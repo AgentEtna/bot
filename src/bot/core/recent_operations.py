@@ -21,6 +21,7 @@ replace `_render`. `_summarize` carries per-NSID formatting logic.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from typing import TypedDict
 
@@ -58,18 +59,56 @@ class _Row(TypedDict):
     summary: str
 
 
+_URL_RE = re.compile(r"https?://[^\s<>\")\]]+")
+
+
+def _links_in(value: dict) -> list[str]:
+    """URLs phi put in a post, from its facets and its text.
+
+    Facets are authoritative (they carry the real target of a shortened
+    display string); the text scan catches posts written before facets were
+    resolved. Trimmed to host + path so the line stays short and two posts
+    sharing a link visibly share it.
+    """
+    found: list[str] = []
+    for facet in value.get("facets") or []:
+        for feature in facet.get("features") or []:
+            uri = feature.get("uri")
+            if uri:
+                found.append(uri)
+    found.extend(_URL_RE.findall(value.get("text", "") or ""))
+
+    seen: list[str] = []
+    for url in found:
+        short = url.split("://", 1)[-1].rstrip("/")
+        if len(short) > 60:
+            short = short[:59] + "…"
+        if short not in seen:
+            seen.append(short)
+    return seen[:3]
+
+
 def _summarize(nsid: str, value: dict) -> str:
     """One-line salient summary of a record value, by NSID.
 
-    Communicates WHAT phi did, not WHAT she said — post text is deliberately
+    Communicates WHAT phi did, not WHAT she said — post prose is deliberately
     omitted so this block doesn't double as style training data feeding
-    phi's voice back to her.
+    phi's voice back to her (41623ce).
+
+    Links are the exception, on the same footing as the goal titles and blog
+    doc titles that commit already preserved: a URL identifies the subject
+    without carrying any of the register. Stripping them cost more than it
+    saved — on 2026-07-25 phi posted the same essay link at 14:04 and again
+    at 19:01, five hours apart, because nothing in her context could tell her
+    she had already shared it.
     """
     if nsid == "app.bsky.feed.post":
-        char_count = len(value.get("text", "") or "")
-        if value.get("reply"):
-            return f"reply ({char_count} chars)"
-        return f"top-level post ({char_count} chars)"
+        text = value.get("text", "") or ""
+        kind = "reply" if value.get("reply") else "top-level post"
+        line = f"{kind} ({len(text)} chars)"
+        if links := _links_in(value):
+            line += " — linked: " + ", ".join(links)
+        return line
     if nsid == "app.bsky.feed.like":
         subject = value.get("subject") or {}
         uri = subject.get("uri", "") if isinstance(subject, dict) else ""
@@ -156,8 +195,11 @@ def _render(rows: list[_Row]) -> str:
         return ""
     nsid_width = max(len(r["nsid"]) for r in rows)
     lines = [
-        "[RECENT OPERATIONS — your last writes on PDS, chronological. post "
-        "text hidden; actions only.]"
+        "[RECENT OPERATIONS — your last writes on PDS, chronological. the "
+        "prose of your posts is hidden on purpose; any links in them are "
+        "shown, because a link you have already shared is the clearest sign "
+        "you have already covered something. this is what you did, not how "
+        "you said it.]"
     ]
     for r in rows:
         ts = r["created_at"]
