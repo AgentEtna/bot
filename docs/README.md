@@ -13,6 +13,7 @@ deeper dive into phi's design.
 - [skill-or-tool.md](skill-or-tool.md) — the principle for deciding when something is a tool vs a skill, with the review trail
 - [tool-sprawl.md](tool-sprawl.md) — module-misplacement backlog from surfacing the catalogue in the UI
 - [patterns.md](patterns.md) — recurring lessons from the git history (deletion, feedback loops, DotDict, voice vs structure, silently-empty blocks, prescription in task prompts, attention shapes voice)
+- [lexicons.md](lexicons.md) — phi's custom `io.zzstoatzz.phi.*` schemas, how they're published, and the DNS authority record they need
 - [internal/cockpit.md](internal/cockpit.md) — the web UI (internal, operator-facing)
 
 ## reading order

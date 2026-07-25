@@ -5,7 +5,7 @@ fails on any registered tool missing an entry here, and on any entry that no
 longer matches a real tool. That bijection is the point: the declaration cannot
 drift from the code in either direction.
 
-The shape is defined by `lexicons/io/zzstoatzz/phi/abilities.json` and served at
+The shape is defined by `lexicons/io/zzstoatzz/phi/getAbilities.json` and served at
 `/xrpc/io.zzstoatzz.phi.getAbilities`, so phi's own risk surface is public and
 readable the same way any other atproto service publishes its capabilities.
 

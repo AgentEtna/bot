@@ -243,7 +243,7 @@ async def xrpc_get_abilities():
     """Phi's tools and what each one costs if it goes wrong.
 
     The canonical form of /api/abilities, under phi's own namespace and
-    shaped by lexicons/io/zzstoatzz/phi/abilities.json — the same pattern
+    shaped by lexicons/io/zzstoatzz/phi/getAbilities.json — the same pattern
     typeahead.waow.tech uses for tech.waow.typeahead.searchActors. The
     lexicon is what makes "every tool declares its risk" checkable rather
     than conventional: tests/test_abilities.py holds the code to it.

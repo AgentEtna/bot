@@ -6,7 +6,7 @@ directions, a declaration cannot drift from the code — which is the failure
 `/api/abilities` was built to fix once already, when the cockpit's
 hand-curated `abilities.ts` fell out of sync with what phi could do.
 
-The shape itself is defined by `lexicons/io/zzstoatzz/phi/abilities.json`;
+The shape itself is defined by `lexicons/io/zzstoatzz/phi/getAbilities.json`;
 these tests hold the code to that lexicon.
 """
 
@@ -17,7 +17,7 @@ import pytest
 
 from bot.core.abilities import ORDER, RISK, at_least, describe, risk_of
 
-LEXICON = json.loads(Path("lexicons/io/zzstoatzz/phi/abilities.json").read_text())
+LEXICON = json.loads(Path("lexicons/io/zzstoatzz/phi/getAbilities.json").read_text())
 
 
 def registered_tool_names() -> set[str]:

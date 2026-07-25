@@ -31,7 +31,7 @@ src/bot/
 └── utils/                 # thread context, text formatting
 
 web/                       # sveltekit cockpit at phi.zzstoatzz.io (internal — docs/internal/cockpit.md)
-lexicons/                  # custom io.zzstoatzz.phi.* lexicon definitions
+lexicons/                  # custom io.zzstoatzz.phi.* lexicon definitions (published to phi's PDS — docs/lexicons.md)
 docs/                      # deeper reference (docs/README.md has the reading order)
 personalities/             # personality definitions (public; phi.md is the live one)
 skills/                    # phi's runtime skills (loaded by the agent at run time)

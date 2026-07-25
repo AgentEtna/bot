@@ -677,7 +677,7 @@ class PhiAgent:
                     "name": name,
                     "description": doc,
                     "operator_only": operator_only,
-                    # required by lexicons/io/zzstoatzz/phi/abilities.json —
+                    # required by lexicons/io/zzstoatzz/phi/getAbilities.json —
                     # tests/test_abilities.py fails if any registered tool
                     # lacks a declaration, so this is never None in practice
                     "risk": risk_of(name),
