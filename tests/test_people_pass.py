@@ -45,6 +45,25 @@ def test_the_pass_is_registered_as_a_trigger_slot():
     assert "people" in _TRIGGER_SLOTS
 
 
+def test_every_trigger_slot_resolves_to_a_real_handler_method():
+    """Registration alone proves nothing: the slots hold lambdas that read
+    `handler.<name>` at call time, so a misnamed method stays invisible
+    until that slot next fires — which for a daily pass means a day.
+    """
+    import inspect
+
+    from bot.main import _TRIGGER_SLOTS
+    from bot.services.message_handler import MessageHandler
+
+    for slot, fn in _TRIGGER_SLOTS.items():
+        attr = (
+            inspect.getsource(fn).split("handler.")[1].strip().rstrip(",").rstrip(")")
+        )
+        assert callable(getattr(MessageHandler, attr, None)), (
+            f"trigger slot {slot!r} points at MessageHandler.{attr}, which does not exist"
+        )
+
+
 def test_the_task_leaves_scope_to_phi():
     """The point is that phi picks narrow-vs-wide and knows why. If this
     prompt ever starts dictating which people to read, that's the thing it
