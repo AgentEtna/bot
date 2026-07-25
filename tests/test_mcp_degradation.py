@@ -73,3 +73,43 @@ class TestQueryTraces:
         )
         assert out.splitlines() == ["tool | n", "post | 3", "query | 1"]
         assert _render_columnar({"columns": []}) == "no rows"
+
+
+# --- rejected arguments are not an outage -----------------------------------
+#
+# 2026-07-25: phi called collections_update(access_type="open"). semble
+# replied `Input should be 'OPEN' or 'CLOSED'` — everything she needed to fix
+# it. The wrapper relabelled that as "semble is unavailable right now, skip
+# library writes this run", discarding the correction and telling her to give
+# up on a typo. She retried anyway and hit a real server-side failure, but the
+# first one was hers to fix.
+
+
+def test_a_validation_error_is_reported_as_correctable():
+    from bot.core.mcp_guard import _is_correctable
+
+    assert _is_correctable(
+        "1 validation error for call[update]\naccess_type\n  "
+        "Input should be 'OPEN' or 'CLOSED' [type=literal_error]"
+    )
+
+
+def test_an_opaque_validation_error_is_still_correctable():
+    """Even without the field detail, a rejected argument is not an outage."""
+    from bot.core.mcp_guard import _is_correctable
+
+    assert _is_correctable("Error calling tool 'collections_update': Validation error")
+
+
+def test_transport_failures_are_still_outages():
+    """The original degradation still has to work — a genuinely unreachable
+    semble must not send phi into a retry loop."""
+    from bot.core.mcp_guard import _is_correctable
+
+    for outage in (
+        "Connection refused",
+        "ReadTimeout: timed out",
+        "502 Bad Gateway",
+        "ClientConnectorError",
+    ):
+        assert not _is_correctable(outage), outage

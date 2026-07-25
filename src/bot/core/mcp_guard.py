@@ -69,6 +69,29 @@ def _semble_writes(code: str) -> list[str]:
     )
 
 
+_CORRECTABLE_SIGNATURES = (
+    "validation error",
+    "input should be",
+    "literal_error",
+    "field required",
+    "missing",
+    "invalidrequest",
+    "unexpected keyword",
+)
+
+
+def _is_correctable(detail: str) -> bool:
+    """Did semble reject the *arguments*, rather than being down?
+
+    The two need different advice. A rejected argument is something phi
+    can fix in the same run; an outage is not. Reporting both as an
+    outage is how a lowercase `access_type` became "skip library writes
+    this run" (2026-07-25).
+    """
+    low = detail.lower()
+    return any(sig in low for sig in _CORRECTABLE_SIGNATURES)
+
+
 def make_semble_write_logger(run_label: str):
     """pydantic-ai ``process_tool_call`` hook for the semble MCP server.
 
@@ -105,9 +128,21 @@ def make_semble_write_logger(run_label: str):
             return await call_tool(name, tool_args, None)
         except Exception as e:
             logger.warning(f"semble {name} failed during {run_label}: {e}")
+            detail = str(e)
+            if _is_correctable(detail):
+                # a rejected argument is not an outage. semble told phi
+                # `Input should be 'OPEN' or 'CLOSED'` and this wrapper
+                # relabelled it "semble is unavailable, skip library
+                # writes" — throwing away the one thing that would have
+                # fixed the call, and teaching her to give up on a typo.
+                return (
+                    f"semble rejected those arguments ({detail[:400]}). "
+                    "this is fixable from here — check the shape with "
+                    "semble_get_schema and call it again."
+                )
             return (
                 f"semble is unavailable right now ({type(e).__name__}: "
-                f"{str(e)[:300]}). skip library writes this run and continue "
+                f"{detail[:300]}). skip library writes this run and continue "
                 "with the rest of the task — mention the outage in your "
                 "summary so the operator sees it."
             )
