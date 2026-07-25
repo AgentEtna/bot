@@ -165,3 +165,22 @@ async def test_the_pool_is_framed_as_taste_not_only_leads():
     single stylistic rule."""
     block = await discovery_pool.get_discovery_pool_block(None, seed="")
     assert "what the operator actually rates" in block
+
+
+async def test_humor_is_named_as_communication_not_as_a_style_rule():
+    """The heuristic that avoids hard-coding a voice: humor is load-bearing
+    in how people talk, the samples are evidence of it working, and the task
+    is *working out how someone landed one*. That's analysis, and it's often
+    subtle enough to require real reading.
+
+    Prescribing a register directly has been reverted four times here
+    (61bf9f8 the vocabulary glossary, 7bb6cd2 sticky phrases, 4a88145 the
+    adams register, 3ca6984 the interests list) — a handed-down voice gets
+    parroted, a noticed one gets learned. So this must never tell phi to be
+    funny or hand her an example of a joke.
+    """
+    block = await discovery_pool.get_discovery_pool_block(None, seed="")
+    assert "load-bearing in how people actually talk" in block
+    assert "working out how someone did it" in block
+    for prescription in ("be funny", "be witty", "use humor", "make a joke"):
+        assert prescription not in block.lower()

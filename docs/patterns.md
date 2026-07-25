@@ -147,3 +147,11 @@ signal, not only a list of leads.
 "don't copy this" and "don't learn from this" are different instructions, and
 a system that only ever issues the second produces an agent with no voice to
 protect.
+
+the same block now also names humor as load-bearing in ordinary
+communication and points at the samples as evidence of it working. that is
+the shape that gets past the four failed attempts at voice-in-the-prompt: a
+claim about *how people talk*, plus real exemplars, plus a task that is
+**analysis** — work out how someone landed one, they're often quiet about it.
+a handed-down voice gets parroted; a noticed one gets learned. never state
+the register you want.

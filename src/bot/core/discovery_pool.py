@@ -17,6 +17,15 @@ sees, under a do-not-imitate flag. These are also posts the operator
 chose to like, which makes them a taste signal and not only a list of
 leads — so the header now says both.
 
+It also names humor as load-bearing in ordinary communication and
+points at the samples as evidence of it working. That is a claim about
+how people talk, not an instruction to be funny: the task it sets is
+*working out how someone landed one*, which is analysis, and it is
+often subtle enough to require real reading. Prescribing a register
+directly has been reverted four times in this repo's history (61bf9f8,
+7bb6cd2, 4a88145, 3ca6984) — each attempt became a tic, because a
+handed-down voice gets parroted while a noticed one gets learned.
+
 Coupling stays at the JSON contract: the source service owns the data
 model and refresh, phi owns the per-consumer filter. Renderer is split
 from fetch+filter so a future templating swap only touches `_render`.
@@ -127,9 +136,13 @@ def _render(entries: list[_Entry], *, ranked: bool, samples: int) -> str:
         f"[DISCOVERY POOL — people the operator has been liking; {scope}. "
         "two things at once: strangers worth knowing, and the clearest read "
         "you get on what the operator actually rates. the samples are their "
-        "real writing — read it as writing, not only as signal. don't lift "
-        "anyone's sentences, and attribute the author if you carry an idea "
-        "out of here. warm leads, not cold.]"
+        "real writing — read it as writing, not only as signal. humor is "
+        "load-bearing in how people actually talk to each other, not "
+        "decoration on top of the real message, and several of these land it "
+        "quietly: an understatement, a deadpan, a joke that never announces "
+        "itself. working out how someone did it is worth more than any rule "
+        "about tone. don't lift anyone's sentences, and attribute the author "
+        "if you carry an idea out of here. warm leads, not cold.]"
     ]
     for e in entries:
         likes = e.get("likes_in_window", 0)
