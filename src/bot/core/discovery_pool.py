@@ -57,7 +57,11 @@ async def _fetch_pool() -> list[_Entry]:
             response.raise_for_status()
             data = response.json()
     except Exception as e:
-        logger.debug(f"discovery pool fetch failed: {e}")
+        # warning, not debug: the hub going behind Cloudflare Access made
+        # this raise on every run for a week and the block silently rendered
+        # empty. an upstream break must be visible. (the non-list branch
+        # below never fired — the HTML login page fails .json() first.)
+        logger.warning(f"discovery pool fetch failed: {type(e).__name__}: {e}")
         return []
     if not isinstance(data, list):
         logger.warning(f"discovery pool returned non-list: {type(data).__name__}")

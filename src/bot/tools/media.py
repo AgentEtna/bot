@@ -54,6 +54,9 @@ def register(agent):
         can see an image stored on a non-Bluesky record. Allowed MIME types are
         text/plain, text/markdown, text/csv, JSON, PNG, JPEG, GIF, and WebP.
         Unsupported blobs are reported but not fetched.
+
+        When the record's actual pixels matter, look — don't infer image
+        details from link previews, alt text, card titles, or URLs.
         """
         try:
             parsed = AtUri.from_str(uri)

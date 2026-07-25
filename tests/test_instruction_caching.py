@@ -82,14 +82,30 @@ async def test_blocks_memoize_independently():
 
 
 def test_agent_cache_settings():
-    """The main agent caches tool defs + static instructions, and message
-    history within the run's tool loop. PhiAgent needs live services to
-    instantiate, so assert on the module source."""
+    """The main agent caches tool defs + static instructions for an hour and
+    message history for the run's tool loop.
+
+    Asserts on CACHE_TTLS rather than grepping agent.py's source: the source
+    grep this replaced broke the moment the literals moved into a shared
+    dict, even though behavior was identical. What matters is the values the
+    agent configures from and the cockpit reports.
+    """
+    from bot.core.cache_stability import CACHE_TTLS
+
+    assert CACHE_TTLS == {
+        "tool_definitions": "1h",
+        "instructions": "1h",
+        "messages": "5m",
+    }
+
+
+def test_agent_settings_are_built_from_cache_ttls():
+    """The wiring itself — agent.py must read the dict, not restate it."""
     import inspect
 
     import bot.agent as agent_mod
 
     src = inspect.getsource(agent_mod)
-    assert 'anthropic_cache_tool_definitions="1h"' in src
-    assert 'anthropic_cache_instructions="1h"' in src
-    assert 'anthropic_cache_messages="5m"' in src
+    assert 'anthropic_cache_tool_definitions=CACHE_TTLS["tool_definitions"]' in src
+    assert 'anthropic_cache_instructions=CACHE_TTLS["instructions"]' in src
+    assert 'anthropic_cache_messages=CACHE_TTLS["messages"]' in src

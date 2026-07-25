@@ -32,9 +32,7 @@ def _render_columnar(payload: dict) -> str:
         return "no rows"
     lines = [" | ".join(names)]
     for i in range(n_rows):
-        lines.append(
-            " | ".join(str(v[i]) if i < len(v) else "" for v in values)
-        )
+        lines.append(" | ".join(str(v[i]) if i < len(v) else "" for v in values))
     out = "\n".join(lines)
     if len(out) > _MAX_OUTPUT_CHARS:
         out = out[:_MAX_OUTPUT_CHARS] + f"\n... truncated ({n_rows} rows total)"

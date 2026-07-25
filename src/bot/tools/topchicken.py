@@ -139,8 +139,7 @@ async def _market_section(handle: str | None) -> list[str]:
             # the whole tail, compactly — this is where every big payout this
             # season came from, so it is never summarized away
             tail = ", ".join(
-                f"@{c['handle']} {c['likes']}L "
-                f"{(c.get('ask_subc') or 0) / 100:.1f}¢"
+                f"@{c['handle']} {c['likes']}L {(c.get('ask_subc') or 0) / 100:.1f}¢"
                 for c in with_likes
             )
             lines.append(f"tail ({len(with_likes)} with likes): {tail}")

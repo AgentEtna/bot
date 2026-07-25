@@ -107,7 +107,9 @@ def register(agent):
             blob = resp.blob.model_dump(mode="json", by_alias=True)
         except Exception as e:
             logger.exception(f"blob upload failed: {e}")
-            return f"generated, but blob upload failed: {type(e).__name__}: {str(e)[:200]}"
+            return (
+                f"generated, but blob upload failed: {type(e).__name__}: {str(e)[:200]}"
+            )
 
         logger.info(
             f"generated image ({width}x{height}, {len(data)} bytes) "

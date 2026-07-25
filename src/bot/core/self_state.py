@@ -19,6 +19,7 @@ import logging
 import time
 from datetime import UTC, datetime, timedelta
 
+from atproto_client.models.utils import get_model_as_dict
 from pydantic_ai import Agent
 
 from bot.config import settings
@@ -132,8 +133,11 @@ async def _last_follow_when(client: BotClient) -> str:
         if not response.records:
             return ""
         record = response.records[0]
-        created_at = dict(record.value).get("createdAt", "") if record.value else ""
-        return relative_when(created_at)
+        # get_model_as_dict, not dict(): a typed atproto Record serializes to
+        # snake_case (`created_at`), so dict(...).get("createdAt") silently
+        # returned "" and this block never rendered. see docs/patterns.md.
+        value = get_model_as_dict(record.value) if record.value else {}
+        return relative_when(value.get("createdAt", ""))
     except Exception as e:
         logger.debug(f"last_follow lookup failed: {e}")
         return ""

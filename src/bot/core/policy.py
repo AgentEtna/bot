@@ -36,9 +36,7 @@ logger = logging.getLogger("bot.policy")
 # entry. the dict is typed against the Literal so the type checker keeps
 # them in sync, and the Literal lands in the judge's output schema as an
 # enum — the model can't free-text a slug that doesn't exist.
-PolicySlug = Literal[
-    "uninvited-reply", "bliss-attractor", "pile-on", "handle-hygiene"
-]
+PolicySlug = Literal["uninvited-reply", "bliss-attractor", "pile-on", "handle-hygiene"]
 
 POLICIES: dict[PolicySlug, str] = {
     "uninvited-reply": (
