@@ -231,15 +231,7 @@ class CacheMonitor:
         self._load()
 
     def begin_run(self, label: str) -> None:
-        # the run's otel trace id, so the cockpit can link a row straight to
-        # its logfire trace — two runs labelled "batch processing" are only
-        # tellable apart by what they actually did
-        ctx = trace.get_current_span().get_span_context()
-        self._current = RunRecord(
-            label=label,
-            started_at=datetime.now(UTC),
-            trace_id=format(ctx.trace_id, "032x") if ctx.is_valid else None,
-        )
+        self._current = RunRecord(label=label, started_at=datetime.now(UTC))
         self._marks.clear()
         self._latched.clear()
 
@@ -298,6 +290,14 @@ class CacheMonitor:
         self._marks[key] = max(established, read + write)
 
         if self._current is not None:
+            # capture the trace id HERE, not in begin_run — begin_run happens
+            # before agent.run(), where no span is active yet and the context
+            # is invalid. this call sits inside the model request, so the
+            # agent-run trace is guaranteed live.
+            if self._current.trace_id is None:
+                ctx = trace.get_current_span().get_span_context()
+                if ctx.is_valid:
+                    self._current.trace_id = format(ctx.trace_id, "032x")
             self._current.samples.append(
                 RequestSample(
                     at=now,

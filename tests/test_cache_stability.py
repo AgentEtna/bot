@@ -225,20 +225,40 @@ def test_summary_reports_the_live_strategy_not_a_copy():
     assert summary["prices"]["read"] == 0.1
 
 
-def test_run_carries_a_trace_link_when_a_span_is_active():
+def test_trace_link_is_captured_from_the_model_request_not_begin_run():
+    """Regression: begin_run happens before agent.run(), where no span is
+    active — a trace id read there is always invalid, and every row shipped
+    without a link. The span only exists once a model request is in flight.
+    """
     from opentelemetry.sdk.trace import TracerProvider
 
+    tracer = TracerProvider().get_tracer("test")
     m = monitor()
-    # a real recording span — logfire isn't configured under pytest, so its
-    # spans have no valid context to read a trace id from
-    with TracerProvider().get_tracer("test").start_as_current_span("agent run"):
-        m.begin_run("cycle")
-    observe(m, input_tokens=100, read=5_000)
+    m.begin_run("cycle")  # deliberately OUTSIDE any span, as in production
+    with tracer.start_as_current_span("chat claude-opus-5"):
+        observe(m, input_tokens=100, read=5_000)
     m.end_run()
 
     entry = m.summary()["runs"][0]
     assert entry["trace_id"] and len(entry["trace_id"]) == 32
     assert entry["trace_id"] in (entry["trace_url"] or "")
+
+
+def test_trace_id_is_taken_from_the_first_request_only():
+    """One run is one trace; a later request must not overwrite it."""
+    from opentelemetry.sdk.trace import TracerProvider
+
+    tracer = TracerProvider().get_tracer("test")
+    m = monitor()
+    m.begin_run("cycle")
+    with tracer.start_as_current_span("chat 1"):
+        observe(m, input_tokens=100, write=5_000)
+    first = m._current.trace_id
+    with tracer.start_as_current_span("chat 2"):
+        observe(m, input_tokens=100, read=5_000)
+    m.end_run()
+
+    assert first and m.runs[0].trace_id == first
 
 
 def test_no_trace_link_outside_a_span():
