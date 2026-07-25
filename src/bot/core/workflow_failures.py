@@ -95,6 +95,15 @@ def add_pending(
     return out
 
 
+def _owner_handle() -> str:
+    """The operator's handle, prefixed. An alert nobody is tagged in is not
+    an alert — 2026-07-25, a memory-synthesis failure went out untagged and
+    the operator never saw it."""
+    from bot.config import settings
+
+    return f"@{settings.owner_handle}"
+
+
 def render_pending_block(pending: dict[str, dict[str, Any]], now_ts: float) -> str:
     """[WORKFLOW INCIDENTS] — the operator's infrastructure, as something phi
     has noticed and not yet spoken to.
@@ -110,8 +119,10 @@ def render_pending_block(pending: dict[str, dict[str, Any]], now_ts: float) -> s
     lines = [
         "[WORKFLOW INCIDENTS — the operator's flows that have failed and that "
         "you haven't said anything about yet. they stay here until you do. "
-        "the ids and timestamps are for your reasoning; the operator reads "
-        "bluesky, not a log.]"
+        f"the ids and timestamps are for your reasoning; the operator reads "
+        f"bluesky, not a log — and only finds out if you @-mention "
+        f"{_owner_handle()}, since a post they aren't tagged in never reaches "
+        "them.]"
     ]
     for run_id, inc in items[:PENDING_RENDER_LIMIT]:
         age = humanize_duration(

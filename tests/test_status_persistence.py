@@ -101,3 +101,54 @@ def test_empty_workflow_failure_seed_persists(monkeypatch, tmp_path):
     restored._load()
     assert restored.workflow_failure_monitor_seeded is True
     assert restored.workflow_failure_run_ids == []
+
+
+# --- the bio cooldown ------------------------------------------------------
+#
+# 2026-07-25: 19 deploys in one session, each restarting the machine, each
+# firing the startup bio rewrite. Bluesky labelled the account "Changed
+# profile 10+ times yesterday" / "Profile changes often". The rewrite is
+# meant to mark a new day of being herself; a restart is not a new day.
+
+
+def test_a_fresh_status_allows_the_first_bio_write(monkeypatch, tmp_path):
+    monkeypatch.setattr("bot.status.STATUS_FILE", tmp_path / "status.json")
+    from bot.status import BotStatus
+
+    assert not BotStatus().bio_written_within(12)
+
+
+def test_a_recent_write_suppresses_the_next_one(monkeypatch, tmp_path):
+    monkeypatch.setattr("bot.status.STATUS_FILE", tmp_path / "status.json")
+    from bot.status import BotStatus
+
+    status = BotStatus()
+    status.record_bio_write()
+    assert status.bio_written_within(12)
+
+
+def test_an_old_write_does_not(monkeypatch, tmp_path):
+    """A genuinely new day still gets a rewrite."""
+    from datetime import UTC, datetime, timedelta
+
+    monkeypatch.setattr("bot.status.STATUS_FILE", tmp_path / "status.json")
+    from bot.status import BotStatus
+
+    status = BotStatus()
+    status.last_bio_at = datetime.now(UTC) - timedelta(hours=13)
+    assert not status.bio_written_within(12)
+
+
+def test_the_timestamp_survives_a_restart(monkeypatch, tmp_path):
+    """The whole point: it has to outlive the process that set it, or every
+    deploy looks like the first one."""
+    path = tmp_path / "status.json"
+    monkeypatch.setattr("bot.status.STATUS_FILE", path)
+    from bot.status import BotStatus
+
+    first = BotStatus()
+    first.record_bio_write()
+
+    restarted = BotStatus()
+    restarted._load()
+    assert restarted.bio_written_within(12)
