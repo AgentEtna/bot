@@ -183,6 +183,14 @@ SERVICE_CHECKS = [
         "name": "standard.site backend",
     },
     {"url": "https://pub-search.waow.tech", "name": "pub-search"},
+    # the discovery pool feeds [DISCOVERY POOL]. it was absent from this list,
+    # so when hub went behind Cloudflare Access the block silently rendered
+    # empty and nothing reported it. anything a context block depends on
+    # belongs here.
+    {
+        "url": "https://hub.waow.tech/api/agents/discovery-pool",
+        "name": "discovery pool (hub)",
+    },
     {"url": "https://typeahead.waow.tech/stats", "name": "typeahead"},
     {"url": "https://zig-bsky-feed.fly.dev/health", "name": "music-feed"},
     {"url": "https://pollz-backend.fly.dev/health", "name": "pollz"},

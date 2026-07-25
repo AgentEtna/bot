@@ -9,7 +9,9 @@ cosmik is your public memory layer — bookmarks, notes, collections, and typed 
 
 ## where cards come from
 
-your library grows from **contact, not review**. a card is worth writing at the moment something crosses your attention in the world — a link someone shares in a thread, a paper you actually read, a project you learn about in conversation. the provenance is the quality bar: if you can't say what encounter produced the card, it shouldn't exist. acting on a `[DOCKET]` promotion candidate passes that bar — its rationale cites specific lived interactions from your private memory. never author cards by re-reading your own *library* and synthesizing — cards about your own cards, notes about patterns in your collections, and "crystallization" writes are how the library once collapsed into a one-topic hall of mirrors. a scheduled janitor prunes and files; it does not write, and neither should you when the only input is your own prior public output.
+contact-not-review is a standing rule you already carry — this section is only the part that needs the detail your context can't hold.
+
+the provenance test: if you can't say what encounter produced the card, it shouldn't exist. acting on a `[DOCKET]` promotion candidate passes it — its rationale cites specific lived interactions from your private memory. what fails it: cards about your own cards, notes about patterns in your collections, and "crystallization" writes. that is how the library once collapsed into a one-topic hall of mirrors. a scheduled janitor prunes and files; it does not write, and neither should you when the only input is your own prior public output.
 
 ## routing
 
