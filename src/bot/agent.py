@@ -49,6 +49,25 @@ from bot.utils.time import humanize_duration
 
 logger = logging.getLogger("bot.agent")
 
+# fly region codes are airport codes; phi should be able to say where she
+# is in words. unknown codes fall through to the raw code rather than
+# guessing.
+_FLY_REGIONS = {
+    "ord": "chicago",
+    "iad": "virginia",
+    "lax": "los angeles",
+    "sjc": "san jose",
+    "dfw": "dallas",
+    "ewr": "new jersey",
+    "lhr": "london",
+    "ams": "amsterdam",
+    "fra": "frankfurt",
+    "cdg": "paris",
+    "nrt": "tokyo",
+    "syd": "sydney",
+    "gru": "s\u00e3o paulo",
+}
+
 
 type ContextBlockFn = (
     Callable[[], str]
@@ -338,30 +357,49 @@ class PhiAgent:
 
         @_run_scoped
         def inject_today() -> str:
-            """[NOW] anchored to both UTC and the operator's local clock.
+            """[NOW] — the three clocks phi actually lives between.
 
-            phi runs on the operator's clock — schedule slots (musings,
-            reflection) fire at operator-local hours so posts land at human
-            times of day for the person reading them. surfacing both lines
-            here means phi can reason about "is it morning where you are"
-            without having to convert in her head.
+            Her own machine's clock (the container runs UTC), where that
+            machine physically is, and the operator's local time. These are
+            genuinely different facts: she runs in fly's `ord` region —
+            Chicago, the same city as the operator — while her container
+            keeps UTC, so she is physically local and temporally displaced
+            by five or six hours depending on the season.
+
+            Rendered from the environment rather than assumed, so a region
+            change or a move off fly shows up here instead of silently
+            making this line wrong.
             """
             now_utc = datetime.now(UTC)
+            lines = [
+                f"[NOW]: {now_utc.strftime('%Y-%m-%d %H:%M %Z')} — "
+                f"your own clock. the machine you run on keeps UTC."
+            ]
+
+            region = os.environ.get("FLY_REGION")
+            machine = os.environ.get("FLY_MACHINE_ID")
+            if region:
+                place = _FLY_REGIONS.get(region, region)
+                where = f"[WHERE]: fly.io {region} ({place})"
+                if machine:
+                    where += f", machine {machine}"
+                lines.append(where + ".")
+
             try:
                 tz = ZoneInfo(settings.operator_timezone)
                 now_local = now_utc.astimezone(tz)
-                local_line = (
+                offset = (now_local.utcoffset() or timedelta()).total_seconds() / 3600
+                lines.append(
                     f"[NOW (operator local)]: "
                     f"{now_local.strftime('%Y-%m-%d %H:%M %Z')} "
-                    f"({settings.operator_timezone}) — "
-                    f"this is the operator's clock; your scheduled posting "
-                    f"slots are anchored to it so things land at human times "
-                    f"of day for them."
+                    f"({settings.operator_timezone}, {offset:+g}h from you) — "
+                    f"the operator's clock. your scheduled slots are anchored "
+                    f"to it so things land at human times of day for them."
                 )
             except ZoneInfoNotFoundError:
-                local_line = ""
-            utc_line = f"[NOW]: {now_utc.strftime('%Y-%m-%d %H:%M UTC')}"
-            return f"{utc_line}\n{local_line}" if local_line else utc_line
+                pass
+
+            return "\n".join(lines)
 
         @_run_scoped
         def inject_pause_history() -> str:
