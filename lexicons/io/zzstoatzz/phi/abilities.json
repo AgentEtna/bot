@@ -1,0 +1,60 @@
+{
+  "lexicon": 1,
+  "id": "io.zzstoatzz.phi.getAbilities",
+  "defs": {
+    "main": {
+      "type": "query",
+      "description": "Phi's currently-registered function tools, computed live from the running code rather than hand-maintained, so it cannot drift from what she can actually do. Every tool carries a risk declaration: a tool without one is not a valid tool, and the test suite refuses it. Served at /xrpc/io.zzstoatzz.phi.getAbilities; /api/abilities is kept as an alias.",
+      "output": {
+        "encoding": "application/json",
+        "schema": {
+          "type": "object",
+          "required": ["abilities"],
+          "properties": {
+            "abilities": {
+              "type": "array",
+              "items": { "type": "ref", "ref": "#ability" }
+            }
+          }
+        }
+      }
+    },
+    "ability": {
+      "type": "object",
+      "description": "One registered function tool.",
+      "required": ["name", "description", "operator_only", "risk"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The tool name the model calls."
+        },
+        "description": {
+          "type": "string",
+          "description": "The tool's docstring — what the model is shown."
+        },
+        "operator_only": {
+          "type": "boolean",
+          "description": "Whether the tool is gated to the operator via the like-as-approval mechanism."
+        },
+        "risk": { "type": "ref", "ref": "#risk" }
+      }
+    },
+    "risk": {
+      "type": "object",
+      "description": "What this tool can cost if it goes wrong. Required on every tool — the declaration is what makes a tool valid. Magnitude is ordered by reach and reversibility, not by how often the tool is used.",
+      "required": ["magnitude", "reason"],
+      "properties": {
+        "magnitude": {
+          "type": "string",
+          "knownValues": ["none", "low", "moderate", "high"],
+          "description": "none: reads only, changes nothing. low: changes phi's own private state, reversible. moderate: publicly visible under her name, reversible by her. high: reaches other people's attention, spends real money, or cannot be undone with the tools she has."
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 400,
+          "description": "One sentence saying what specifically could go wrong. Written to be read by a person in the cockpit and by the policy judge when it evaluates a proposed call, so it names the concrete failure rather than restating the magnitude."
+        }
+      }
+    }
+  }
+}

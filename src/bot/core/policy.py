@@ -29,6 +29,7 @@ from pydantic import Field
 from pydantic_ai import Agent
 
 from bot.config import settings
+from bot.core.abilities import describe
 
 logger = logging.getLogger("bot.policy")
 
@@ -143,12 +144,18 @@ def _get_judge() -> Agent[None, PolicyVerdict]:
 
 
 async def check_action(
-    action: str, provenance: str, recent_posts: str = ""
+    action: str, provenance: str, recent_posts: str = "", tool: str = ""
 ) -> PolicyVerdict:
     """Ask the judge whether a proposed action is within policy.
 
     Raises on judge failure — the caller decides fail-open vs fail-closed
     based on provenance (see module docstring).
+
+    `tool` names the tool being called, so the judge is given that tool's
+    declared risk (bot/core/abilities.py) alongside the action. A borderline
+    call then gets weighed against the concrete consequence — "a reply lands
+    in someone's notifications and cannot be un-notified" — instead of the
+    judge inferring the stakes from the action text.
     """
     parts = [
         "policies:",
@@ -158,6 +165,8 @@ async def check_action(
         "",
         f"provenance: {provenance}",
     ]
+    if tool and (risk := describe(tool)):
+        parts += ["", f"what this tool costs if it goes wrong: {risk}"]
     if recent_posts:
         parts += [
             "",

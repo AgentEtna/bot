@@ -134,7 +134,7 @@ def _reply_provenance(uri: str, ctx_notifs: dict) -> str:
 
 
 async def _policy_gate(
-    action: str, provenance: str, *, unprompted: bool
+    action: str, provenance: str, *, unprompted: bool, tool: str = "post"
 ) -> tuple[str | None, str]:
     """Run the pre-action policy judge. Returns (refusal, warn_note).
 
@@ -147,6 +147,7 @@ async def _policy_gate(
             action=action,
             provenance=provenance,
             recent_posts=_recent_own_posts(),
+            tool=tool,
         )
     except Exception as e:
         logger.warning(f"policy check unavailable: {e}")

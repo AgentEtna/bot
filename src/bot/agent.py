@@ -18,6 +18,7 @@ from pydantic_ai.toolsets import AbstractToolset
 from pydantic_ai_skills import SkillsToolset
 
 from bot.config import settings
+from bot.core.abilities import risk_of
 from bot.core.atlas import get_atlas_digest
 from bot.core.atproto_client import bot_client, get_identity_block
 from bot.core.cache_stability import (
@@ -676,6 +677,10 @@ class PhiAgent:
                     "name": name,
                     "description": doc,
                     "operator_only": operator_only,
+                    # required by lexicons/io/zzstoatzz/phi/abilities.json —
+                    # tests/test_abilities.py fails if any registered tool
+                    # lacks a declaration, so this is never None in practice
+                    "risk": risk_of(name),
                 }
             )
         return out

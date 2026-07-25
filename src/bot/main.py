@@ -10,6 +10,7 @@ Serves:
 """
 
 import asyncio
+import json
 import logging
 import time
 from contextlib import asynccontextmanager
@@ -235,6 +236,25 @@ async def abilities():
     except Exception as e:
         logger.warning(f"abilities introspection failed: {e}")
         return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.get("/xrpc/io.zzstoatzz.phi.getAbilities")
+async def xrpc_get_abilities():
+    """Phi's tools and what each one costs if it goes wrong.
+
+    The canonical form of /api/abilities, under phi's own namespace and
+    shaped by lexicons/io/zzstoatzz/phi/abilities.json — the same pattern
+    typeahead.waow.tech uses for tech.waow.typeahead.searchActors. The
+    lexicon is what makes "every tool declares its risk" checkable rather
+    than conventional: tests/test_abilities.py holds the code to it.
+
+    Computed live from the running agent, so it cannot drift from what phi
+    can actually do. /api/abilities is kept as an alias.
+    """
+    result = await abilities()
+    if result.status_code != 200:
+        return result
+    return JSONResponse({"abilities": json.loads(result.body)})
 
 
 _skills_cache: list | None = None
