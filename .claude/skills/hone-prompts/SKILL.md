@@ -43,7 +43,8 @@ Instructions arrive as `attributes->'gen_ai.system_instructions'`, a JSON array.
 Logfire concatenates the whole composed instruction set into element 0 — the
 static base (personality + operational rules, the bulk of what you edit) followed
 by every dynamic block (`[NOW]`, `[DISCOVERY POOL]`, `[ATLAS]`, …) in
-registration order. There is no per-block element to index.
+registration order. There is no per-block element to index, so slice by label
+instead: everything before the first block label is the base.
 
 **You hone source, not a rendered wall of live values.** So the default render is
 just `parts[0]` — one clean query, no index-chasing. Run this per agent (swap the
@@ -51,7 +52,13 @@ name) via the logfire MCP (`query_run`, project `phi`) and `Write` the result to
 `scratch/prompts/{agent}.md`:
 
 ```sql
-SELECT attributes->'gen_ai.system_instructions'->0->>'content' AS composed
+SELECT substr(
+  attributes->'gen_ai.system_instructions'->0->>'content', 1,
+  -- everything before the first dynamic block is the static base; the
+  -- injectors register in order and [YOUR INFRASTRUCTURE] is first.
+  strpos(attributes->'gen_ai.system_instructions'->0->>'content',
+         '[YOUR INFRASTRUCTURE') - 1
+) AS base
 FROM records
 WHERE span_name LIKE 'chat %'
   AND attributes->>'gen_ai.agent.name' = 'phi'   -- swap per agent
@@ -116,6 +123,28 @@ certainly forgot the window params, not "phi is down." Pass a real window:
 Sub-agents fire less often (extractor/reconciler run only on the daily-reflection
 path). If one returns no rows, widen the window toward 14 days before concluding
 it's unused.
+
+### cross-check: the base is reproducible from source
+
+The static base is deterministic — personality file plus
+`_build_operational_instructions()` — so you can render exactly what the
+working tree *would* ship, without logfire:
+
+```bash
+uv run python -c "
+from pathlib import Path
+from bot.config import settings
+from bot.agent import _build_operational_instructions
+print('the following is your personality: '
+      + Path(settings.personality_file).read_text()
+      + '\n\n--- operational rules below (these are constraints) ---\n\n'
+      + _build_operational_instructions())"
+```
+
+Diff that against the logfire slice to see whether prod is running your tree.
+They diverge exactly when there are unshipped changes — which is the useful
+signal, not a problem. The dynamic blocks still require logfire; nothing local
+can show you what `[SEMBLE]` or `[NEW NOTIFICATIONS]` held on a given run.
 
 ## 2. hone at the source
 
