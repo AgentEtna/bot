@@ -40,10 +40,6 @@ from bot.ui import activity_router
 
 logger = logging.getLogger("bot.main")
 
-# How long a bio rewrite counts for. Long enough that a deploy burst is one
-# rewrite, short enough that a genuinely new day still gets one.
-BIO_REWRITE_COOLDOWN_HOURS = 12
-
 logfire.configure(
     send_to_logfire=settings.logfire.send_to_logfire,
     environment=settings.logfire.environment,
@@ -85,23 +81,14 @@ async def lifespan(app: FastAPI):
     app.state.poller = poller
     await poller.start()
 
-    # Phi rewrites her own bio at startup, but not on every startup: the
-    # rewrite is meant to mark a new day of being herself, and a restart is
-    # not a new day. 19 deploys on 2026-07-25 produced 19 rewrites and
-    # bluesky labelled the account "changes profile often", which is a label
-    # about phi earned by how often her operator ships.
-    if bot_status.bio_written_within(BIO_REWRITE_COOLDOWN_HOURS):
-        logger.info("bio rewritten recently; skipping (restart is not a new day)")
+    # Phi rewrites her own bio at every startup. Best-effort — if the bio
+    # call fails (rate limit, model error, etc), fall back to the existing
+    # online-suffix flow rather than blocking startup on it.
+    try:
+        await poller.handler.agent.process_bio()
+    except Exception as e:
+        logger.warning(f"bio rewrite at startup failed: {e}; falling back to suffix")
         await profile_manager.set_online_status(True)
-    else:
-        try:
-            await poller.handler.agent.process_bio()
-            bot_status.record_bio_write()
-        except Exception as e:
-            logger.warning(
-                f"bio rewrite at startup failed: {e}; falling back to suffix"
-            )
-            await profile_manager.set_online_status(True)
 
     logger.info("phi is online, listening for mentions")
 

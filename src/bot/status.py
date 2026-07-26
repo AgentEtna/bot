@@ -34,10 +34,6 @@ class BotStatus:
     # incidents phi has seen but not yet said anything about. they render in
     # her context until a post clears them, so silence stays visible.
     pending_incidents: dict = field(default_factory=dict)
-    # when phi last rewrote her bio. the rewrite fires from the lifespan, so
-    # every deploy triggers one — 19 deploys on 2026-07-25 earned her a
-    # bluesky "changes profile often" label. restarts are not new days.
-    last_bio_at: datetime | None = None
 
     @property
     def uptime_seconds(self) -> float:
@@ -86,17 +82,6 @@ class BotStatus:
         self.resumed_at = datetime.now(UTC)
         self._save()
 
-    def record_bio_write(self) -> None:
-        self.last_bio_at = datetime.now(UTC)
-        self._save()
-
-    def bio_written_within(self, hours: float) -> bool:
-        """Whether a bio rewrite already happened recently enough to skip."""
-        if self.last_bio_at is None:
-            return False
-        age = datetime.now(UTC) - self.last_bio_at
-        return age.total_seconds() < hours * 3600
-
     def clear_pending_incidents(self, run_ids: list[str]) -> None:
         """Mark incidents as addressed once phi has actually posted."""
         if not run_ids:
@@ -141,9 +126,6 @@ class BotStatus:
                 "workflow_failure_run_ids": self.workflow_failure_run_ids,
                 "workflow_incidents": self.workflow_incidents,
                 "pending_incidents": self.pending_incidents,
-                "last_bio_at": self.last_bio_at.isoformat()
-                if self.last_bio_at
-                else None,
                 "workflow_failure_monitor_seeded": self.workflow_failure_monitor_seeded,
             }
             STATUS_FILE.write_text(json.dumps(data))
@@ -177,8 +159,6 @@ class BotStatus:
             )[-200:]
             self.workflow_incidents = dict(data.get("workflow_incidents") or {})
             self.pending_incidents = dict(data.get("pending_incidents") or {})
-            if data.get("last_bio_at"):
-                self.last_bio_at = datetime.fromisoformat(data["last_bio_at"])
             self.workflow_failure_monitor_seeded = bool(
                 data.get("workflow_failure_monitor_seeded", False)
             )
