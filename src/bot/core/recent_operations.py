@@ -25,6 +25,8 @@ import re
 import time
 from typing import TypedDict
 
+from atproto_client.models.utils import get_model_as_dict
+
 from bot.core.atproto_client import BotClient
 from bot.utils.time import relative_when
 
@@ -74,12 +76,18 @@ def _links_in(value: dict) -> list[str]:
     resolved. Trimmed to host + path so the line stays short and two posts
     sharing a link visibly share it.
     """
+
+    def _field(obj: object, name: str):
+        """Read a field whether it arrived as a dict or an atproto model."""
+        if isinstance(obj, dict):
+            return obj.get(name)
+        return getattr(obj, name, None)
+
     found: list[str] = []
-    for facet in value.get("facets") or []:
-        for feature in facet.get("features") or []:
-            uri = feature.get("uri")
-            if uri:
-                found.append(uri)
+    for facet in _field(value, "facets") or []:
+        for feature in _field(facet, "features") or []:
+            if uri := _field(feature, "uri"):
+                found.append(str(uri))
     found.extend(_URL_RE.findall(value.get("text", "") or ""))
 
     seen: list[str] = []
@@ -183,7 +191,10 @@ def _fetch_collection(client: BotClient, did: str, nsid: str) -> list[_Row]:
 
     rows: list[_Row] = []
     for rec in response.records or []:
-        value = dict(rec.value) if rec.value else {}
+        # get_model_as_dict, not dict(): dict() is shallow, so nested
+        # fields (facets, embeds, reply refs) stay as atproto model objects
+        # and any .get() on them raises. docs/patterns.md, third occurrence.
+        value = get_model_as_dict(rec.value) if rec.value else {}
         rkey = rec.uri.split("/")[-1]
         rows.append(
             _Row(

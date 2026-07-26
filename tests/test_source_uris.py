@@ -209,3 +209,43 @@ def test_a_long_post_is_bounded():
     line = _summarize("app.bsky.feed.post", {"text": "x" * 400})
     assert len(line) < POST_PREVIEW + 60
     assert line.endswith('…"')
+
+
+def test_links_survive_atproto_model_objects():
+    """The regression that took phi down for nine hours on 2026-07-26.
+
+    `_fetch_collection` did `dict(rec.value)`, a shallow conversion, so
+    nested facets arrived as atproto model objects rather than dicts.
+    `facet.get("features")` raised AttributeError: 'Main' object has no
+    attribute 'get', and because the block is a dynamic instruction it
+    rendered on every path — every run failed, on every entry point, until
+    it was fixed.
+
+    docs/patterns.md has carried this trap since May and my own notes name
+    `get_model_as_dict` as the answer. Both fixes are here: the boundary
+    deep-converts, and extraction tolerates either shape.
+    """
+    from bot.core.recent_operations import _links_in
+
+    class Feature:
+        uri = "https://example.com/from-a-model"
+
+    class Facet:
+        features = [Feature()]
+
+    assert _links_in({"text": "see this", "facets": [Facet()]}) == [
+        "example.com/from-a-model"
+    ]
+
+
+def test_a_summary_never_raises_on_a_model_shaped_value():
+    """The block renders on every run, so anything it touches must not be
+    able to take the whole agent down."""
+    from bot.core.recent_operations import _summarize
+
+    class Facet:
+        features = None
+
+    assert "top-level post" in _summarize(
+        "app.bsky.feed.post", {"text": "hello", "facets": [Facet()]}
+    )
