@@ -40,7 +40,7 @@ RISK: dict[str, Risk] = {
     # --- reads: nothing changes -------------------------------------------
     "check_infra": {
         "magnitude": "none",
-        "reason": "reads service health, the relay fleet, and phi's own changelog; changes nothing.",
+        "reason": "reads service health, the relay fleet, and her own commit history with full messages; changes nothing, but a wide changelog window can crowd her context, which is why the response is budgeted.",
     },
     "check_top_chicken": {
         "magnitude": "none",

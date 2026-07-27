@@ -17,6 +17,12 @@ from bot.core.atproto_client import bot_client
 from bot.core.mentionable import add_handle, get_mentionable_handles, remove_handle
 from bot.tools._helpers import PhiDeps, _check_services_impl, _is_owner, _relative_age
 
+# A commit message carries its reasoning in the body, so the body has to
+# survive — but phi's own messages run long, and a hundred of them would
+# crowd out everything else in her context.
+COMMIT_BODY_LIMIT = 1400
+CHANGELOG_CHAR_BUDGET = 24000
+
 # cached relay names, refreshed from the snapshot endpoint. surfaced to
 # the LLM via a dynamic system prompt so it picks from real values when
 # calling check_infra(aspect="relays", name=...).
@@ -176,13 +182,22 @@ def register(agent):
                     "services: health of the operator's apps (plyr, PDS, "
                     "prefect, ...). relays: the atproto relay fleet via "
                     "relay-eval (snapshot/history/transitions — see the "
-                    "relay params). changelog: your own recent deploys."
+                    "relay params). changelog: your own development "
+                    "history — commits with their full messages, which is "
+                    "where the reasoning for a change lives, not just what "
+                    "changed. windowable with since/until and count."
                 )
             ),
         ] = "services",
         count: Annotated[
             int,
-            Field(description="[changelog] number of recent commits to show"),
+            Field(
+                description=(
+                    "[changelog] how many commits to return (max 100). pair "
+                    "with since/until to walk backwards through history a "
+                    "window at a time rather than asking for everything."
+                )
+            ),
         ] = 10,
         name: Annotated[
             str | None,
@@ -199,7 +214,8 @@ def register(agent):
             Field(
                 description=(
                     "Start of window, ISO 8601 UTC (e.g. '2026-04-16T00:00:00Z'). "
-                    "Use with history or transitions to bound the time range."
+                    "Use with relay history/transitions, or with changelog to "
+                    "read an earlier period of your own development."
                 )
             ),
         ] = None,
@@ -244,22 +260,51 @@ def register(agent):
             return await _check_services_impl()
 
         if aspect == "changelog":
+            # Full commit messages, not just subjects. The subject says what
+            # changed; the body says why, and the why is the part that is
+            # not reconstructable from the diff. Each message is truncated
+            # individually and the whole response is bounded, so a wide
+            # window degrades into "narrow it" rather than flooding context.
+            params: dict[str, str | int] = {"per_page": max(1, min(count, 100))}
+            if since:
+                params["since"] = since
+            if until:
+                params["until"] = until
             try:
-                async with httpx.AsyncClient(timeout=10) as http:
+                async with httpx.AsyncClient(timeout=15) as http:
                     r = await http.get(
                         "https://api.github.com/repos/zzstoatzz/bot/commits",
-                        params={"per_page": min(count, 30)},
+                        params=params,
                     )
                     r.raise_for_status()
                     commits = r.json()
-                lines = []
-                for c in commits:
-                    when = c["commit"]["author"]["date"][:10]
-                    msg = c["commit"]["message"].split("\n")[0]
-                    lines.append(f"[{when}] {msg}")
-                return "\n".join(lines)
             except Exception as e:
                 return f"failed to fetch changelog: {e}"
+
+            if not commits:
+                return (
+                    "no commits in that window. the repo starts 2025-07; "
+                    "widen since/until."
+                )
+
+            entries: list[str] = []
+            total = 0
+            for c in commits:
+                when = c["commit"]["author"]["date"][:10]
+                sha = c["sha"][:8]
+                message = c["commit"]["message"].strip()
+                if len(message) > COMMIT_BODY_LIMIT:
+                    message = message[: COMMIT_BODY_LIMIT - 1].rstrip() + "…"
+                entry = f"[{when} {sha}] {message}"
+                if total + len(entry) > CHANGELOG_CHAR_BUDGET:
+                    entries.append(
+                        f"… stopped at {len(entries)} of {len(commits)} commits "
+                        "(response budget). narrow the window with since/until."
+                    )
+                    break
+                entries.append(entry)
+                total += len(entry)
+            return "\n\n".join(entries)
 
         base = settings.relays_url
 
