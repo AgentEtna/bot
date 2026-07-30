@@ -2,6 +2,7 @@
 
 import asyncio
 import ipaddress
+import logging
 import socket
 import time
 from datetime import date
@@ -16,6 +17,17 @@ from bot.config import settings
 from bot.core.atproto_client import bot_client
 from bot.core.mentionable import add_handle, get_mentionable_handles, remove_handle
 from bot.tools._helpers import PhiDeps, _check_services_impl, _is_owner, _relative_age
+
+logger = logging.getLogger("bot.tools")
+
+
+def _is_github_rate_limit(exc: Exception) -> bool:
+    """GitHub answers an exhausted quota with 403 or 429 plus a marker header."""
+    r = getattr(exc, "response", None)
+    if r is None or r.status_code not in (403, 429):
+        return False
+    return r.headers.get("x-ratelimit-remaining") == "0" or "rate limit" in r.text.lower()
+
 
 # A commit message carries its reasoning in the body, so the body has to
 # survive — but phi's own messages run long, and a hundred of them would
@@ -270,15 +282,32 @@ def register(agent):
                 params["since"] = since
             if until:
                 params["until"] = until
+            # unauthenticated this endpoint allows 60 requests/hour per IP,
+            # which a single busy run can exhaust — send the token when there
+            # is one (5,000/hour) and degrade rather than fail without it.
+            headers = {"Accept": "application/vnd.github+json"}
+            if settings.github_token:
+                headers["Authorization"] = f"Bearer {settings.github_token}"
             try:
                 async with httpx.AsyncClient(timeout=15) as http:
                     r = await http.get(
                         "https://api.github.com/repos/zzstoatzz/bot/commits",
                         params=params,
+                        headers=headers,
                     )
                     r.raise_for_status()
                     commits = r.json()
             except Exception as e:
+                if _is_github_rate_limit(e):
+                    logger.warning(f"changelog hit the github rate limit: {e}")
+                    return (
+                        "changelog unavailable: github rate limit. this call is "
+                        + ("authenticated" if settings.github_token else "unauthenticated")
+                        + ", so the ceiling is "
+                        + ("5,000" if settings.github_token else "60")
+                        + "/hour. retry later or narrow the window."
+                    )
+                logger.warning(f"failed to fetch changelog: {e}")
                 return f"failed to fetch changelog: {e}"
 
             if not commits:

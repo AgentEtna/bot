@@ -172,7 +172,11 @@ def _format_unified_results(results: list[dict], handle: str) -> list[str]:
 
 # --- infrastructure ---
 
-EVERGREEN_PROXY = "https://evergreen-proxy.nate-8fe.workers.dev"
+# two evergreen-proxy workers exist, in two different Cloudflare accounts.
+# this one is in the personal account and is the one `evergreen/worker`
+# deploys to; the previous URL (`nate-8fe`) is in the work account, has
+# drifted from that source, and cannot be deployed to from this machine.
+EVERGREEN_PROXY = "https://evergreen-proxy.n8-3e9.workers.dev"
 SERVICE_CHECKS = [
     {"url": "https://api.plyr.fm/health", "name": "plyr api"},
     {"url": "https://plyr.fm", "name": "plyr frontend"},
@@ -201,17 +205,47 @@ SERVICE_CHECKS = [
 ]
 
 
+def _blocked_hosts(response: httpx.Response) -> list[str]:
+    """URLs the proxy named in a 403, or [] if it wasn't that shape."""
+    try:
+        body = response.json()
+    except Exception:
+        return []
+    if not isinstance(body, dict) or body.get("error") != "blocked hosts":
+        return []
+    blocked = body.get("blocked")
+    return [u for u in blocked if isinstance(u, str)] if isinstance(blocked, list) else []
+
+
 async def _check_services_impl() -> str:
-    """Hit the evergreen proxy with all service checks. Returns formatted status."""
+    """Hit the evergreen proxy with all service checks. Returns formatted status.
+
+    The proxy enforces its own host allowlist and rejects a batch containing
+    any disallowed host with a 403 naming them — so one unlisted host takes
+    down every check. That happened for six days (hub was added here on
+    2026-07-24, to the proxy only on 2026-07-30) and nothing noticed, because
+    the failure was returned to phi as a string and never logged. Now: drop
+    the named hosts, retry the rest, and report the dropped ones as
+    unmonitored rather than losing the whole picture. Failures log at warning
+    so a monitor that stops monitoring is visible in telemetry.
+    """
+    unmonitored: list[str] = []
     async with httpx.AsyncClient(timeout=30) as client:
+        checks = list(SERVICE_CHECKS)
         try:
-            r = await client.post(
-                EVERGREEN_PROXY,
-                json={"checks": SERVICE_CHECKS},
-            )
+            r = await client.post(EVERGREEN_PROXY, json={"checks": checks})
+            if r.status_code == 403 and (blocked := _blocked_hosts(r)):
+                unmonitored = blocked
+                logger.warning(
+                    f"evergreen proxy refuses {len(blocked)} host(s) — not on its "
+                    f"allowlist, so they go unchecked: {', '.join(blocked)}"
+                )
+                checks = [c for c in checks if c["url"] not in set(blocked)]
+                r = await client.post(EVERGREEN_PROXY, json={"checks": checks})
             r.raise_for_status()
             results = r.json()
         except Exception as e:
+            logger.warning(f"evergreen proxy unreachable: {e}")
             return f"evergreen proxy unreachable: {e}"
 
     failures: list[str] = []
@@ -238,6 +272,12 @@ async def _check_services_impl() -> str:
     if failures:
         parts.append("FAILURES:\n" + "\n".join(failures))
     parts.append(f"{len(healthy)}/{len(healthy) + len(failures)} services healthy")
+    if unmonitored:
+        names = ", ".join(name_by_url.get(u, u) for u in unmonitored)
+        parts.append(
+            f"UNMONITORED ({len(unmonitored)}): {names} — the proxy's allowlist "
+            "does not cover these, so their status is unknown, not healthy."
+        )
     if not failures:
         parts.append("\n".join(healthy))
 

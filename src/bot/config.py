@@ -66,6 +66,14 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = Field(
         default=None, description="The API key for the Anthropic API"
     )
+    # Reads the github mirror of this repo for check_infra(aspect="changelog").
+    # Unauthenticated, the GitHub API allows 60 requests/hour *per IP* — one
+    # busy run can exhaust it, and phi's fly machine does not have that IP to
+    # itself. A token raises the ceiling to 5,000/hour. Optional: without one
+    # the call still works, it just rate-limits under load.
+    github_token: str | None = Field(
+        default=None, description="GitHub token for the changelog API (read-only scope)"
+    )
     # Tavily web search — grounds phi against the open web for currency
     # checks and source-finding. Free tier covers 1k searches/month.
     tavily_api_key: str | None = Field(
