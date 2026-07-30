@@ -42,7 +42,7 @@ just deploy     # fly.io (the only deploy path)
 
 ## docs
 
-- [architecture](docs/architecture.md) — data flow, scheduling, why the design
+- [architecture](docs/architecture.md) — data flow, scheduling, which model runs which agent, why the design
 - [memory](docs/memory.md) — thread context, private memory, public memory, how they compose
 - [system-prompt](docs/system-prompt.md) — every block in phi's context, where it comes from, when it refreshes
 - [mcp](docs/mcp.md) — how external tool servers are integrated

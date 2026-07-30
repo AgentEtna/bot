@@ -39,7 +39,7 @@ observations carry a `status` field (`active` | `superseded`) and a `supersedes`
 after every reply, `after_interaction` stores the verbatim exchange. periodically, the extraction agent reads the recent exchanges and proposes new observations. for each proposal:
 
 1. find the 3 most similar non-superseded observations (vector search)
-2. send the new + best-match to a haiku reconciliation agent
+2. send the new + best-match to the `observation-reconciler` sub-agent
 3. it returns ADD / UPDATE / DELETE / NOOP — execute accordingly
 
 reconciliation runs blind on the new exchange (no existing observations in the prompt) so the extraction model can't pattern-match off potentially-bad prior observations. only the reconciliation step sees both.
@@ -74,12 +74,12 @@ when phi processes a notification batch, the system prompt assembles blocks from
 ```
 [RESIDUE]                              ← what recent runs left behind (PDS, decaying, descriptive-only)
 [GOALS AND INTERESTS]                  ← goals + interests, w/ next step + staleness (PDS)
-[SELF-AWARENESS]                       ← haiku description of what recent posts have been about, first person
+[SELF-AWARENESS]                       ← sub-agent description of what recent posts have been about, first person
 [NEW NOTIFICATIONS]                    ← the batch itself
 [PHI'S SYNTHESIZED IMPRESSION OF @alice]  ← per-author relationship summary (trust: low, may hallucinate)
 [OBSERVATIONS ABOUT @alice]            ← per-author observations (active only, trust: medium)
 [PAST EXCHANGES WITH @alice]           ← per-author interaction logs (trust: high)
-[RELEVANT MEMORIES — synthesized for this query]   ← episodic top-K → haiku synthesis
+[RELEVANT MEMORIES — synthesized for this query]   ← episodic top-K → `phi-episodic-synth`
 [ATLAS] / [DOCKET]                     ← daily mind-map + promotion candidates (PDS blobs)
 [SEMBLE]                               ← collection names + recent cards (PDS, 5min cache)
 ```
@@ -90,7 +90,7 @@ see [system-prompt.md](system-prompt.md) for the full block-by-block reference (
 
 ## residue
 
-the system prompt is rebuilt from scratch every run, so without help nothing connects one cognitive event to the next. residue (`io.zzstoatzz.phi.residue`, a public singleton record on phi's PDS) is that continuity: at most 7 terse items describing what recent runs left behind, written **automatically** at the end of each run by a haiku synthesis pass over the run's summary — the periphery writes, the deliberate workspace reads. phi never writes it directly.
+the system prompt is rebuilt from scratch every run, so without help nothing connects one cognitive event to the next. residue (`io.zzstoatzz.phi.residue`, a public singleton record on phi's PDS) is that continuity: at most 7 terse items describing what recent runs left behind, written **automatically** at the end of each run by a synthesis pass over the run's summary — the periphery writes, the deliberate workspace reads. phi never writes it directly.
 
 items are **strictly descriptive** — facts and unresolved state ("alice's question about embeddings went unanswered"), never instructions or plans ("follow up with alice"). this is the curiosity-queue lesson: an ungated store of self-assigned agenda items is standing pressure toward action that nothing reviews. residue records; whether to act is decided fresh inside a run, under the usual gates.
 
@@ -98,7 +98,7 @@ decay is time-based and enforced in code: an item expires 3 days after it was la
 
 ## why episodic gets synthesized, observations don't
 
-episodic memory was getting raw top-K from the vector store dumped into the prompt — stale "pending X" notes appeared next to fresh ones with equal weight, no reconciliation against current PDS state. now `inject_episodic` fetches top-K, then a haiku pass takes phi's goals + the current query as context and produces a coherent block (deduped, recency-aware, contradictions flagged). same shape as `[SELF-AWARENESS]` does for posts.
+episodic memory was getting raw top-K from the vector store dumped into the prompt — stale "pending X" notes appeared next to fresh ones with equal weight, no reconciliation against current PDS state. now `inject_episodic` fetches top-K, then a synthesis pass takes phi's goals + the current query as context and produces a coherent block (deduped, recency-aware, contradictions flagged). same shape as `[SELF-AWARENESS]` does for posts.
 
 per-author observation blocks aren't synthesized because they're already curated by reconciliation on write — by the time they hit the prompt they're an active set with no near-duplicates by design.
 

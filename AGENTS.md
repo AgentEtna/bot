@@ -69,7 +69,7 @@ when you add a capability, decide which namespace it belongs to and document it 
 ## documentation
 
 deeper reference in `docs/`:
-- `architecture.md` — entry points, scheduling, why this shape
+- `architecture.md` — entry points, scheduling, which model runs which agent, why this shape
 - `memory.md` — the four kinds of state and how they compose
 - `system-prompt.md` — block-by-block reference for what's in phi's context
 - `mcp.md` — MCP integration

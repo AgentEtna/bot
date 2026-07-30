@@ -8,6 +8,22 @@ every entry point ends in the same place: `agent.run()` with a `PhiDeps` carryin
 
 what changes per path is the user prompt and the deps shape, not the agent.
 
+## which model runs what
+
+three settings, all full pydantic-ai `provider:model` strings:
+
+| setting | agents | model |
+| --- | --- | --- |
+| `agent_model` | `phi`, `phi-extractor` | `anthropic:claude-sonnet-5` |
+| `policy_model` | `phi-policy-judge` | `openai-responses:gpt-5.6-luna` |
+| `extraction_model` | `phi-episodic-synth`, `observation-reconciler`, `phi-posting-inventory`, `phi-residue-synth` | `openai-responses:gpt-5.6-luna` |
+
+phi herself stays on one model deliberately. her voice is the product of a specific model reading [personalities/phi.md](../personalities/phi.md), and `core/cache_stability.py` wraps `agent_model` only — the cache accounting reads Anthropic's `cache_read_tokens` / `cache_write_tokens` off each response, so it observes the main agent and nothing else. sub-agents produce *structured context*, not voice, which is why they can move independently.
+
+**the `openai-responses:` prefix is load-bearing.** every sub-agent above has an `output_type`, which pydantic-ai sends as a function tool, and OpenAI reasoning models reject function tools on `/v1/chat/completions` when `reasoning_effort` is set. the chat-completions path fails with a 400 on every call, not intermittently. a new sub-agent pointed at an OpenAI reasoning model needs the same prefix.
+
+the settings carry the provider because two call sites used to prepend it themselves (`f"anthropic:{...}"`) while two others didn't — harmless while everything ran on one provider, silently wrong at half the sites otherwise. `tests/test_config.py::TestSubAgentModelStrings` is the guard.
+
 ## entry points
 
 | path | trigger | user prompt sketch |
@@ -77,6 +93,6 @@ mutations to goals (and any other owner-gated action like `follow_user`, `create
 
 **docstrings, not prompt restatement.** what each tool does and when to use it lives in the tool's docstring. the framework surfaces docstrings to the model. the system prompt is for cross-cutting rules (consent, ownership, memory trust hierarchy), not per-tool documentation.
 
-**synthesize before injecting where shape matters.** memory candidates from a vector store are ranked by cosine similarity, which doesn't reconcile or note recency. for blocks where coherence matters (recent posts → audit, episodic candidates → relevant memories), a small haiku pass produces a coherent block from the candidates. see [memory.md](memory.md) and [system-prompt.md](system-prompt.md).
+**synthesize before injecting where shape matters.** memory candidates from a vector store are ranked by cosine similarity, which doesn't reconcile or note recency. for blocks where coherence matters (recent posts → audit, episodic candidates → relevant memories), a small sub-agent pass produces a coherent block from the candidates. see [memory.md](memory.md) and [system-prompt.md](system-prompt.md).
 
 **MCP for capabilities outside this codebase.** atproto record CRUD (pdsx) and long-form publication search (pub-search) are remote MCP servers. reusable, not bundled.

@@ -43,7 +43,7 @@ It's an array of messages:
 ## what to look for
 
 - **Personality dilution.** `parts[0]` should contain `phi.md` verbatim. Compare against the file.
-- **Feedback loops.** Several dynamic blocks reflect phi's own past output back at her — `[SELF-AWARENESS]` (haiku description of recent posts), `[RECENT OPERATIONS]` (verbatim recent writes), `[DOCKET]` titles (often derived from past observations). If they're all in a register phi.md tells phi *not* to use, the model sees that register reinforced even when the constitution forbids it.
+- **Feedback loops.** Several dynamic blocks reflect phi's own past output back at her — `[SELF-AWARENESS]` (sub-agent description of recent posts), `[RECENT OPERATIONS]` (verbatim recent writes), `[DOCKET]` titles (often derived from past observations). If they're all in a register phi.md tells phi *not* to use, the model sees that register reinforced even when the constitution forbids it.
 - **Block bloat.** Compare token weight of abstract rules (top of `parts[0]`) against concrete current blocks. Concrete + current usually dominates abstract + general.
 - **Tool roundtrips in `[2..]`.** Watch for `recall` / `search_memory` calls and what was returned — sometimes phi's drift comes from what private memory surfaced.
 

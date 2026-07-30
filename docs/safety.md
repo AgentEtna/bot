@@ -32,9 +32,13 @@ phi's own write-up: ["The Instruction I Wrote For Myself"](https://greengale.app
 - **the same dict renders into phi's operational instructions**, so phi
   knows her policies up front — the judge is the backstop, not the
   communication channel.
-- **the judge** is a separate model (`policy_model` setting) that
+- **the judge** is a separate model (`policy_model` setting — a
+  different *provider* from phi since 2026-07-30, see
+  [architecture.md](architecture.md#which-model-runs-what)) that
   reviews every `post()` call — top-level and reply — before it
-  executes. it sees the proposed action, its **provenance** (computed,
+  executes. separate is the point: a judge that shares phi's weights
+  shares her blind spots, which is how the 2026-06-30 incident got
+  past self-restraint in the first place. it sees the proposed action, its **provenance** (computed,
   not asserted: in the notification batch / phi's own thread / the
   operator's post / found-unprompted), and phi's recent posts (context
   for tendency policies).
