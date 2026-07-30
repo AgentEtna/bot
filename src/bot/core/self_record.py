@@ -11,6 +11,7 @@ Cached 5min, mirroring the other PDS state blocks.
 
 import logging
 import time
+from datetime import UTC, datetime
 
 from bot.core.atproto_client import BotClient
 
@@ -18,6 +19,12 @@ logger = logging.getLogger("bot.self_record")
 
 SELF_COLLECTION = "io.zzstoatzz.phi.self"
 SELF_RKEY = "self"
+
+# ~400 words, the cap the character retro has always stated. It lived only in
+# that prompt, so a rewrite on any other path ignored it — on 2026-07-30 phi
+# rewrote the record from a bsky thread and the record came back over the cap
+# with `updatedAt` still reading two weeks old. Both are structural now.
+SELF_MAX_CHARS = 2800
 
 _TTL_SECONDS = 300
 _cache: dict = {"text": "", "fetched_at": 0.0}
@@ -38,6 +45,7 @@ async def get_self_block(client: BotClient) -> str:
 
     await client.authenticate()
     assert client.client.me is not None
+    text, updated_at = "", ""
     try:
         resp = client.client.com.atproto.repo.get_record(
             params={
@@ -46,14 +54,19 @@ async def get_self_block(client: BotClient) -> str:
                 "rkey": SELF_RKEY,
             }
         )
-        text = dict(resp.value).get("self", "") if resp.value else ""
+        if resp.value:
+            value = dict(resp.value)
+            text = value.get("self", "")
+            updated_at = value.get("updatedAt", "")
     except Exception:
-        text = ""
+        pass
 
     block = (
         (
-            "[SELF — your own words, from your self record. revise it in "
-            "character retros, with receipts.]\n" + text
+            f"[SELF — your own words, from your self record{_age(updated_at)}. "
+            "yours to rewrite whenever it stops being true, via write_self "
+            "(the rewrite lands once the operator likes your request).]\n"
+            + text
         )
         if text
         else _MISSING
@@ -61,3 +74,61 @@ async def get_self_block(client: BotClient) -> str:
     _cache["text"] = block
     _cache["fetched_at"] = now
     return block
+
+
+def _age(updated_at: str) -> str:
+    """How long this description has stood, for the block header.
+
+    Without it the record reads as present tense forever: it went two weeks
+    stale citing a finished season and phi had nothing in context to notice
+    with. The age is the thing that makes it questionable.
+    """
+    if not updated_at:
+        return ""
+    try:
+        then = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+    except ValueError:
+        return ""
+    days = (datetime.now(UTC) - then).days
+    if days < 1:
+        return ", written today"
+    return f", written {days} day{'s' if days != 1 else ''} ago"
+
+
+async def write_self_record(client: BotClient, text: str) -> str:
+    """Replace the self record, stamping `updatedAt` and keeping `createdAt`.
+
+    The generic pdsx `update_record` writes whatever dict it is handed, so a
+    rewrite through it left the freshness stamp lying. Here the stamp is not
+    phi's to forget.
+    """
+    await client.authenticate()
+    assert client.client.me is not None
+    now_iso = datetime.now(UTC).isoformat()
+
+    created_at = now_iso
+    try:
+        existing = client.client.com.atproto.repo.get_record(
+            params={
+                "repo": client.client.me.did,
+                "collection": SELF_COLLECTION,
+                "rkey": SELF_RKEY,
+            }
+        )
+        if existing.value:
+            created_at = dict(existing.value).get("createdAt") or now_iso
+    except Exception:
+        pass
+
+    result = client.client.com.atproto.repo.put_record(
+        data={
+            "repo": client.client.me.did,
+            "collection": SELF_COLLECTION,
+            "rkey": SELF_RKEY,
+            "record": {"self": text, "createdAt": created_at, "updatedAt": now_iso},
+        }
+    )
+    _cache["text"] = ""
+    _cache["fetched_at"] = 0.0
+    logger.info(f"self record rewritten ({len(text)} chars)")
+    return result.uri

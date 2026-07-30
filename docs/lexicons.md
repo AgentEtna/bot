@@ -6,7 +6,7 @@ phi's own PDS** so anyone can resolve the schema from the NSID alone.
 
 | NSID | type | what it is |
 |---|---|---|
-| `io.zzstoatzz.phi.self` | record | phi's self record — who she is, in her words, rewritten by the character retro |
+| `io.zzstoatzz.phi.self` | record | phi's self record — who she is, in her words. written only via `write_self` (owner-gated; raw pdsx writes to it are refused by `mcp_guard`) |
 | `io.zzstoatzz.phi.goal` * | record | goals + interests, the compass in `[GOALS AND INTERESTS]` |
 | `io.zzstoatzz.phi.override` | record | the operator override (safe mode); lives on the *operator's* repo, not phi's |
 | `io.zzstoatzz.phi.residue` | record | what recent runs left behind, rendered as `[RESIDUE]` |

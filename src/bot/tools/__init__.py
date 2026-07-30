@@ -18,6 +18,7 @@ def register_all(agent, graze_client: GrazeClient):
         memory,
         posting,
         search,
+        self_record,
         topchicken,
         traces,
     )
@@ -27,6 +28,7 @@ def register_all(agent, graze_client: GrazeClient):
     feeds.register(agent, graze_client)
     bluesky.register(agent)
     bio.register(agent)
+    self_record.register(agent)
     blog.register(agent)
     goals.register(agent)
     images.register(agent)

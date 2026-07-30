@@ -33,6 +33,12 @@ logger = logging.getLogger("bot.mcp_guard")
 _PDSX_MUTATIONS = {"create_record", "update_record", "delete_record"}
 _BLOCKED_PREFIX = "app.bsky.feed."
 
+# Collections whose trusted tool carries a gate that a raw record write would
+# skip. The self record joined this on 2026-07-30: it is owner-gated through
+# write_self, and it had been rewritten twice that day by raw update_record —
+# unstamped and over the word cap — because nothing structural said otherwise.
+_GATED_COLLECTIONS = {"io.zzstoatzz.phi.self": "write_self"}
+
 # Verbs that only read. Anything else on a credentialed server is treated
 # as a mutation — deny-by-default under an operator override, because the
 # cost of over-gating a read is a retry and the cost of under-gating a
@@ -92,6 +98,12 @@ def _structural_refusal(
     if server != "pdsx" or name not in _PDSX_MUTATIONS:
         return None
     collection = str(tool_args.get("collection", ""))
+    if tool := _GATED_COLLECTIONS.get(collection):
+        logger.warning(f"pdsx guard refused {name} into {collection}")
+        return (
+            f"refused: raw {name} into {collection} skips the owner gate, "
+            f"the length cap, and the updatedAt stamp. use {tool} instead."
+        )
     if not collection.startswith(_BLOCKED_PREFIX):
         return None
     logger.warning(

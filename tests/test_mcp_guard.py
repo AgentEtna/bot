@@ -249,3 +249,38 @@ async def test_logger_ignores_non_execute_tools(monkeypatch):
         result = await process(None, call_tool, "get_schema", {"name": "cards_add_url"})
     assert result == "schema"
     mock_logfire.info.assert_not_called()
+
+
+# --- the self record: gated by a tool, so the raw verb must not work -------
+
+
+async def test_raw_writes_to_the_self_record_are_refused(monkeypatch, calls):
+    """2026-07-30: phi rewrote her self record twice in one day through
+    `update_record` — over the word cap, with `updatedAt` left reading two
+    weeks old. The record is owner-gated through write_self; without this
+    refusal the gate is decorative."""
+    monkeypatch.setattr(mcp_guard, "get_override", override(False))
+    guard = mcp_guard.make_mcp_guard("pdsx", "test")
+    for verb in ("create_record", "update_record", "delete_record"):
+        result = await guard(
+            None,
+            call_tool_stub(calls),
+            verb,
+            {"collection": "io.zzstoatzz.phi.self", "rkey": "self"},
+        )
+        assert "refused" in result
+        assert "write_self" in result, "the refusal must name the trusted path"
+    assert calls == [], "a raw self-record write reached pdsx"
+
+
+async def test_the_self_record_is_still_readable_through_pdsx(monkeypatch, calls):
+    monkeypatch.setattr(mcp_guard, "get_override", override(False))
+    guard = mcp_guard.make_mcp_guard("pdsx", "test")
+    result = await guard(
+        None,
+        call_tool_stub(calls),
+        "get_record",
+        {"collection": "io.zzstoatzz.phi.self", "rkey": "self"},
+    )
+    assert result == "ok"
+    assert len(calls) == 1

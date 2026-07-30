@@ -62,9 +62,20 @@ def test_the_retro_does_not_prescribe_a_voice():
 
 
 def test_the_record_stays_phis_to_write():
-    """phi writes it herself via pdsx; nothing here composes it for her."""
-    assert "mcp__pdsx__update_record" in RETRO
+    """phi writes it herself through write_self; nothing here composes it for
+    her. The raw pdsx path was retired on 2026-07-30 — it skipped the length
+    cap and the updatedAt stamp, so the record ran long and read fresh while
+    being two weeks old."""
+    assert "write_self" in RETRO
+    assert "mcp__pdsx__update_record" not in RETRO
     assert "full replacement" in RETRO
+
+
+def test_live_state_is_kept_out_of_the_record():
+    """Standings, library shape, and open threads each have a block that
+    renders every run. Snapshotting them into a durable record is what made
+    it both long and stale."""
+    assert "state that has a live block does not belong here" in RETRO
 
 
 @pytest.mark.parametrize("venue", ["your blog is the venue", "stay off the feed"])

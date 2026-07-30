@@ -194,14 +194,15 @@ wheels = [
 
 [[package]]
 name = "authlib"
-version = "1.6.5"
+version = "1.7.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
+    { name = "joserfc" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/cd/3f/1d3bbd0bf23bdd99276d4def22f29c27a914067b4cf66f753ff9b8bbd0f3/authlib-1.6.5.tar.gz", hash = "sha256:6aaf9c79b7cc96c900f0b284061691c5d4e61221640a948fe690b556a6d6d10b", size = 164553, upload-time = "2025-10-02T13:36:09.489Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/36/98/7d93f30d029643c0275dbc0bd6d5a6f670661ee6c9a94d93af7ab4887600/authlib-1.7.2.tar.gz", hash = "sha256:2cea25fefcd4e7173bdf1372c0afc265c8034b23a8cd5dcb6a9164b826c64231", size = 176511, upload-time = "2026-05-06T08:10:23.116Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f8/aa/5082412d1ee302e9e7d80b6949bc4d2a8fa1149aaab610c5fc24709605d6/authlib-1.6.5-py2.py3-none-any.whl", hash = "sha256:3e0e0507807f842b02175507bdee8957a1d5707fd4afb17c32fb43fee90b6e3a", size = 243608, upload-time = "2025-10-02T13:36:07.637Z" },
+    { url = "https://files.pythonhosted.org/packages/fb/95/adcb68e20c34162e9135f370d6e31737719c2b6f94bc953fe7ed1f10fe21/authlib-1.7.2-py2.py3-none-any.whl", hash = "sha256:3e1faedc9d87e7d56a164eca3ccb6ace0d61b94abe83e92242f8dc8bba9b4a9f", size = 259548, upload-time = "2026-05-06T08:10:21.436Z" },
 ]
 
 [[package]]
@@ -220,7 +221,6 @@ dependencies = [
     { name = "anthropic" },
     { name = "atproto" },
     { name = "fastapi" },
-    { name = "fastmcp" },
     { name = "logfire", extra = ["fastapi"] },
     { name = "numpy" },
     { name = "openai" },
@@ -247,7 +247,6 @@ requires-dist = [
     { name = "anthropic" },
     { name = "atproto", git = "https://github.com/MarshalX/atproto.git?rev=refs%2Fpull%2F605%2Fhead" },
     { name = "fastapi" },
-    { name = "fastmcp", specifier = ">=0.8.0" },
     { name = "logfire", extras = ["fastapi"] },
     { name = "numpy", specifier = ">=2.4.4" },
     { name = "openai" },
@@ -626,34 +625,63 @@ wheels = [
 
 [[package]]
 name = "fastmcp"
-version = "3.2.3"
+version = "3.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "fastmcp-slim", extra = ["client", "server"] },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/64/24/519739e98daf92ebc64580e9d3320649bf9a1612c029a913dd88c3474d73/fastmcp-3.4.0.tar.gz", hash = "sha256:29055fb6816f4862c615aabaf0112ae8feb8b469740db13403a0ce5b799ec1dc", size = 28754939, upload-time = "2026-06-03T02:32:40.206Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e9/72/9f9bbfc3a8d26870dbdbbd633cd1c6f42b8d3bec379426c760676d936e86/fastmcp-3.4.0-py3-none-any.whl", hash = "sha256:34523083d6149400a0655a8aa769eb34f85b1ce6dac6d66efb07503ebbe5f44b", size = 8017, upload-time = "2026-06-03T02:32:38.05Z" },
+]
+
+[[package]]
+name = "fastmcp-slim"
+version = "3.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "platformdirs" },
+    { name = "pydantic", extra = ["email"] },
+    { name = "pydantic-settings" },
+    { name = "python-dotenv" },
+    { name = "rich" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e7/b0/4da6078c2d6aa0a38a8b1ae0271e1ed400f9e2cd1b3b46e6453fb1fe2b75/fastmcp_slim-3.4.0.tar.gz", hash = "sha256:faa0ccf16e85ec4b9f79c006fed3546b866d7e6dba3f60cd32cd98e84753a496", size = 575895, upload-time = "2026-06-03T02:32:18.744Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/58/66/cc283d4efd3faf325c26f51cfb43a118270ea732e70dda509f49d80ea625/fastmcp_slim-3.4.0-py3-none-any.whl", hash = "sha256:17cd0a1535972d3748d8c2416f0826dfc86c18df7a6cbc38602373277d44baa6", size = 748849, upload-time = "2026-06-03T02:32:17.435Z" },
+]
+
+[package.optional-dependencies]
+client = [
+    { name = "authlib" },
+    { name = "exceptiongroup" },
+    { name = "httpx" },
+    { name = "mcp" },
+    { name = "opentelemetry-api" },
+    { name = "py-key-value-aio", extra = ["filetree", "keyring", "memory"] },
+]
+server = [
     { name = "authlib" },
     { name = "cyclopts" },
     { name = "exceptiongroup" },
+    { name = "griffelib" },
     { name = "httpx" },
+    { name = "joserfc" },
     { name = "jsonref" },
     { name = "jsonschema-path" },
     { name = "mcp" },
     { name = "openapi-pydantic" },
     { name = "opentelemetry-api" },
     { name = "packaging" },
-    { name = "platformdirs" },
     { name = "py-key-value-aio", extra = ["filetree", "keyring", "memory"] },
-    { name = "pydantic", extra = ["email"] },
     { name = "pyperclip" },
-    { name = "python-dotenv" },
+    { name = "python-multipart" },
     { name = "pyyaml" },
-    { name = "rich" },
     { name = "uncalled-for" },
     { name = "uvicorn" },
     { name = "watchfiles" },
     { name = "websockets" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/b9/42/7eed0a38e3b7a386805fecacf8a5a9353a2b3040395ef9e30e585d8549ac/fastmcp-3.2.3.tar.gz", hash = "sha256:4f02ae8b00227285a0cf6544dea1db29b022c8cdd8d3dfdec7118540210ae60a", size = 26328743, upload-time = "2026-04-09T22:05:03.402Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f5/48/84b6dcba793178a44b9d99b4def6cd62f870dcfc5bb7b9153ac390135812/fastmcp-3.2.3-py3-none-any.whl", hash = "sha256:cc50af6eed1f62ed8b6ebf4987286d8d1d006f08d5bec739d5c7fb76160e0911", size = 707260, upload-time = "2026-04-09T22:05:01.225Z" },
 ]
 
 [[package]]
@@ -1118,6 +1146,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/00/2a/e867e8531cf3e36b41201936b7fa7ba7b5702dbef42922193f05c8976cd6/jmespath-1.0.1.tar.gz", hash = "sha256:90261b206d6defd58fdd5e85f478bf633a2901798906be2ad389150c5c60edbe", size = 25843, upload-time = "2022-06-17T18:00:12.224Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/31/b4/b9b800c45527aadd64d5b442f9b932b00648617eb5d63d2c7a6587b7cafc/jmespath-1.0.1-py3-none-any.whl", hash = "sha256:02e2e4cc71b5bcab88332eebf907519190dd9e6e82107fa7f83b1003a6252980", size = 20256, upload-time = "2022-06-17T18:00:10.251Z" },
+]
+
+[[package]]
+name = "joserfc"
+version = "1.7.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cryptography" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c7/e0/27a6a081ae25420eda6768ceae05d7022a7f2447f420588843f2a44e4298/joserfc-1.7.4.tar.gz", hash = "sha256:b3bc561672ae541b17a9237053b48a03dacddd92d68047b3ecdfb4b5714a88ed", size = 234027, upload-time = "2026-07-19T15:43:02.739Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f9/bf/249dcd99b3376375910b7fa922383b57792975c8758f50d44612e749226c/joserfc-1.7.4-py3-none-any.whl", hash = "sha256:32d46c2cd5e3203c13e87a6c61333cab310b1ba80cd54b4c4f386a848a122463", size = 71000, upload-time = "2026-07-19T15:43:01.299Z" },
 ]
 
 [[package]]
@@ -2392,11 +2432,11 @@ wheels = [
 
 [[package]]
 name = "python-multipart"
-version = "0.0.20"
+version = "0.0.32"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/f3/87/f44d7c9f274c7ee665a29b885ec97089ec5dc034c7f3fafa03da9e39a09e/python_multipart-0.0.20.tar.gz", hash = "sha256:8dd0cab45b8e23064ae09147625994d090fa46f5b0d1e13af944c331a7fa9d13", size = 37158, upload-time = "2024-12-16T19:45:46.972Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5b/42/55c32bb9b12693c092ad250a0e82edb5b31ddeda6eb772de5f308b3804ad/python_multipart-0.0.32.tar.gz", hash = "sha256:be54b7f3fa167bb83e4fcd936b887b708f4e57fe75911c02aebf53efaf8d938e", size = 46881, upload-time = "2026-06-04T16:18:58.647Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/45/58/38b5afbc1a800eeea951b9285d3912613f2603bdf897a4ab0f4bd7f405fc/python_multipart-0.0.20-py3-none-any.whl", hash = "sha256:8a62d3a8335e06589fe01f2a3e178cdcc632f3fbe0d492ad9ee0ec35aab1f104", size = 24546, upload-time = "2024-12-16T19:45:44.423Z" },
+    { url = "https://files.pythonhosted.org/packages/e1/04/e8135ebd1ad02c56ec633277529b2602ff99ff634be76cdba5744cf554fd/python_multipart-0.0.32-py3-none-any.whl", hash = "sha256:ff6d3f776f16878c894e52e107296ffc890e913c611b1a4ec6c44e2821fe2e23", size = 30042, upload-time = "2026-06-04T16:18:57.319Z" },
 ]
 
 [[package]]

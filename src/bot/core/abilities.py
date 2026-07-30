@@ -120,6 +120,10 @@ RISK: dict[str, Risk] = {
         "magnitude": "moderate",
         "reason": "rewrites the constitutional fields of a public goal record; owner-gated because goals are what she is for.",
     },
+    "write_self": {
+        "magnitude": "moderate",
+        "reason": "replaces her public self record, which every run reads as who she is and every bio rewrite compresses; owner-gated because a wrong line there propagates into everything she says next.",
+    },
     "update_goal_progress": {
         "magnitude": "moderate",
         "reason": "writes progress onto a public goal record; wrong state here misleads her own later reasoning.",
