@@ -172,10 +172,11 @@ def _format_unified_results(results: list[dict], handle: str) -> list[str]:
 
 # --- infrastructure ---
 
-# two evergreen-proxy workers exist, in two different Cloudflare accounts.
-# this one is in the personal account and is the one `evergreen/worker`
-# deploys to; the previous URL (`nate-8fe`) is in the work account, has
-# drifted from that source, and cannot be deployed to from this machine.
+# the n8@zzstoatzz.io account is the only one that matters — this is the
+# worker `evergreen/worker` deploys to. phi previously called an identically
+# named worker under an unrelated org whose allowlist had drifted from that
+# source; it was still refusing hub.waow.tech, which is what took these
+# checks down for six days.
 EVERGREEN_PROXY = "https://evergreen-proxy.n8-3e9.workers.dev"
 SERVICE_CHECKS = [
     {"url": "https://api.plyr.fm/health", "name": "plyr api"},
