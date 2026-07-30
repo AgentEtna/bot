@@ -178,7 +178,7 @@ def get_residue_synth_agent() -> Agent[None, ResidueUpdate]:
     if _synth_agent is None:
         _synth_agent = Agent[None, ResidueUpdate](
             name="phi-residue-synth",
-            model=f"anthropic:{settings.extraction_model}",
+            model=settings.extraction_model,
             output_type=ResidueUpdate,
             system_prompt=RESIDUE_SYNTH_SYSTEM_PROMPT,
         )

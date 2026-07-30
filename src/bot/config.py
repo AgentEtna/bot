@@ -85,12 +85,17 @@ class Settings(BaseSettings):
         default="anthropic:claude-sonnet-5",
         description="Model for the main agent (pydantic-ai model string)",
     )
+    # Sub-agent models are full pydantic-ai `provider:model` strings, same as
+    # agent_model. OpenAI reasoning models must use the `openai-responses:`
+    # prefix: /v1/chat/completions rejects function tools alongside
+    # reasoning_effort, and every sub-agent here has an output_type, which
+    # pydantic-ai sends as a function tool.
     extraction_model: str = Field(
-        default="claude-haiku-4-5-20251001",
-        description="Model for extracting observations from conversations",
+        default="openai-responses:gpt-5.6-luna",
+        description="Model for the extraction/synth sub-agents",
     )
     policy_model: str = Field(
-        default="claude-sonnet-5",
+        default="openai-responses:gpt-5.6-luna",
         description="Model for the pre-action policy judge (bot.core.policy)",
     )
 

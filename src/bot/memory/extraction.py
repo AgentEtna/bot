@@ -133,7 +133,7 @@ def get_reconciliation_agent() -> Agent[None, ReconciliationResult]:
     if _reconciliation_agent is None:
         _reconciliation_agent = Agent[None, ReconciliationResult](
             name="observation-reconciler",
-            model=f"anthropic:{settings.extraction_model}",
+            model=settings.extraction_model,
             output_type=ReconciliationResult,
             system_prompt=RECONCILIATION_SYSTEM_PROMPT,
         )
