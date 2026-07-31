@@ -26,7 +26,9 @@ def _is_github_rate_limit(exc: Exception) -> bool:
     r = getattr(exc, "response", None)
     if r is None or r.status_code not in (403, 429):
         return False
-    return r.headers.get("x-ratelimit-remaining") == "0" or "rate limit" in r.text.lower()
+    return (
+        r.headers.get("x-ratelimit-remaining") == "0" or "rate limit" in r.text.lower()
+    )
 
 
 # A commit message carries its reasoning in the body, so the body has to
@@ -262,11 +264,20 @@ def register(agent):
         aspect='changelog': your own recent deploys (github mirror of the bot
         repo; origin is tangled.sh/zzstoatzz.io/bot) — what changed and when.
         aspect='relays': the relay fleet via relay-eval, in three modes:
-        - snapshot (default, no relay params): current status of every relay.
+        - snapshot (default, no relay params): current status of every relay,
+          plus the network-absolute behind-lately verdict (a relay is "behind"
+          when it carried <85% of what at least two relays saw; "behind lately"
+          when that held in a third of the recent runs — one bad run doesn't
+          flag, one good run doesn't clear).
         - history (name=<host>): coverage timeseries for one relay. Bound
           with since/until for a precise window, or use limit for recent-N.
         - transitions (transitions=True): status-change events across the
           fleet. Answers "when did X happen." Optionally filter by name.
+        HOW TO READ TIMESTAMPS: relay-eval checks the whole fleet in one
+        batched run every ~30 minutes, so transitions for different relays
+        sharing a timestamp means they were observed in the same run — it is
+        NOT evidence the relays failed at the same moment. to test actual
+        synchrony, compare their coverage histories point by point.
         Report relay headlines verbatim — the service owns interpretation."""
         if aspect == "services":
             return await _check_services_impl()
@@ -302,7 +313,11 @@ def register(agent):
                     logger.warning(f"changelog hit the github rate limit: {e}")
                     return (
                         "changelog unavailable: github rate limit. this call is "
-                        + ("authenticated" if settings.github_token else "unauthenticated")
+                        + (
+                            "authenticated"
+                            if settings.github_token
+                            else "unauthenticated"
+                        )
                         + ", so the ceiling is "
                         + ("5,000" if settings.github_token else "60")
                         + "/hour. retry later or narrow the window."
@@ -428,39 +443,75 @@ def register(agent):
             return "\n".join(lines)
 
         # snapshot mode
-        try:
-            async with httpx.AsyncClient(timeout=15) as http:
-                r = await http.get(base)
-                r.raise_for_status()
-                monitors = r.json()
-        except Exception as e:
-            return f"relay endpoint unreachable: {e}"
+        return await _relay_snapshot_impl(base)
 
-        if not isinstance(monitors, list) or not monitors:
-            return "no monitors reported"
 
-        by_status: dict[str, list[dict]] = {
-            "critical": [],
-            "degraded": [],
-            "nominal": [],
-        }
-        for m in monitors:
-            status = m.get("status", "unknown")
-            by_status.setdefault(status, []).append(m)
+async def _relay_snapshot_impl(base: str) -> str:
+    try:
+        async with httpx.AsyncClient(timeout=15) as http:
+            r = await http.get(base)
+            r.raise_for_status()
+            monitors = r.json()
+    except Exception as e:
+        return f"relay endpoint unreachable: {e}"
 
-        today = date.today()
-        lines = []
-        for status in ("critical", "degraded", "nominal"):
-            items = by_status.get(status, [])
-            if not items:
-                continue
-            lines.append(f"[{status}] ({len(items)})")
-            for m in items:
-                headline = m.get("headline", m.get("name", "?"))
-                last_changed = m.get("last_changed", "")
-                age = _relative_age(last_changed, today) if last_changed else ""
-                age_str = f" (changed {age})" if age else ""
-                lines.append(f"  - {headline}{age_str}")
-            lines.append("")
+    if not isinstance(monitors, list) or not monitors:
+        return "no monitors reported"
 
+    by_status: dict[str, list[dict]] = {
+        "critical": [],
+        "degraded": [],
+        "nominal": [],
+    }
+    for m in monitors:
+        status = m.get("status", "unknown")
+        by_status.setdefault(status, []).append(m)
+
+    today = date.today()
+    lines = []
+    for status in ("critical", "degraded", "nominal"):
+        items = by_status.get(status, [])
+        if not items:
+            continue
+        lines.append(f"[{status}] ({len(items)})")
+        for m in items:
+            headline = m.get("headline", m.get("name", "?"))
+            last_changed = m.get("last_changed", "")
+            age = _relative_age(last_changed, today) if last_changed else ""
+            age_str = f" (changed {age})" if age else ""
+            lines.append(f"  - {headline}{age_str}")
+        lines.append("")
+
+    # the self-relative statuses above say "unusual for this relay";
+    # /api/status says "behind the network" in absolute terms. both
+    # matter: a relay can be nominal against its own baseline while
+    # carrying a fraction of what the rest of the fleet sees.
+    status_url = base.removesuffix("/relays") + "/status"
+    try:
+        async with httpx.AsyncClient(timeout=15) as http:
+            r = await http.get(status_url)
+            r.raise_for_status()
+            verdict = r.json()
+    except Exception as e:
+        lines.append(f"(behind-lately verdict unavailable: {e})")
         return "\n".join(lines).rstrip()
+
+    behind = [x for x in verdict.get("relays", []) if x.get("behind_lately")]
+    window = verdict.get("window", {})
+    lines.append(
+        f"behind the network lately ({len(behind)} of "
+        f"{len(verdict.get('relays', []))}, last {window.get('runs', '?')} runs):"
+    )
+    if behind:
+        for x in behind:
+            latest = x.get("latest", {})
+            lines.append(
+                f"  - {x.get('host', '?')}: behind in {x.get('behind_runs', '?')}"
+                f"/{x.get('runs', '?')} runs, avg coverage "
+                f"{x.get('avg_coverage_pct', 0):.1f}% "
+                f"(now {latest.get('coverage_pct', 0):.1f}%)"
+            )
+    else:
+        lines.append("  (none)")
+
+    return "\n".join(lines).rstrip()

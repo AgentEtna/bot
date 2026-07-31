@@ -113,3 +113,61 @@ class TestGithubRateLimitDetection:
 
     def test_non_http_error_is_not_a_rate_limit(self):
         assert not _is_github_rate_limit(httpx.ConnectError("dns"))
+
+
+class TestRelaySnapshotVerdict:
+    """The snapshot merges two views: self-relative statuses from /api/relays
+    and the network-absolute behind-lately verdict from /api/status. A relay
+    can be 'nominal' against its own baseline while carrying almost nothing —
+    without the verdict phi reported such relays as healthy."""
+
+    MONITORS = [
+        {"name": "relay.feeds.blue", "status": "nominal", "headline": "relay.feeds.blue: 0% coverage over last 3 eval runs"}
+    ]
+    VERDICT = {
+        "window": {"runs": 24},
+        "relays": [
+            {
+                "host": "relay.feeds.blue",
+                "behind_lately": True,
+                "behind_runs": 24,
+                "runs": 24,
+                "avg_coverage_pct": 0.0,
+                "latest": {"coverage_pct": 0.1},
+            }
+        ],
+    }
+
+    def _client(self, *responses):
+        client = AsyncMock()
+        client.get = AsyncMock(side_effect=list(responses))
+        ctx = AsyncMock()
+        ctx.__aenter__ = AsyncMock(return_value=client)
+        ctx.__aexit__ = AsyncMock(return_value=False)
+        return ctx
+
+    async def test_verdict_appended_to_snapshot(self):
+        from bot.tools import bluesky
+        from bot.tools.bluesky import _relay_snapshot_impl
+
+        ctx = self._client(
+            _response(200, self.MONITORS), _response(200, self.VERDICT)
+        )
+        with patch.object(bluesky.httpx, "AsyncClient", return_value=ctx):
+            out = await _relay_snapshot_impl("https://x.test/api/relays")
+
+        assert "behind the network lately (1 of 1, last 24 runs)" in out
+        assert "relay.feeds.blue: behind in 24/24 runs" in out
+
+    async def test_status_failure_degrades_not_fails(self):
+        from bot.tools import bluesky
+        from bot.tools.bluesky import _relay_snapshot_impl
+
+        ctx = self._client(
+            _response(200, self.MONITORS), httpx.ConnectError("boom")
+        )
+        with patch.object(bluesky.httpx, "AsyncClient", return_value=ctx):
+            out = await _relay_snapshot_impl("https://x.test/api/relays")
+
+        assert "[nominal]" in out, "the self-relative snapshot must survive"
+        assert "behind-lately verdict unavailable" in out
