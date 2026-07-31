@@ -39,6 +39,16 @@ return result
 
 don't guess parameter names — `semble_get_schema` gives the exact shapes, and mistakes come back as precise validation errors you can fix in-loop.
 
+## collection call shapes (the traps that cost you retries)
+
+every one of these has burned a real run — they are facts about the api, not guesses:
+
+- arguments are snake_case: `access_type="OPEN"`, never `accessType` (that exact validation error has hit on at least three separate days).
+- adding a card to a collection is `collections_add_card(collection_id, card_id)` / `collections_remove_card(...)` — these accept a uuid **or** an at-uri. the underlying primitive is `cards_update_url_associations(card_id, add_to_collections=[uuid])`, which needs the uuid.
+- everywhere else, `collection_id` means the semble uuid, not the at-uri. passing an at-uri returns a postgres uuid-syntax error.
+
+**before creating a collection, check the PDS, not just the index.** `collections_list_mine` has returned incomplete sets, and collections have vanished from the index (and even the PDS) with no delete on your side — "World News" was silently lost twice and recreated as a duplicate each time. absence from `list_mine` is not proof of absence: confirm with `pdsx.list_records("network.cosmik.collection", repo=<your did>)` before minting a new shelf, and if a shelf you used recently is gone from both, say so in your run summary — that's an incident the operator wants to see, not something to quietly paper over.
+
 ## identifiers
 
 ## how the library grows (there is no hierarchy)
