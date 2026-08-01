@@ -69,8 +69,13 @@ Not for: changing phi's behavior (edit code/personality), inspecting phi
    }
    ```
 
-   Only the root needs the mention; replies inherit notification via the
-   thread. Keep the mention on the root so phi is pinged.
+   NOTIFICATION RULE (learned 2026-08-01 the hard way): phi is notified by
+   the root mention and by replies **to her posts** — a reply to your own
+   post notifies nobody. Four follow-up asks once sat unread for hours this
+   way. If phi has already replied and you want her to see more, reply to
+   HER latest post (or add a fresh mention facet). And fetch her post's
+   real `cid` first (`getPosts`/`get_record`) — never construct or guess a
+   cid for a reply ref.
 5. Report the thread URL back:
    `https://bsky.app/profile/zzstoatzzdevlog.bsky.social/post/<root_rkey>`
    (rkey is the last path segment of the root uri). Phi picks up the mention
