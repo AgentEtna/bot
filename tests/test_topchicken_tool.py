@@ -238,6 +238,52 @@ async def test_sell_cap_is_a_floor_on_proceeds():
     assert record["capSubc"] == math.floor(10 * 3332 * 0.98)
 
 
+async def test_fill_confirmed_only_when_the_trade_lands_in_the_ledger():
+    """Regression: on 08-04 and 08-05 the market's ingester silently dropped
+    phi's orders; the tool still said "fill confirmed" because it only checked
+    that /api/trader responded, not that the trade appeared."""
+    import time
+
+    fn = _register()["place_chicken_trade"]
+    bc = _mock_bot_client()
+    trader_no_fill = {"balance_subc": 9_207_721, "trades": []}
+    trader_filled = {
+        "balance_subc": 9_100_000,
+        "trades": [
+            {
+                "ts": time.time(),
+                "round_id": "2026-07-02",
+                "contender_did": "did:plc:goose",
+                "side": "buy",
+                "shares": 25,
+            }
+        ],
+    }
+
+    for trader, expect_confirmed in [(trader_no_fill, False), (trader_filled, True)]:
+        with (
+            _patch_get_json(
+                {
+                    topchicken.MARKET_URL: OPEN_MARKET,
+                    topchicken.TRADER_URL.format(did="did:plc:phi"): trader,
+                }
+            ),
+            patch("bot.tools.topchicken.bot_client", bc),
+            patch(
+                "bot.tools.topchicken.get_override",
+                AsyncMock(return_value={"active": False, "message": ""}),
+            ),
+            patch("bot.tools.topchicken.asyncio.sleep", AsyncMock()),
+        ):
+            out = await fn(
+                SimpleNamespace(), contender="@goose.art", side="buy", shares=25
+            )
+        assert ("fill confirmed" in out) is expect_confirmed
+        if not expect_confirmed:
+            assert "no matching" in out
+            assert "do NOT re-trade" in out
+
+
 async def test_trade_refuses_under_operator_override():
     fn = _register()["place_chicken_trade"]
     bc = _mock_bot_client()

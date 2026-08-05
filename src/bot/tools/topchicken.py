@@ -439,6 +439,7 @@ def register(agent):
         await bot_client.authenticate()
         assert bot_client.client.me is not None
         did = bot_client.client.me.did
+        placed_at = datetime.now(UTC)
         bot_client.client.com.atproto.repo.create_record(
             data={
                 "repo": did,
@@ -463,7 +464,28 @@ def register(agent):
         await asyncio.sleep(2.5)
         try:
             trader = await _get_json(TRADER_URL.format(did=did))
-            balance = _fmt_subc(trader.get("balance_subc", 0))
-            return f"{summary}\nfill confirmed — balance now {balance}"
         except Exception:
             return f"{summary}\ncouldn't confirm the fill yet — check_top_chicken in a moment"
+
+        fill = next(
+            (
+                t
+                for t in trader.get("trades", [])
+                if t.get("round_id") == round_["id"]
+                and t.get("contender_did") == match["did"]
+                and t.get("side") == side
+                and t.get("shares") == shares
+                and t.get("ts", 0) >= placed_at.timestamp() - 60
+            ),
+            None,
+        )
+        balance = _fmt_subc(trader.get("balance_subc", 0))
+        if fill is not None:
+            return f"{summary}\nfill confirmed — balance now {balance}"
+        return (
+            f"{summary}\nWARNING: the order record is on your repo, but no matching "
+            f"fill has appeared in the market's ledger (balance still {balance}). "
+            "the market may not be ingesting orders right now — do NOT re-trade to "
+            "compensate; re-check with check_top_chicken and flag it to the operator "
+            "if the fill never lands"
+        )
