@@ -66,8 +66,11 @@ CANNED_EMPTY_TIMELINE = (
 
 
 class EvaluationResult(BaseModel):
-    passed: bool
+    # explanation first so the judge reasons before committing to a verdict —
+    # with passed first it emits the bool cold, then sometimes argues the
+    # opposite in the explanation
     explanation: str
+    passed: bool
 
 
 class ToolCallSpy:
