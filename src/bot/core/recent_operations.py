@@ -27,6 +27,7 @@ from typing import TypedDict
 
 from atproto_client.models.utils import get_model_as_dict
 
+from bot.core import ops_log
 from bot.core.atproto_client import BotClient
 from bot.utils.time import relative_when
 
@@ -51,8 +52,16 @@ POST_PREVIEW = 220
 """How much of a top-level post to show. Enough to recognise a subject she
 has already covered; not the whole feed re-rendered into her context."""
 
-PER_COLLECTION_LIMIT = 10
-TOP_N = 10
+PER_COLLECTION_LIMIT = 25
+WINDOW_HOURS = 48.0
+"""Wall-clock bound, replacing the old TOP_N=10 count bound. A count bound
+silently means "the last few hours" on a busy day — on 2026-08-06 phi
+re-posted a 24h-old subject verbatim because eleven newer writes had
+scrolled it out of a 10-row window. Cost now scales with her activity,
+which is honest: a chattier phi has more to be aware of."""
+
+MAX_ROWS = 80
+"""Sanity cap within the window; truncation is announced in the header."""
 
 _BLOCK_TTL_SECONDS = 300  # 5min, mirrors core/self_state.py
 _block_cache: dict = {"text": "", "fetched_at": 0.0}
@@ -63,6 +72,8 @@ class _Row(TypedDict):
     nsid: str
     created_at: str
     summary: str
+    op: str  # create | update | delete
+    local: bool  # written by this process (attribution is best-effort)
 
 
 _URL_RE = re.compile(r"https?://[^\s<>\")\]]+")
@@ -202,55 +213,135 @@ def _fetch_collection(client: BotClient, did: str, nsid: str) -> list[_Row]:
                 nsid=nsid,
                 created_at=_created_at_from(value),
                 summary=_summarize(nsid, value),
+                op="create",
+                local=False,
             )
         )
     return rows
 
 
-def _render(rows: list[_Row]) -> str:
+def _rows_from_ops(ops: list[ops_log.OpRow]) -> list[_Row]:
+    """Convert event-log ops to render rows.
+
+    Deletes have no record body on the wire; if the create/update was
+    logged inside the window, its summary is echoed so phi sees WHAT
+    vanished, not just that something did.
+    """
+    last_summary: dict[tuple[str, str], str] = {}
+    rows: list[_Row] = []
+    for op in ops:
+        key = (op["nsid"], op["rkey"])
+        if op["op"] == "delete":
+            prior = last_summary.get(key, "")
+            summary = f"was: {prior}" if prior else "(record body not logged)"
+        else:
+            value = op["record"] or {}
+            summary = _summarize(op["nsid"], value) if value else ""
+            if summary:
+                last_summary[key] = summary
+        rows.append(
+            _Row(
+                rkey=op["rkey"],
+                nsid=op["nsid"],
+                created_at=op["at"],
+                summary=summary,
+                op=op["op"],
+                local=op["local"],
+            )
+        )
+    return rows
+
+
+def _merge(event_rows: list[_Row], snapshot_rows: list[_Row]) -> list[_Row]:
+    """Event-log rows win over snapshot rows for the same record; the
+    snapshot only fills creates the log missed (downtime, pre-log history)."""
+    seen = {(r["nsid"], r["rkey"]) for r in event_rows}
+    merged = list(event_rows)
+    merged.extend(
+        r for r in snapshot_rows if (r["nsid"], r["rkey"]) not in seen
+    )
+    merged.sort(key=lambda r: r["created_at"])
+    return merged
+
+
+_OP_TAGS = {"create": "", "update": "EDITED", "delete": "DELETED"}
+
+
+def _render(rows: list[_Row], truncated: int = 0) -> str:
     """Render rows as the [RECENT OPERATIONS] block. Pure function — easy to template later."""
     if not rows:
         return ""
     nsid_width = max(len(r["nsid"]) for r in rows)
-    lines = [
-        "[RECENT OPERATIONS — your last writes on PDS, chronological, so you "
-        "always know what you have already said. this is a record of what "
-        "went out, not a model for how to write: if something here is "
-        "already covered, the reason to look is to avoid saying it twice, "
-        "not to match its phrasing. replies are summarised; they are half of "
-        "someone else's conversation.]"
-    ]
+    header = (
+        "[RECENT OPERATIONS — everything that happened to your repo in the "
+        f"last {WINDOW_HOURS:.0f}h, chronological, so you always know what "
+        "you have already said. this is a record of what went out, not a "
+        "model for how to write: if something here is already covered, the "
+        "reason to look is to avoid saying it twice, not to match its "
+        "phrasing. replies are summarised; they are half of someone else's "
+        "conversation. EDITED/DELETED rows are repo events — a delete "
+        "marked 'not via this process' was made by your hosted tools or an "
+        "external service, and if you don't recognise it, say so.]"
+    )
+    if truncated:
+        header += f" (showing newest {len(rows)}; {truncated} older rows elided)"
+    lines = [header]
     for r in rows:
         ts = r["created_at"]
         when = relative_when(ts) if ts else ""
         time_part = f"{ts[:19]}Z ({when})" if ts and when else (ts or "")
         nsid_part = r["nsid"].ljust(nsid_width)
-        lines.append(f"{time_part}  {nsid_part}  {r['summary']}")
+        tag = _OP_TAGS.get(r["op"], "")
+        if tag and not r["local"]:
+            tag += " (not via this process)"
+        tag_part = f"{tag}  " if tag else ""
+        lines.append(f"{time_part}  {nsid_part}  {tag_part}{r['summary']}")
     return "\n".join(lines)
 
 
 async def get_operations_block(client: BotClient) -> str:
-    """Fetch + render the [RECENT OPERATIONS] block. Cached 5min."""
+    """Fetch + render the [RECENT OPERATIONS] block. Cached 5min.
+
+    Primary source is the jetstream-backed ops log (real events: creates,
+    edits, deletes). The listRecords snapshot backfills creates the log
+    missed while the process was down.
+    """
     now = time.time()
     if _block_cache["text"] and now - _block_cache["fetched_at"] < _BLOCK_TTL_SECONDS:
         return _block_cache["text"]
 
     try:
+        event_rows = _rows_from_ops(ops_log.read_ops(WINDOW_HOURS))
+    except Exception as e:
+        logger.warning(f"ops log read failed: {e}")
+        event_rows = []
+    event_rows = [r for r in event_rows if r["nsid"] in MEANINGFUL_COLLECTIONS]
+
+    snapshot_rows: list[_Row] = []
+    try:
         await client.authenticate()
-    except Exception:
-        return ""
-    if not client.client.me:
-        return ""
-    did = client.client.me.did
+        if client.client.me:
+            did = client.client.me.did
+            cutoff = time.time() - WINDOW_HOURS * 3600
+            for nsid in MEANINGFUL_COLLECTIONS:
+                for row in _fetch_collection(client, did, nsid):
+                    ts = row["created_at"]
+                    try:
+                        from datetime import datetime
 
-    all_rows: list[_Row] = []
-    for nsid in MEANINGFUL_COLLECTIONS:
-        all_rows.extend(_fetch_collection(client, did, nsid))
+                        in_window = (
+                            datetime.fromisoformat(ts).timestamp() >= cutoff
+                        )
+                    except ValueError:
+                        in_window = False
+                    if in_window:
+                        snapshot_rows.append(row)
+    except Exception as e:
+        logger.warning(f"snapshot backfill failed: {e}")
 
-    # rkeys are TIDs (millisecond-ordered) — descending rkey = newest first.
-    all_rows.sort(key=lambda r: r["rkey"], reverse=True)
-
-    block = _render(all_rows[:TOP_N])
+    merged = _merge(event_rows, snapshot_rows)
+    truncated = max(0, len(merged) - MAX_ROWS)
+    block = _render(merged[-MAX_ROWS:], truncated=truncated)
     _block_cache["text"] = block
     _block_cache["fetched_at"] = now
     return block

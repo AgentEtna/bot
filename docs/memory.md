@@ -24,6 +24,7 @@ fetched via `client.get_thread(uri, depth=100)` per batch (~200ms). provides wha
 |---|---|
 | `phi-users-{handle}` | per-user observations, raw interaction logs, summaries |
 | `phi-episodic` | phi's own notes about the world (not tied to a specific user) |
+| `phi-own-posts` | phi's published posts, one row per post (id = rkey), for prior-coverage recall — owned by `core/prior_coverage.py`, not by `NamespaceMemory`; indexed live by the jetstream ops-log consumer and backfilled at startup |
 
 within a user namespace, rows have a `kind`:
 - `observation` — extracted facts about the user ("likes rust", "name is nate")

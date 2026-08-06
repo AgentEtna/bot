@@ -13,6 +13,7 @@ from pydantic_ai import RunContext
 
 from bot.config import settings
 from bot.core.atproto_client import bot_client
+from bot.core.prior_coverage import coverage_note
 from bot.tools._helpers import PhiDeps, _relative_age
 
 
@@ -42,7 +43,12 @@ def register(agent):
                 )
                 age_str = f", {age}" if age else ""
                 lines.append(f"@{handle} ({likes} likes{age_str}): {text[:200]}")
-            return "\n\n".join(lines)
+            result = "\n\n".join(lines)
+            # perception-keyed recall: seeing material triggers memory of
+            # having covered it, before any decision to post is made.
+            if note := await coverage_note(ctx.deps.memory, result):
+                result += f"\n\n{note}"
+            return result
         except Exception as e:
             return f"search failed: {e}"
 

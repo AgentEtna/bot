@@ -6,6 +6,7 @@ from atproto import Client, Session, SessionEvent
 from atproto_client import models
 
 from bot.config import settings
+from bot.core.ops_log import record_local_write
 from bot.core.rich_text import create_facets
 
 logger = logging.getLogger("bot.atproto_client")
@@ -157,10 +158,13 @@ class BotClient:
         if len(text) <= 300:
             facets = create_facets(text, self.client, allowed_handles)
             if reply_to:
-                return self.client.send_post(
+                result = self.client.send_post(
                     text=text, reply_to=reply_to, facets=facets
                 )
-            return self.client.send_post(text=text, facets=facets)
+            else:
+                result = self.client.send_post(text=text, facets=facets)
+            record_local_write(result.uri)
+            return result
 
         chunks = _split_text(text)
         root_ref = reply_to.root if reply_to else None
@@ -189,6 +193,8 @@ class BotClient:
                 last_result = self.client.send_post(
                     text=chunk, reply_to=thread_ref, facets=facets
                 )
+            if last_result:
+                record_local_write(last_result.uri)
 
         return last_result
 
@@ -214,12 +220,16 @@ class BotClient:
     async def like_post(self, uri: str, cid: str):
         """Like a post"""
         await self.authenticate()
-        return self.client.like(uri=uri, cid=cid)
+        result = self.client.like(uri=uri, cid=cid)
+        record_local_write(result.uri)
+        return result
 
     async def repost(self, uri: str, cid: str):
         """Repost a post"""
         await self.authenticate()
-        return self.client.repost(uri=uri, cid=cid)
+        result = self.client.repost(uri=uri, cid=cid)
+        record_local_write(result.uri)
+        return result
 
     async def get_own_posts(self, limit: int = 10):
         """Fetch the bot's own recent posts (top-level only, no replies)."""
@@ -255,6 +265,7 @@ class BotClient:
         await self.authenticate()
         resolved = self.client.resolve_handle(handle)
         response = self.client.follow(resolved.did)
+        record_local_write(response.uri)
         if subscribe_posts:
             # not in this atproto SDK version yet — raw XRPC procedure with
             # the session JWT, sent to our PDS (it proxies to the AppView)

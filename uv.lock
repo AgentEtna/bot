@@ -232,6 +232,7 @@ dependencies = [
     { name = "slowapi" },
     { name = "turbopuffer" },
     { name = "uvicorn" },
+    { name = "websockets" },
 ]
 
 [package.dev-dependencies]
@@ -258,6 +259,7 @@ requires-dist = [
     { name = "slowapi", specifier = ">=0.1.9" },
     { name = "turbopuffer" },
     { name = "uvicorn" },
+    { name = "websockets", specifier = ">=15.0.1" },
 ]
 
 [package.metadata.requires-dev]

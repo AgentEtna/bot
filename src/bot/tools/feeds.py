@@ -9,6 +9,7 @@ from pydantic_ai import RunContext
 from bot.config import settings
 from bot.core.atproto_client import bot_client
 from bot.core.graze_client import GrazeClient
+from bot.core.prior_coverage import coverage_note
 from bot.tools._helpers import PhiDeps, _format_feed_posts, _is_owner
 
 logger = logging.getLogger("bot.tools.feeds")
@@ -151,7 +152,12 @@ def register(agent, graze_client: GrazeClient):
                         "your timeline is empty — you're not following anyone yet. "
                         f"ask @{settings.owner_handle} to have me follow some accounts!"
                     )
-                return _format_feed_posts(response.feed, limit=limit)
+                result = _format_feed_posts(response.feed, limit=limit)
+                # perception-keyed recall: seeing the material reminds you
+                # that you already covered it.
+                if note := await coverage_note(ctx.deps.memory, result):
+                    result += f"\n\n{note}"
+                return result
 
             # check saved feeds first (external feeds mapped by friendly name)
             feed_uri = settings.saved_feeds.get(name)
@@ -165,7 +171,10 @@ def register(agent, graze_client: GrazeClient):
             response = await bot_client.get_feed(feed_uri, limit=limit)
             if not response.feed:
                 return "no posts in this feed yet"
-            return _format_feed_posts(response.feed, limit=limit)
+            result = _format_feed_posts(response.feed, limit=limit)
+            if note := await coverage_note(ctx.deps.memory, result):
+                result += f"\n\n{note}"
+            return result
         except Exception as e:
             return f"failed to read feed: {e}"
 

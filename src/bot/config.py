@@ -120,6 +120,16 @@ class Settings(BaseSettings):
         description="Seconds between Prefect failed/crashed run checks",
     )
 
+    # Repo ops awareness — jetstream tail of phi's own PDS commits
+    jetstream_url: str = Field(
+        default="wss://jetstream2.us-east.bsky.network/subscribe",
+        description="Jetstream endpoint for tailing phi's own repo commits",
+    )
+    ops_log_path: str = Field(
+        default="/data/ops_log.jsonl",
+        description="Durable append-only log of phi's repo operations",
+    )
+
     # Operator timezone — drives schedule slots + the local-time line in
     # phi's [NOW] block. Lives on the operator's clock so phi posts at
     # human-friendly times of day regardless of DST shifts.

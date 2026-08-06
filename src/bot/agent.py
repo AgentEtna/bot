@@ -33,6 +33,7 @@ from bot.core.graze_client import GrazeClient
 from bot.core.mcp_guard import make_mcp_guard
 from bot.core.operator import get_operator_profile
 from bot.core.owned_feeds import get_owned_feeds_block
+from bot.core.prior_coverage import coverage_note
 from bot.core.public_memory import get_public_memory_block
 from bot.core.recent_flow_mentions import get_recent_flow_mentions_block
 from bot.core.recent_operations import get_operations_block
@@ -527,6 +528,22 @@ class PhiAgent:
                 except Exception as e:
                     logger.warning(f"failed to retrieve memories for @{handle}: {e}")
             return "\n\n".join(blocks)
+
+        @_run_scoped
+        async def inject_prior_coverage(ctx: RunContext[PhiDeps]) -> str:
+            """[PRIOR COVERAGE] — phi's own posts nearest the batch material.
+
+            Perception-keyed recall over her published output: the content
+            she's reacting to is the query, so "have I already said this?"
+            is answered in context before deliberation, on every path where
+            material arrives. Feed/search tools carry the same recall for
+            scheduled paths.
+            """
+            notifs = ctx.deps.notifications_context or {}
+            material = " ".join(
+                e.get("post_text", "") for e in notifs.values() if e.get("post_text")
+            )
+            return await coverage_note(ctx.deps.memory, material)
 
         @_run_scoped
         async def inject_episodic(ctx: RunContext[PhiDeps]) -> str:

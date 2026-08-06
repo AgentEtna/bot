@@ -26,6 +26,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from bot.config import settings
+from bot.core import ops_log, prior_coverage
 from bot.core.atlas import get_atlas
 from bot.core.atproto_client import bot_client
 from bot.core.cache_stability import cache_monitor
@@ -81,6 +82,36 @@ async def lifespan(app: FastAPI):
     app.state.poller = poller
     await poller.start()
 
+    # Tail phi's own repo commits from jetstream: [RECENT OPERATIONS] renders
+    # from this event log (deletes and edits are invisible to listRecords),
+    # and post creates keep the prior-coverage index live. Backfill runs in
+    # the background so a cold index doesn't block startup.
+    memory = poller.handler.agent.memory
+    ops_consumer = None
+    if bot_client.client.me:
+
+        async def _index_post(row: ops_log.OpRow) -> None:
+            if memory and row["record"]:
+                await prior_coverage.index_post_value(memory, row["rkey"], row["record"])
+
+        ops_consumer = ops_log.OpsLogConsumer(
+            bot_client.client.me.did, on_post=_index_post
+        )
+        await ops_consumer.start()
+    app.state.ops_consumer = ops_consumer
+
+    backfill_task = None
+    if memory is not None:
+        mem = memory
+
+        async def _backfill() -> None:
+            try:
+                await prior_coverage.backfill_own_posts(bot_client, mem)
+            except Exception as e:
+                logger.warning(f"own-posts backfill failed: {e}")
+
+        backfill_task = asyncio.create_task(_backfill(), name="own-posts-backfill")
+
     # Phi rewrites her own bio at every startup. Best-effort — if the bio
     # call fails (rate limit, model error, etc), fall back to the existing
     # online-suffix flow rather than blocking startup on it.
@@ -95,6 +126,10 @@ async def lifespan(app: FastAPI):
     yield
 
     logger.info("shutting down phi")
+    if backfill_task:
+        backfill_task.cancel()
+    if ops_consumer:
+        await ops_consumer.stop()
     await poller.stop()
 
     # Set offline status
