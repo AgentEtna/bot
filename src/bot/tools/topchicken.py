@@ -38,6 +38,7 @@ RECOMMEND_URL = "https://bisk.social/top/recommend"
 MARKET_URL = "https://topchicken.cee.wtf/api/market"
 TRADER_URL = "https://topchicken.cee.wtf/api/trader/{did}"
 LEADERBOARD_URL = "https://topchicken.cee.wtf/api/leaderboard"
+QUOTE_URL = "https://topchicken.cee.wtf/api/quote/{round}/{did}"
 ORDER_COLLECTION = "wtf.cee.topchicken.order"
 STRATEGY_COLLECTION = "io.zzstoatzz.phi.strategy"
 STRATEGY_RKEY = "topchicken"
@@ -427,13 +428,36 @@ def register(agent):
             board = ", ".join(f"@{c['handle']}" for c in round_.get("contenders", []))
             return f"@{key} isn't a contender in round {round_['id']}. current board: {board}"
 
+        # cap from /api/quote's full ladder walk, NOT shares x top rung: the
+        # market rejects the whole order if the walk exceeds capSubc, and the
+        # top rung ignores slippage (this silently bounced every sizeable buy
+        # from 08-04 to 08-06)
+        try:
+            preview = await _get_json(
+                QUOTE_URL.format(round=round_["id"], did=match["did"]),
+                params={"side": side, "shares": shares},
+            )
+        except Exception as e:
+            logger.warning(f"chicken quote fetch failed: {e}")
+            return (
+                "couldn't preview the fill cost (/api/quote unreachable), so the "
+                "slippage cap can't be set honestly — not placing the order blind. "
+                "try again in a bit"
+            )
+        if not preview.get("filled_fully", True):
+            return (
+                f"the book only has partial liquidity for {shares} shares of "
+                f"@{match['handle']} — size down and re-quote"
+            )
+
+        total = preview["total_subc"]
+        avg = preview["avg_price_subc"]
+        slippage = preview.get("slippage_pct", 0)
         if side == "buy":
-            quote = match["ask_subc"]
-            cap = math.ceil(shares * quote * 1.02)
+            cap = math.ceil(total * 1.02)
             cost_note = f"max cost {_fmt_subc(cap)}"
         else:
-            quote = match["bid_subc"]
-            cap = math.floor(shares * quote * 0.98)
+            cap = math.floor(total * 0.98)
             cost_note = f"min proceeds {_fmt_subc(cap)}"
 
         await bot_client.authenticate()
@@ -458,7 +482,8 @@ def register(agent):
 
         summary = (
             f"order placed: {side} {shares} share{'s' if shares != 1 else ''} of "
-            f"@{match['handle']} at ~{quote / 100:.0f}¢ ({cost_note}, round {round_['id']})"
+            f"@{match['handle']} at ~{avg / 100:.1f}¢ avg "
+            f"(slippage {slippage:.1f}%, {cost_note}, round {round_['id']})"
         )
 
         await asyncio.sleep(2.5)

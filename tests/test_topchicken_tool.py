@@ -191,19 +191,48 @@ async def test_trade_refuses_unknown_contender():
     assert "@goose.art" in out
 
 
-async def test_buy_writes_order_record_with_slippage_cap():
-    fn = _register()["place_chicken_trade"]
-    ctx_mgr, _ = _mock_client(OPEN_MARKET)
-    bc = _mock_bot_client()
-    with (
-        patch("bot.tools.topchicken.httpx.AsyncClient", return_value=ctx_mgr),
-        patch("bot.tools.topchicken.bot_client", bc),
+QUOTE_URL_GOOSE = topchicken.QUOTE_URL.format(round="2026-07-02", did="did:plc:goose")
+TRADER_URL_PHI = topchicken.TRADER_URL.format(did="did:plc:phi")
+
+
+def _trade_patches(bc, quote, trader=None):
+    from contextlib import ExitStack
+
+    stack = ExitStack()
+    stack.enter_context(
+        _patch_get_json(
+            {
+                topchicken.MARKET_URL: OPEN_MARKET,
+                QUOTE_URL_GOOSE: quote,
+                TRADER_URL_PHI: trader or {"balance_subc": 0, "trades": []},
+            }
+        )
+    )
+    stack.enter_context(patch("bot.tools.topchicken.bot_client", bc))
+    stack.enter_context(
         patch(
             "bot.tools.topchicken.get_override",
             AsyncMock(return_value={"active": False, "message": ""}),
-        ),
-        patch("bot.tools.topchicken.asyncio.sleep", AsyncMock()),
-    ):
+        )
+    )
+    stack.enter_context(patch("bot.tools.topchicken.asyncio.sleep", AsyncMock()))
+    return stack
+
+
+async def test_buy_cap_comes_from_the_quoted_ladder_walk_not_the_top_rung():
+    """Regression: caps were shares x ask_subc x 1.02 (top rung only), which
+    under-caps any order with real slippage — the market rejects those whole.
+    phi's 08-04/08-05/08-06 buys all bounced this way, silently."""
+    fn = _register()["place_chicken_trade"]
+    bc = _mock_bot_client()
+    quote = {
+        "shares": 25,
+        "total_subc": 95_000,  # ladder walk: pricier than 25 x 3468 = 86,700
+        "avg_price_subc": 3800,
+        "slippage_pct": 9.6,
+        "filled_fully": True,
+    }
+    with _trade_patches(bc, quote):
         out = await fn(SimpleNamespace(), contender="@goose.art", side="buy", shares=25)
 
     data = bc.client.com.atproto.repo.create_record.call_args.kwargs["data"]
@@ -214,28 +243,53 @@ async def test_buy_writes_order_record_with_slippage_cap():
     assert record["contender"] == "did:plc:goose"
     assert record["side"] == "buy"
     assert record["shares"] == 25
-    assert record["capSubc"] == math.ceil(25 * 3468 * 1.02)
+    assert record["capSubc"] == math.ceil(95_000 * 1.02)
+    assert record["capSubc"] > math.ceil(25 * 3468 * 1.02)
     assert "order placed" in out
+    assert "slippage 9.6%" in out
 
 
-async def test_sell_cap_is_a_floor_on_proceeds():
+async def test_sell_cap_is_a_floor_on_quoted_proceeds():
     fn = _register()["place_chicken_trade"]
-    ctx_mgr, _ = _mock_client(OPEN_MARKET)
     bc = _mock_bot_client()
-    with (
-        patch("bot.tools.topchicken.httpx.AsyncClient", return_value=ctx_mgr),
-        patch("bot.tools.topchicken.bot_client", bc),
-        patch(
-            "bot.tools.topchicken.get_override",
-            AsyncMock(return_value={"active": False, "message": ""}),
-        ),
-        patch("bot.tools.topchicken.asyncio.sleep", AsyncMock()),
-    ):
+    quote = {
+        "shares": 10,
+        "total_subc": 31_000,
+        "avg_price_subc": 3100,
+        "slippage_pct": 4.1,
+        "filled_fully": True,
+    }
+    with _trade_patches(bc, quote):
         await fn(SimpleNamespace(), contender="did:plc:goose", side="sell", shares=10)
 
     record = bc.client.com.atproto.repo.create_record.call_args.kwargs["data"]["record"]
     assert record["side"] == "sell"
-    assert record["capSubc"] == math.floor(10 * 3332 * 0.98)
+    assert record["capSubc"] == math.floor(31_000 * 0.98)
+
+
+async def test_no_order_is_written_when_the_quote_is_unreachable():
+    fn = _register()["place_chicken_trade"]
+    bc = _mock_bot_client()
+    with _trade_patches(bc, httpx.ConnectError("quote down")):
+        out = await fn(SimpleNamespace(), contender="@goose.art", side="buy", shares=25)
+    assert "not placing the order blind" in out
+    bc.client.com.atproto.repo.create_record.assert_not_called()
+
+
+async def test_partial_liquidity_refuses_and_says_size_down():
+    fn = _register()["place_chicken_trade"]
+    bc = _mock_bot_client()
+    quote = {
+        "shares": 9000,
+        "total_subc": 1,
+        "avg_price_subc": 1,
+        "slippage_pct": 0,
+        "filled_fully": False,
+    }
+    with _trade_patches(bc, quote):
+        out = await fn(SimpleNamespace(), contender="@goose.art", side="buy", shares=9000)
+    assert "size down" in out
+    bc.client.com.atproto.repo.create_record.assert_not_called()
 
 
 async def test_fill_confirmed_only_when_the_trade_lands_in_the_ledger():
@@ -260,21 +314,15 @@ async def test_fill_confirmed_only_when_the_trade_lands_in_the_ledger():
         ],
     }
 
+    quote = {
+        "shares": 25,
+        "total_subc": 88_000,
+        "avg_price_subc": 3520,
+        "slippage_pct": 1.5,
+        "filled_fully": True,
+    }
     for trader, expect_confirmed in [(trader_no_fill, False), (trader_filled, True)]:
-        with (
-            _patch_get_json(
-                {
-                    topchicken.MARKET_URL: OPEN_MARKET,
-                    topchicken.TRADER_URL.format(did="did:plc:phi"): trader,
-                }
-            ),
-            patch("bot.tools.topchicken.bot_client", bc),
-            patch(
-                "bot.tools.topchicken.get_override",
-                AsyncMock(return_value={"active": False, "message": ""}),
-            ),
-            patch("bot.tools.topchicken.asyncio.sleep", AsyncMock()),
-        ):
+        with _trade_patches(bc, quote, trader=trader):
             out = await fn(
                 SimpleNamespace(), contender="@goose.art", side="buy", shares=25
             )
