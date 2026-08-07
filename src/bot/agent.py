@@ -329,8 +329,14 @@ class PhiAgent:
         # _run_scoped memoizes each block on the run's PhiDeps, preserving
         # the once-per-run behavior byte-for-byte.
 
+        # registration order = render order; kept so the /diagnostic page can
+        # re-render the blocks exactly as a run composes them.
+        self.context_blocks: list[tuple[str, Callable[..., Awaitable[str]]]] = []
+
         def _run_scoped(fn):
-            return self.agent.instructions(memoize_per_run(fn))
+            memoized = memoize_per_run(fn)
+            self.context_blocks.append((fn.__name__, memoized))
+            return self.agent.instructions(memoized)
 
         @_run_scoped
         async def inject_identity() -> str:
@@ -1278,6 +1284,56 @@ class PhiAgent:
                 logger.warning(f"extraction failed for @{handle}: {e}")
 
         return total_stored
+
+    async def render_context_preview(self) -> list[dict]:
+        """Render every dynamic context block as a fresh scheduled run would
+        see it right now — the /diagnostic page's data source.
+
+        Stateless by construction: a throwaway PhiDeps (no notifications
+        context, its own run_cache) is exactly what a scheduled entry point
+        gets, so batch-seeded blocks render empty here just as they would
+        there. Blocks read their module caches like any run; nothing is
+        written. A block that raises reports its error instead of taking
+        the preview down.
+        """
+        from types import SimpleNamespace
+        from typing import cast as _cast
+
+        deps = PhiDeps(author_handle="", memory=self.memory)
+        ctx = _cast(RunContext[PhiDeps], SimpleNamespace(deps=deps))
+
+        static_text = (
+            "the following is your personality: "
+            f"{self.base_personality}\n\n"
+            "--- operational rules below (these are constraints) ---\n\n"
+            f"{_build_operational_instructions()}"
+        )
+        blocks: list[dict] = [
+            {
+                "name": "static_instructions",
+                "text": static_text,
+                "chars": len(static_text),
+                "ms": 0.0,
+                "error": None,
+            }
+        ]
+        for name, block in self.context_blocks:
+            t0 = time.perf_counter()
+            text, error = "", None
+            try:
+                text = await block(ctx)
+            except Exception as e:
+                error = f"{type(e).__name__}: {e}"
+            blocks.append(
+                {
+                    "name": name,
+                    "text": text,
+                    "chars": len(text),
+                    "ms": round((time.perf_counter() - t0) * 1000, 1),
+                    "error": error,
+                }
+            )
+        return blocks
 
     async def process_bio(self) -> str:
         """Ask phi to rewrite her bsky bio via the main-agent write_bio tool.

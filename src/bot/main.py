@@ -617,6 +617,32 @@ async def cache_stability():
     return JSONResponse(cache_monitor.summary())
 
 
+@app.get("/api/diagnostic/context")
+@limiter.limit("6/minute")
+async def diagnostic_context(request: Request):
+    """Every prompt block rendered as a fresh scheduled run would see it
+    right now — "if phi woke up this second, what would she read?"
+
+    Stateless: same code path as a run's instruction pass, throwaway deps,
+    nothing persisted. Blocks that fail report their error inline. Rate
+    limited because several blocks hit the network (PDS, hub, turbopuffer).
+    """
+    poller = getattr(app.state, "poller", None)
+    if poller is None:
+        return JSONResponse({"error": "agent not started"}, status_code=503)
+    blocks = await poller.handler.agent.render_context_preview()
+    from datetime import UTC, datetime
+
+    return JSONResponse(
+        {
+            "generated_at": datetime.now(UTC).isoformat(),
+            "path": "scheduled (no notifications batch)",
+            "total_chars": sum(b["chars"] for b in blocks),
+            "blocks": blocks,
+        }
+    )
+
+
 _graph_cache_data: dict | None = None
 _graph_cache_expires: float = 0.0
 _GRAPH_CACHE_TTL = 60  # seconds

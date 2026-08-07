@@ -10,6 +10,7 @@ import type {
 	BskyFeedItem,
 	CacheStability,
 	Capability,
+	ContextPreview,
 	ChickenResultRound,
 	ChickenRound,
 	ChickenTrader,
@@ -237,6 +238,22 @@ export async function getChickenResults(): Promise<ChickenResultRound[]> {
 export async function getCacheStability(): Promise<CacheStability | null> {
 	try {
 		const res = await fetch('/api/cache');
+		if (!res.ok) return null;
+		return await res.json();
+	} catch {
+		return null;
+	}
+}
+
+// --- next-run context preview ---
+//
+// every prompt block rendered as a fresh scheduled run would compose it
+// right now. stateless on the backend; slow-ish (several blocks hit the
+// network), so callers should show a loading state.
+
+export async function getContextPreview(): Promise<ContextPreview | null> {
+	try {
+		const res = await fetch('/api/diagnostic/context');
 		if (!res.ok) return null;
 		return await res.json();
 	} catch {

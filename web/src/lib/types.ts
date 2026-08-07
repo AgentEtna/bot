@@ -380,3 +380,20 @@ export interface CacheStability {
 	warm_starts: number;
 	runs: CacheRun[];
 }
+
+// --- /diagnostic: next-run context preview ---
+
+export interface ContextBlock {
+	name: string;
+	text: string;
+	chars: number;
+	ms: number;
+	error: string | null;
+}
+
+export interface ContextPreview {
+	generated_at: string;
+	path: string;
+	total_chars: number;
+	blocks: ContextBlock[];
+}
