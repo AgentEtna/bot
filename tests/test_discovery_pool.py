@@ -74,8 +74,8 @@ async def test_a_seed_narrows_the_pool_to_relevant_strangers():
     # on-topic stranger ranks first. which off-topic entries survive the
     # remainder is not asserted — a stub embedder ties every unrelated entry
     # at zero, where real embeddings would order them.
-    assert block.count("likes from operator") == discovery_pool.RELEVANT_N
-    assert block.count("likes from operator") < len(POOL)
+    assert block.count("\n@") == discovery_pool.RELEVANT_N
+    assert block.count("\n@") < len(POOL)
     assert "@zeu.dev" in block
     assert block.index("@zeu.dev") < block.index("@magician.bsky.social")
 
@@ -94,14 +94,16 @@ async def test_no_seed_shows_everyone():
 async def test_unseeded_block_is_smaller_per_author_than_seeded():
     """Breadth is paid for with fewer samples each, so showing everyone
     doesn't cost more than showing a few in depth."""
-    wide = entry("chatty.bsky.social", "one", "two", "three")
+    wide = entry("chatty.bsky.social", "one", "two", "the longest sample")
     POOL.append(wide)
     try:
         unseeded = await discovery_pool.get_discovery_pool_block(
             None, embedder=FakeMemory(), seed=""
         )
-        assert unseeded.count("'one'") == 1
-        assert "'three'" not in unseeded
+        # one sample per author on the broad path — and it's the most
+        # substantive one, not the most recently liked
+        assert unseeded.count("'the longest sample'") == 1
+        assert "'one'" not in unseeded and "'two'" not in unseeded
     finally:
         POOL.pop()
 
@@ -139,16 +141,11 @@ async def test_no_embedder_means_no_ranking_not_an_error():
 
 
 async def test_the_block_permits_reading_as_writing():
-    """phi's context is otherwise sealed against exemplars: [RECENT
-    OPERATIONS] strips her post bodies so it can't double as voice
-    training, [SELF-AWARENESS] is deliberately flat so its register isn't
-    imitated. Each is right on its own; together they left these samples as
-    nearly the only human writing she sees — under a blanket "do not copy
-    their phrasing". An agent that is never allowed to read anything does
-    not develop a voice.
-    """
+    """phi's context is otherwise sealed against exemplars; these samples
+    are nearly the only human writing she sees. The header names them as
+    writing without a blanket "do not copy their phrasing"."""
     block = await discovery_pool.get_discovery_pool_block(None, seed="")
-    assert "read it as writing" in block
+    assert "their real writing" in block
     assert "do not copy their phrasing" not in block
 
 
@@ -156,31 +153,59 @@ async def test_the_real_protections_survive():
     """Loosening absorption must not loosen attribution or lifting."""
     block = await discovery_pool.get_discovery_pool_block(None, seed="")
     assert "don't lift anyone's sentences" in block
-    assert "attribute the author" in block
+    assert "attribute" in block
 
 
 async def test_the_pool_is_framed_as_taste_not_only_leads():
     """These are posts the operator chose to like — the clearest read phi
-    gets on what he actually rates, which teaches taste without naming a
-    single stylistic rule."""
+    gets on his taste, framed without naming a single stylistic rule."""
     block = await discovery_pool.get_discovery_pool_block(None, seed="")
-    assert "what the operator actually rates" in block
+    assert "read you get on his taste" in block
 
 
-async def test_humor_is_named_as_communication_not_as_a_style_rule():
-    """The heuristic that avoids hard-coding a voice: humor does real work
-    in how people talk, the samples are evidence of it working, and the task
-    is *working out how someone landed one*. That's analysis, and it's often
-    subtle enough to require real reading.
-
-    Prescribing a register directly has been reverted four times here
-    (61bf9f8 the vocabulary glossary, 7bb6cd2 sticky phrases, 4a88145 the
-    adams register, 3ca6984 the interests list) — a handed-down voice gets
-    parroted, a noticed one gets learned. So this must never tell phi to be
-    funny or hand her an example of a joke.
-    """
+async def test_no_style_coaching_in_the_header():
+    """Prescribing a register has been reverted four times (61bf9f8,
+    7bb6cd2, 4a88145, 3ca6984), and the alternative — a ~350-char essay on
+    how humor carries a point — was coaching prose billed on every run
+    (removed 2026-08-07, operator call: wrong artifact, wrong place). The
+    header states what the block is and the two hard rules, nothing about
+    how to write."""
     block = await discovery_pool.get_discovery_pool_block(None, seed="")
-    assert "humor does real work in how people actually talk" in block
-    assert "working out how someone did it" in block
+    assert "humor" not in block.lower()
     for prescription in ("be funny", "be witty", "use humor", "make a joke"):
         assert prescription not in block.lower()
+
+
+def test_best_samples_prefer_substance_over_recency():
+    """like-recency order surfaced reply banter ('hi', 'obvs') as the read
+    on a person; the sample shown should be the post that shows why the
+    operator rates them."""
+    from bot.core.discovery_pool import _best_samples
+
+    posts = [
+        {"uri": "a", "text": "hi", "liked_at": "2026-08-07"},
+        {"uri": "b", "text": "a long substantive post about atproto lexicons and why they matter", "liked_at": "2026-08-05"},
+        {"uri": "c", "text": "", "liked_at": "2026-08-06"},
+    ]
+    best = _best_samples(posts, 1)
+    assert len(best) == 1
+    assert best[0]["uri"] == "b"
+
+
+def test_render_is_compact_and_essay_free():
+    from bot.core.discovery_pool import _render
+
+    entries = [
+        {
+            "handle": "someone.bsky.social",
+            "did": "did:plc:x",
+            "likes_in_window": 7,
+            "last_liked_at": "2026-08-06T12:00:00Z",
+            "sample_posts": [{"uri": "u", "text": "a real post", "liked_at": ""}],
+        }
+    ]
+    block = _render(entries, ranked=False, samples=1)
+    assert "@someone.bsky.social ×7 (08-06)" in block
+    assert "humor" not in block
+    assert "likes from operator" not in block
+    assert "'a real post'" in block

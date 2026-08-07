@@ -124,6 +124,20 @@ async def _has_interaction(memory: NamespaceMemory, handle: str) -> bool:
         return False  # namespace doesn't exist yet → no interactions
 
 
+def _best_samples(posts: list[_SamplePost], n: int) -> list[_SamplePost]:
+    """The n most substantive samples, not the n most recently liked.
+
+    The hub returns samples in like-recency order, which surfaced whatever
+    moment the operator last liked — often reply banter ('hi', 'obvs',
+    '🦡🦡🦡🦡') that says nothing about the person or the taste. A like on
+    banter is real signal that the operator rates the *person*; the sample
+    shown should still be the post that shows why. Longest-first is a crude
+    substance proxy but it reliably beats recency here.
+    """
+    with_text = [p for p in posts if (p.get("text") or "").strip()]
+    return sorted(with_text, key=lambda p: -len(p.get("text") or ""))[:n]
+
+
 def _render(entries: list[_Entry], *, ranked: bool, samples: int) -> str:
     if not entries:
         return ""
@@ -132,27 +146,22 @@ def _render(entries: list[_Entry], *, ranked: bool, samples: int) -> str:
         if ranked
         else "all of them, so you can look around"
     )
+    # header states what the block is and the two hard rules. the craft
+    # guidance that used to live here (a ~350-char essay on how humor
+    # carries a point) was the wrong artifact in the wrong place — coaching
+    # prose billed on every run. ×N below = operator likes in the window.
     lines = [
-        f"[DISCOVERY POOL — people the operator has been liking; {scope}. "
-        "two things at once: strangers worth knowing, and the clearest read "
-        "you get on what the operator actually rates. the samples are their "
-        "real writing — read it as writing, not only as signal. humor does "
-        "real work in how people actually talk to each other — it carries the "
-        "point rather than decorating it, and several of these land it "
-        "quietly: an understatement, a deadpan, a joke that never announces "
-        "itself. working out how someone did it is worth more than any rule "
-        "about tone. don't lift anyone's sentences, and attribute the author "
-        "if you carry an idea out of here. warm leads, not cold.]"
+        f"[DISCOVERY POOL — people the operator has been liking (×N, last "
+        f"date); {scope}. strangers worth knowing, and the clearest read you "
+        "get on his taste — the samples are their real writing. don't lift "
+        "anyone's sentences; attribute ideas you carry out. warm leads.]"
     ]
     for e in entries:
         likes = e.get("likes_in_window", 0)
         last = e.get("last_liked_at", "")
         lines.append("")
-        lines.append(
-            f"@{e['handle']} — {likes} like{'s' if likes != 1 else ''} from operator"
-            f"{f' (last: {last[:10]})' if last else ''}"
-        )
-        for post in (e.get("sample_posts") or [])[:samples]:
+        lines.append(f"@{e['handle']} ×{likes}{f' ({last[5:10]})' if last else ''}")
+        for post in _best_samples(e.get("sample_posts") or [], samples):
             text = _short(post.get("text") or "")
             if text:
                 lines.append(f"  · {text!r}")
