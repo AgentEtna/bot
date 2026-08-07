@@ -65,7 +65,10 @@ async def get_self_block(client: BotClient) -> str:
         (
             f"[SELF — your own words, from your self record{_age(updated_at)}. "
             "yours to rewrite whenever it stops being true, via write_self "
-            "(the rewrite lands once the operator likes your request).]\n"
+            "(the rewrite lands once the operator likes your request). keep "
+            "it constitutional — who you are, claims cited to incidents. "
+            "posting statistics don't belong here; the measured inventory "
+            "below covers that and stays fresh on its own.]\n"
             + text
         )
         if text

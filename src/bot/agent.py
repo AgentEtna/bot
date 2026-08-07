@@ -39,7 +39,7 @@ from bot.core.recent_flow_mentions import get_recent_flow_mentions_block
 from bot.core.recent_operations import get_operations_block
 from bot.core.residue import render_residue_block, update_residue_from_run
 from bot.core.self_record import get_self_block
-from bot.core.self_state import get_state_block
+from bot.core.self_state import get_inventory_block, get_state_block
 from bot.core.workflow_failures import render_pending_block
 from bot.core.workflow_state import get_workflow_state_block
 from bot.memory.extraction import EXTRACTION_SYSTEM_PROMPT, ExtractionResult
@@ -444,8 +444,8 @@ class PhiAgent:
             return "[KNOWN RELAYS]: " + ", ".join(names)
 
         @_run_scoped
-        async def inject_self_state() -> str:
-            """phi's goals and how her recent posting looks from outside."""
+        async def inject_goals() -> str:
+            """[GOALS] — phi's compass, from her PDS goal records."""
             return await get_state_block(bot_client, self.memory)
 
         @_run_scoped
@@ -621,13 +621,21 @@ class PhiAgent:
 
         @_run_scoped
         async def inject_self() -> str:
-            """[SELF] — phi's self-description from her own self record;
-            the personality file is constitution, this is character."""
+            """[SELF] — one organ for self-knowledge: phi's own self record
+            (testimony) composed with the measured posting inventory
+            (measurement). These were two separately-named blocks until
+            2026-08-07; the split read as sprawl because it was."""
+            parts: list[str] = []
             try:
-                return await get_self_block(bot_client)
+                parts.append(await get_self_block(bot_client))
             except Exception as e:
                 logger.debug(f"self record inject failed: {e}")
-                return ""
+            try:
+                if inventory := await get_inventory_block(bot_client):
+                    parts.append(inventory)
+            except Exception as e:
+                logger.debug(f"posting inventory inject failed: {e}")
+            return "\n\n".join(p for p in parts if p)
 
         @_run_scoped
         async def inject_public_memory() -> str:

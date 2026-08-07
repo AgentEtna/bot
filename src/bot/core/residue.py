@@ -22,6 +22,7 @@ gates.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from datetime import UTC, datetime, timedelta
 
@@ -45,6 +46,25 @@ _block_cache: dict = {"text": "", "fetched_at": 0.0}
 def invalidate_residue_cache() -> None:
     _block_cache["text"] = ""
     _block_cache["fetched_at"] = 0.0
+
+
+_STAMP_RE = re.compile(r"\s*\((?:held|reinforced)\s[^)]*\)\s*$")
+
+
+def strip_stamps(content: str) -> str:
+    """Remove trailing '(held …)' / '(reinforced …)' age stamps from item text.
+
+    Ages are render/prompt metadata, but the synth's carry-VERBATIM rule made
+    the model return them as part of the item, so every run appended one more
+    stamp — items were found in prod wearing eighteen. Stripping at the merge
+    boundary makes the stamps structurally unable to enter content, and heals
+    records already polluted.
+    """
+    prev = None
+    while prev != content:
+        prev = content
+        content = _STAMP_RE.sub("", content)
+    return content.strip()
 
 
 def prune(items: list[dict], now: datetime | None = None) -> list[dict]:
@@ -115,7 +135,7 @@ def _render(items: list[dict]) -> str:
         first = relative_when(item.get("firstHeldAt", ""))
         last = relative_when(item.get("lastHeldAt", ""))
         age = f"held {first}, reinforced {last}" if first != last else f"held {first}"
-        lines.append(f"- {item.get('content', '')} ({age})")
+        lines.append(f"- {strip_stamps(item.get('content', ''))} ({age})")
     return "\n".join(lines)
 
 
@@ -188,11 +208,16 @@ def get_residue_synth_agent() -> Agent[None, ResidueUpdate]:
 
 
 def _merge(current: list[dict], next_contents: list[str], label: str) -> list[dict]:
-    """Map the synth's contents back to items, carrying firstHeldAt on verbatim match."""
+    """Map the synth's contents back to items, carrying firstHeldAt on verbatim
+    match. Both sides are stamp-stripped first, so an age annotation that
+    leaked into content can neither break the match nor survive the write."""
     now = datetime.now(UTC).isoformat()
-    by_content = {i.get("content", ""): i for i in current}
+    by_content = {strip_stamps(i.get("content", "")): i for i in current}
     merged = []
     for content in next_contents:
+        content = strip_stamps(content)
+        if not content:
+            continue
         prior = by_content.get(content)
         merged.append(
             {
@@ -215,12 +240,17 @@ async def update_residue_from_run(client: BotClient, label: str, summary: str) -
     if not summary.strip():
         return
     current = await get_residue(client)
+    # ages ride OUTSIDE the item text (prefix, bracketed) so "carry VERBATIM"
+    # cannot pull them into content — that exact leak had items wearing
+    # eighteen appended "(held …)" stamps in prod.
     buffer_lines = [
-        f"- {i.get('content', '')} (held {relative_when(i.get('firstHeldAt', ''))})"
+        f"- [age: held {relative_when(i.get('firstHeldAt', ''))}] "
+        f"{strip_stamps(i.get('content', ''))}"
         for i in current
     ]
     prompt = (
-        f"current buffer:\n{chr(10).join(buffer_lines) or '(empty)'}\n\n"
+        f"current buffer (the [age: …] prefix is metadata — never include it "
+        f"in an item):\n{chr(10).join(buffer_lines) or '(empty)'}\n\n"
         f"run just finished ({label}). its summary:\n{summary}"
     )
     result = await get_residue_synth_agent().run(prompt)

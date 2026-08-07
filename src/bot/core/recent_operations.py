@@ -266,22 +266,61 @@ def _merge(event_rows: list[_Row], snapshot_rows: list[_Row]) -> list[_Row]:
 
 _OP_TAGS = {"create": "", "update": "EDITED", "delete": "DELETED"}
 
+_REPLY_RE = re.compile(r"^reply \(\d+ chars\)$")
+
+
+def _compact(rows: list[_Row]) -> list[_Row]:
+    """Collapse rows that carry no distinct information.
+
+    - consecutive reply rows → one `replies ×N` row (timestamp of the last)
+    - a NOTE card created within a minute of a URL card → folded into the
+      URL card's row (`… +note`); semble saves always write the pair, so
+      two rows per save was pure double-billing
+    """
+    out: list[_Row] = []
+    for r in rows:
+        prev = out[-1] if out else None
+        if (
+            prev is not None
+            and r["nsid"] == "app.bsky.feed.post"
+            and prev["nsid"] == "app.bsky.feed.post"
+            and r["op"] == prev["op"] == "create"
+            and _REPLY_RE.match(r["summary"])
+            and (_REPLY_RE.match(prev["summary"]) or prev["summary"].startswith("replies ×"))
+        ):
+            n = (
+                int(prev["summary"].split("×")[1]) + 1
+                if prev["summary"].startswith("replies ×")
+                else 2
+            )
+            out[-1] = {**prev, "created_at": r["created_at"], "summary": f"replies ×{n}"}
+            continue
+        if (
+            prev is not None
+            and r["nsid"] == prev["nsid"] == "network.cosmik.card"
+            and r["op"] == prev["op"] == "create"
+            and r["summary"] == "NOTE card"
+            and prev["summary"].startswith("URL card")
+            and r["created_at"][:16] == prev["created_at"][:16]
+        ):
+            out[-1] = {**prev, "summary": prev["summary"] + " +note"}
+            continue
+        out.append(r)
+    return out
+
 
 def _render(rows: list[_Row], truncated: int = 0) -> str:
     """Render rows as the [RECENT OPERATIONS] block. Pure function — easy to template later."""
     if not rows:
         return ""
+    rows = _compact(rows)
     nsid_width = max(len(r["nsid"]) for r in rows)
     header = (
-        "[RECENT OPERATIONS — everything that happened to your repo in the "
-        f"last {WINDOW_HOURS:.0f}h, chronological, so you always know what "
-        "you have already said. this is a record of what went out, not a "
-        "model for how to write: if something here is already covered, the "
-        "reason to look is to avoid saying it twice, not to match its "
-        "phrasing. replies are summarised; they are half of someone else's "
-        "conversation. EDITED/DELETED rows are repo events — a delete "
-        "marked 'not via this process' was made by your hosted tools or an "
-        "external service, and if you don't recognise it, say so.]"
+        "[RECENT OPERATIONS — your repo's last "
+        f"{WINDOW_HOURS:.0f}h, chronological: what you already said, so you "
+        "don't say it twice (a record, not a style model). EDITED/DELETED "
+        "are repo events; 'not via this process' means your hosted tools or "
+        "an external service — flag any you don't recognise.]"
     )
     if truncated:
         header += f" (showing newest {len(rows)}; {truncated} older rows elided)"

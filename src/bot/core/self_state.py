@@ -1,16 +1,21 @@
-"""[GOALS AND INTERESTS] + [SELF-AWARENESS] — phi sees its compass and its recent posting inventory.
+"""[GOALS] and the recent-posting inventory — two separately-consumed organs.
 
 GOALS are intent: what phi is for. Stored on PDS as canonical state.
-SELF-AWARENESS is a recent-posting inventory: a structured, third-person
-tally of what phi's recent top-level posts have covered (subjects /
-people / mode / missing lately). Compiled by a small dedicated agent;
-written deliberately plain. The block is NOT phi's voice — exemplar
-pressure beats abstract rules, so the inventory itself must stay out of
-phi's register or it teaches the bad voice it was meant to describe.
+`get_state_block` renders them alone — one block, one purpose.
+
+The posting inventory is a structured, third-person tally of what phi's
+recent top-level posts have covered (subjects / people / mode / missing
+lately). Compiled by a small dedicated agent; written deliberately plain.
+It is NOT phi's voice — exemplar pressure beats abstract rules, so the
+inventory itself must stay out of phi's register or it teaches the bad
+voice it was meant to describe. `get_inventory_block` renders it; the
+[SELF] block composes it next to phi's own self record so testimony and
+measurement sit in one place (they were two separately-named blocks
+until 2026-08-07, which read as sprawl because it was).
 
 The inventory pass is *derived* (not duplicated state) and cached in
-memory: 1h TTL, invalidated when the latest post URI changes. The whole
-compose is also block-cached at 5min so notification polls (10s) don't
+memory: 1h TTL, invalidated when the latest post URI changes. The goals
+compose is block-cached at 5min so notification polls (10s) don't
 hammer PDS.
 """
 
@@ -22,6 +27,7 @@ from pydantic_ai import Agent
 
 from bot.config import settings
 from bot.core.atproto_client import BotClient
+from bot.core.goals import FIELD_CAPS
 from bot.core.goals import list_goals as list_goal_records
 from bot.memory import NamespaceMemory
 from bot.utils.time import humanize_duration, relative_when
@@ -42,7 +48,7 @@ _block_cache: dict = {"text": "", "fetched_at": 0.0}
 
 
 def invalidate_state_cache() -> None:
-    """Force [GOALS AND INTERESTS] + [SELF-AWARENESS] to recompose on the next read.
+    """Force [GOALS] to recompose on the next read.
 
     Called by goal mutation tools (propose_goal_change, update_goal_progress)
     so phi doesn't see her own just-written progress as stale for up to 5min
@@ -116,58 +122,6 @@ async def _compile_inventory(posts: list[str]) -> str:
         return ""
 
 
-async def _compute_friends_progress(
-    memory: NamespaceMemory | None,
-) -> list[tuple[str, int]]:
-    """Count handles with >=3 stored interactions in their namespace.
-
-    Cheap check against the `make 3 friends` goal — the frozen text in the
-    goal record says `currently: 0` but phi has in fact had substantive
-    exchanges. This computes the objective portion of the goal's
-    progress_signal live so phi reasons against current truth, not
-    author-intent text.
-
-    Excludes phi herself and the operator; both match the "non-operator"
-    exclusion from the goal definition. The operator's testing account
-    (devlog) is not excluded — phi can weigh it appropriately.
-
-    Returns [(handle, exchange_count), ...] sorted by count desc.
-    """
-    if memory is None:
-        return []
-    try:
-        user_prefix = f"{memory.NAMESPACES['users']}-"
-        page = memory.client.namespaces(prefix=user_prefix)
-    except Exception as e:
-        logger.debug(f"friends-progress: listing namespaces failed: {e}")
-        return []
-
-    excluded = {settings.bluesky_handle, settings.owner_handle}
-    results: list[tuple[str, int]] = []
-    for ns_summary in page.namespaces:
-        handle = ns_summary.id.removeprefix(user_prefix).replace("_", ".")
-        if handle in excluded:
-            continue
-        try:
-            user_ns = memory.client.namespace(ns_summary.id)
-            # top_k=10 is enough to tell "has >=3"; we cap the meaningful
-            # number at 10 exchanges anyway — more than that is just "a lot"
-            response = user_ns.query(
-                rank_by=("created_at", "desc"),
-                top_k=10,
-                filters={"kind": ["Eq", "interaction"]},
-                include_attributes=["kind"],
-            )
-            count = len(response.rows) if response.rows else 0
-            if count >= 3:
-                results.append((handle, count))
-        except Exception:
-            continue
-
-    results.sort(key=lambda t: (-t[1], t[0]))
-    return results
-
-
 # A goal/interest untouched for this long shows a "stalled" line — the
 # salience that turns an inert anchor into something with visible pressure.
 STALE_AFTER_DAYS = 4
@@ -192,17 +146,22 @@ def _stale_line(last_step_at: str) -> str:
     return ""
 
 
-def _format_goals_block(
-    goals: list[dict], friends_progress: list[tuple[str, int]]
-) -> str:
+def _clamp(text: str, cap: int) -> str:
+    """Visible truncation for field values written before the caps existed.
+    New writes are rejected over-cap at the tool, so this marker is also
+    the nudge to rewrite the field within its budget."""
+    if len(text) <= cap:
+        return text
+    return text[: cap - 1] + f"… [cut at {cap} chars — rewrite this field tighter]"
+
+
+def _format_goals_block(goals: list[dict]) -> str:
     if not goals:
         return ""
     lines = [
-        "[GOALS AND INTERESTS — stored at io.zzstoatzz.phi.goal on your PDS. "
-        "goals are what you're for; interests are what you're drawn to. each "
-        "carries a current state and a next step you can act on. title / why / "
-        "progress-means are owner-gated (propose_goal_change); current / next "
-        "step / last step are yours to keep honest (update_goal_progress).]"
+        "[GOALS — io.zzstoatzz.phi.goal. title/why/progress-means are "
+        "owner-gated (propose_goal_change); current/next/last are yours "
+        "to keep honest (update_goal_progress).]"
     ]
     for g in goals:
         rkey = g.get("_rkey", "")
@@ -214,62 +173,50 @@ def _format_goals_block(
         if g.get("metabolism"):
             lines.append(f"  metabolism: {g['metabolism']}")
         if g.get("progress_signal"):
-            lines.append(f"  progress means (yours to revise): {g['progress_signal']}")
+            clamped = _clamp(g["progress_signal"], FIELD_CAPS["progress_signal"])
+            lines.append(f"  progress means (yours to revise): {clamped}")
         if g.get("current_state"):
-            lines.append(f"  current: {g['current_state']}")
+            clamped = _clamp(g["current_state"], FIELD_CAPS["current_state"])
+            lines.append(f"  current: {clamped}")
         if g.get("next_step"):
-            lines.append(f"  next step: {g['next_step']}")
+            lines.append(f"  next step: {_clamp(g['next_step'], FIELD_CAPS['next_step'])}")
         last_step = g.get("last_step")
         last_step_at = g.get("last_step_at", "")
         if last_step:
             age = relative_when(last_step_at)
             age_part = f"{age} — " if age else ""
-            lines.append(f"  last step: {age_part}{last_step}")
+            lines.append(
+                f"  last step: {age_part}{_clamp(last_step, FIELD_CAPS['last_step'])}"
+            )
         if g.get("blocked_by"):
             lines.append(f"  blocked: {g['blocked_by']}")
         stale = _stale_line(last_step_at)
         if stale:
             lines.append(stale)
-        # Live-computed friends progress, appended for the make-3-friends
-        # goal. Identified heuristically by title; trivial to generalize
-        # later to a per-goal computed-progress map if more goals accrue.
-        if "friend" in g.get("title", "").lower() and friends_progress:
-            qualifying = ", ".join(
-                f"@{h} ({n}+)"[:100] for h, n in friends_progress[:8]
-            )
-            lines.append(
-                f"  current (computed): {len(friends_progress)} handles "
-                f"with ≥3 exchanges — {qualifying}"
-            )
-        elif "friend" in g.get("title", "").lower():
-            lines.append("  current (computed): 0 handles with ≥3 exchanges")
     return "\n".join(lines)
 
 
 async def get_state_block(
     client: BotClient, memory: NamespaceMemory | None = None
 ) -> str:
-    """Compose [GOALS AND INTERESTS] + [SELF-AWARENESS].
-
-    Cached at the block level (5min) and inventory level (1h, invalidated
-    on new post). `memory` is used to live-compute the friends progress
-    count; if omitted, the computed line is skipped (goal record text
-    still renders).
-    """
+    """Compose [GOALS]. Cached 5min. `memory` is unused (kept for call
+    compatibility; the live-computed friends line was deleted 2026-08-07 —
+    it contradicted the goal's own phi-maintained `current` field)."""
     now = time.time()
     if _block_cache["text"] and now - _block_cache["fetched_at"] < _BLOCK_TTL_SECONDS:
         return _block_cache["text"]
 
     goals = await list_goal_records(client)
-    friends_progress = await _compute_friends_progress(memory)
-    parts: list[str] = []
+    block = _format_goals_block(goals)
+    _block_cache["text"] = block
+    _block_cache["fetched_at"] = now
+    return block
 
-    # Goals first — phi reads its anchors before reading anything else.
-    goals_block = _format_goals_block(goals, friends_progress)
-    if goals_block:
-        parts.append(goals_block)
 
-    # Recent-posting inventory — structured tally, deliberately not phi's voice.
+async def get_inventory_block(client: BotClient) -> str:
+    """The recent-posting inventory, rendered for composition inside
+    [SELF]. Cached 1h, invalidated when the latest post URI changes."""
+    now = time.time()
     try:
         feed = await client.get_own_posts(limit=10)
         posts: list[str] = []
@@ -290,15 +237,11 @@ async def get_state_block(
                 _inventory_cache["based_on_uri"] = latest_uri
 
         if _inventory_cache["text"]:
-            parts.append(
-                "[SELF-AWARENESS — recent posting inventory; descriptive context, "
-                "not your voice. do not imitate this block's register.]\n"
-                + _inventory_cache["text"]
+            return (
+                "measured posting inventory (derived from your last 10 "
+                "top-level posts; descriptive, not your voice — do not "
+                "imitate its register):\n" + _inventory_cache["text"]
             )
     except Exception as e:
         logger.debug(f"posting inventory compose failed: {e}")
-
-    block = "\n\n".join(parts)
-    _block_cache["text"] = block
-    _block_cache["fetched_at"] = now
-    return block
+    return ""

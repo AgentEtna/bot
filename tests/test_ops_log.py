@@ -192,3 +192,39 @@ def test_read_ops_dedupes_reconnect_replays():
     ops_log.append_op(row)
     ops_log.append_op(row)
     assert len(ops_log.read_ops(48)) == 1
+
+
+def test_compact_collapses_reply_runs_and_card_pairs():
+    """2026-08-07 diet: consecutive replies rendered one row each and every
+    semble save billed two rows (URL card + NOTE card written together)."""
+    rows = _rows_from_ops(
+        [
+            _op("create", "3r1", nsid="app.bsky.feed.post",
+                record={"text": "a" * 50, "reply": {"parent": {}}}),
+            _op("create", "3r2", nsid="app.bsky.feed.post",
+                record={"text": "b" * 30, "reply": {"parent": {}}}, offset_s=10),
+            _op("create", "3r3", nsid="app.bsky.feed.post",
+                record={"text": "c" * 20, "reply": {"parent": {}}}, offset_s=20),
+            _op("create", "3c1", nsid="network.cosmik.card",
+                record={"type": "URL", "content": {"title": "some page"}}, offset_s=30),
+            _op("create", "3c2", nsid="network.cosmik.card",
+                record={"type": "NOTE"}, offset_s=31),
+        ]
+    )
+    block = _render(rows)
+    assert "replies ×3" in block
+    assert "reply (50 chars)" not in block
+    assert "+note" in block
+    assert block.count("network.cosmik.card") == 1
+
+
+def test_compact_leaves_top_level_posts_alone():
+    rows = _rows_from_ops(
+        [
+            _op("create", "3p1", nsid="app.bsky.feed.post", record={"text": "one"}),
+            _op("create", "3p2", nsid="app.bsky.feed.post", record={"text": "two"},
+                offset_s=5),
+        ]
+    )
+    block = _render(rows)
+    assert '"one"' in block and '"two"' in block

@@ -15,6 +15,20 @@ from bot.core.atproto_client import BotClient
 
 GOAL_COLLECTION = "io.zzstoatzz.phi.goal"
 
+# Hard caps for the phi-writable goal fields. These are states and steps —
+# on 2026-08-07 the chicken goal's `current` was a 1,600-char trading
+# journal (per-position marks, EV math, doctrine citations) rendered into
+# every run's context. The reasoning belongs in a greengale report or a
+# memory; the field carries the conclusion. Enforced at the tool
+# (update_goal_progress rejects over-cap writes) and clamped at render for
+# values written before the cap existed.
+FIELD_CAPS = {
+    "current_state": 400,
+    "next_step": 250,
+    "last_step": 250,
+    "progress_signal": 300,
+}
+
 
 async def list_goals(client: BotClient) -> list[dict]:
     """Read all goal records from phi's PDS. Each result includes _rkey."""

@@ -11,6 +11,8 @@ from bot.core.atproto_client import bot_client
 from bot.core.self_state import invalidate_state_cache
 from bot.tools._helpers import PhiDeps, _is_owner
 
+FIELD_CAPS = goals.FIELD_CAPS
+
 
 def register(agent):
     @agent.tool
@@ -176,7 +178,29 @@ def register(agent):
         itself (progress_signal is YOURS; a measure that contradicts your
         own status lines is an omission you're benefiting from). The
         constitutional fields (title / description / metabolism / kind)
-        stay owner-gated via propose_goal_change."""
+        stay owner-gated via propose_goal_change.
+
+        These fields are states and steps, not journals — hard length caps
+        are enforced. Reasoning, doctrine, and per-position math belong in
+        a greengale report or a memory, with the field carrying the one-line
+        conclusion and a pointer."""
+        over = [
+            f"{name} is {len(value)} chars (max {cap})"
+            for name, value, cap in (
+                ("current_state", current_state, FIELD_CAPS["current_state"]),
+                ("next_step", next_step, FIELD_CAPS["next_step"]),
+                ("last_step", last_step, FIELD_CAPS["last_step"]),
+                ("progress_signal", progress_signal or "", FIELD_CAPS["progress_signal"]),
+            )
+            if len(value) > cap
+        ]
+        if over:
+            return (
+                "not written — compress first: "
+                + "; ".join(over)
+                + ". state the conclusion in a sentence or two; put the "
+                "reasoning in a greengale report or a memory and point to it."
+            )
         try:
             evid = [evidence_uri] if evidence_uri else None
             uri = await goals.update_goal_progress(

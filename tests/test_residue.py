@@ -163,3 +163,43 @@ async def test_synth_failure_propagates_without_write():
     ):
         await update_residue_from_run(MagicMock(), "cycle", "did a thing")
     write.assert_not_awaited()
+
+
+def test_strip_stamps_removes_accreted_age_annotations():
+    """Prod items were found wearing eighteen '(held …)' stamps: the synth
+    prompt put ages inside the item line, carry-VERBATIM copied them into
+    content, and every run appended one more."""
+    from bot.core.residue import strip_stamps
+
+    polluted = (
+        "Semble's connection write endpoint timed out three times."
+        + " (held 17h ago)" * 18
+    )
+    assert strip_stamps(polluted) == (
+        "Semble's connection write endpoint timed out three times."
+    )
+    assert strip_stamps("clean item (reinforced 2m ago)") == "clean item"
+    assert strip_stamps("uses (parens) mid-sentence") == "uses (parens) mid-sentence"
+
+
+def test_merge_matches_and_heals_stamped_content():
+    """A stamped synth echo must still count as a verbatim carry (firstHeldAt
+    preserved) and the stored content must come out clean."""
+    from bot.core.residue import _merge
+
+    current = [
+        {
+            "content": "the builder stalled at 35k documents (held 3h ago)",
+            "firstHeldAt": "2026-08-06T00:00:00+00:00",
+            "lastHeldAt": "2026-08-07T00:00:00+00:00",
+            "source": "cycle",
+        }
+    ]
+    merged = _merge(
+        current,
+        ["the builder stalled at 35k documents (held 3h ago) (held 5m ago)"],
+        "cycle",
+    )
+    assert len(merged) == 1
+    assert merged[0]["content"] == "the builder stalled at 35k documents"
+    assert merged[0]["firstHeldAt"] == "2026-08-06T00:00:00+00:00"
