@@ -120,7 +120,14 @@
 								per-author memory, episodic, prior coverage) need material to react to.
 							</div>
 						{:else}
-							<pre class="block-text mono">{selected.text}</pre>
+							<!-- one element per line, not one giant <pre>: content-visibility
+							     lets the browser skip painting offscreen text, which is the
+							     difference between smooth and herky-jerky on a 7k-char block -->
+							<div class="block-text">
+								{#each selected.text.split('\n') as line, i (i)}
+									<div class="line mono">{line || ' '}</div>
+								{/each}
+							</div>
 						{/if}
 					</div>
 				{:else if !loading}
@@ -256,6 +263,8 @@
 	.detail {
 		overflow-y: auto;
 		min-height: 0;
+		contain: content;
+		overscroll-behavior: contain;
 	}
 
 	.d-head {
@@ -280,11 +289,16 @@
 	}
 
 	.block-text {
+		max-width: 86ch;
+	}
+
+	.line {
 		white-space: pre-wrap;
 		overflow-wrap: anywhere;
-		font-size: 0.76rem;
-		line-height: 1.55;
-		margin: 0;
+		font-size: 0.85rem;
+		line-height: 1.65;
+		content-visibility: auto;
+		contain-intrinsic-size: auto 1.65em;
 	}
 
 	.block-error {
