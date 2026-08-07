@@ -124,6 +124,15 @@ RISK: dict[str, Risk] = {
         "magnitude": "moderate",
         "reason": "replaces her public self record, which every run reads as who she is and every bio rewrite compresses; owner-gated because a wrong line there propagates into everything she says next.",
     },
+    "persona": {
+        "magnitude": "moderate",
+        "reason": (
+            "adopts a public, self-chosen voice experiment that every run "
+            "reads while it lives; deliberately not owner-gated — the gates "
+            "are the 1-7 day auto-expiry, the 600-char cap, and the "
+            "constitution outranking it."
+        ),
+    },
     "update_goal_progress": {
         "magnitude": "moderate",
         "reason": "writes progress onto a public goal record; wrong state here misleads her own later reasoning.",

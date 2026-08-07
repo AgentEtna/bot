@@ -33,6 +33,7 @@ from bot.core.graze_client import GrazeClient
 from bot.core.mcp_guard import make_mcp_guard
 from bot.core.operator import get_operator_profile
 from bot.core.owned_feeds import get_owned_feeds_block
+from bot.core.persona import get_persona_block
 from bot.core.prior_coverage import coverage_note
 from bot.core.public_memory import get_public_memory_block
 from bot.core.recent_flow_mentions import get_recent_flow_mentions_block
@@ -642,6 +643,19 @@ class PhiAgent:
             except Exception as e:
                 logger.debug(f"posting inventory inject failed: {e}")
             return "\n\n".join(p for p in parts if p)
+
+        @_run_scoped
+        async def inject_persona() -> str:
+            """[PERSONA EXPERIMENT] — a voice phi chose to try on, TTL'd.
+
+            Rendered after [SELF] so testimony precedes costume. Absent
+            (empty) whenever no live experiment exists — the common case.
+            """
+            try:
+                return await get_persona_block(bot_client)
+            except Exception as e:
+                logger.debug(f"persona inject failed: {e}")
+                return ""
 
         @_run_scoped
         async def inject_public_memory() -> str:

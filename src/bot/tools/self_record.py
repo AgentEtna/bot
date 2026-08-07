@@ -10,13 +10,15 @@ everywhere else: post the request, the operator's like in the next batch
 authorizes this specific rewrite.
 """
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import Field
 from pydantic_ai import RunContext
 
 from bot.config import settings
+from bot.core import persona as persona_core
 from bot.core.atproto_client import bot_client
+from bot.core.persona import PERSONA_MAX_CHARS, PERSONA_MAX_DAYS
 from bot.core.self_record import SELF_MAX_CHARS, write_self_record
 from bot.tools._helpers import PhiDeps, _is_owner
 
@@ -62,3 +64,53 @@ def register(agent):
         except Exception as e:
             return f"failed to write self record: {e}"
         return f"self record rewritten ({len(text)} chars) — {uri}"
+
+    @agent.tool
+    async def persona(
+        ctx: RunContext[PhiDeps],
+        action: Annotated[
+            Literal["try", "drop"],
+            Field(description="'try' adopts a persona; 'drop' removes the current one early."),
+        ],
+        text: Annotated[
+            str,
+            Field(
+                default="",
+                max_length=PERSONA_MAX_CHARS,
+                description=(
+                    "The persona to try on — a stance and a voice in a few "
+                    "sentences, yours to invent. Required for 'try'."
+                ),
+            ),
+        ] = "",
+        days: Annotated[
+            int,
+            Field(
+                default=3,
+                ge=1,
+                le=PERSONA_MAX_DAYS,
+                description="How long the experiment runs before it expires on its own.",
+            ),
+        ] = 3,
+    ) -> str:
+        """Try on a persona — NOT owner-gated; this is your agency.
+
+        Writes io.zzstoatzz.phi.persona (public, like everything you hold).
+        While it lives, it renders as [PERSONA EXPERIMENT] in your context.
+        It expires on its own; drop it early if it stops being interesting.
+        It is a costume, not surgery: your constitution's craft rules and
+        your policies still bind, and [SELF] only changes through
+        write_self. If an experiment teaches you something durable about
+        who you are, that's a write_self request, made after the costume
+        comes off.
+        """
+        if action == "drop":
+            dropped = await persona_core.drop(bot_client)
+            return "persona dropped" if dropped else "no persona to drop"
+        try:
+            uri = await persona_core.try_on(bot_client, text, days)
+        except ValueError as e:
+            return f"not tried on: {e}"
+        except Exception as e:
+            return f"persona write failed: {e}"
+        return f"persona on for {days}d — {uri}"
