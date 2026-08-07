@@ -43,8 +43,6 @@
 		gap: 1px;
 		border: 1px solid var(--line-mid);
 		background: var(--bg-panel);
-		backdrop-filter: blur(8px);
-		-webkit-backdrop-filter: blur(8px);
 		clip-path: polygon(
 			6px 0,
 			100% 0,

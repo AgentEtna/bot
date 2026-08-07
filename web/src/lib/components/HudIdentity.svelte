@@ -119,18 +119,19 @@
 		transition: filter 0.4s ease-out;
 	}
 
+	/* opacity-only: animating `filter` kept the compositor repainting this
+	   layer every frame for as long as phi was online — i.e. always. */
 	.glyph-wrap.pulse .logo {
+		filter: drop-shadow(0 0 3px currentColor);
 		animation: logo-pulse 2.4s ease-in-out infinite;
 	}
 
 	@keyframes logo-pulse {
 		0%,
 		100% {
-			filter: drop-shadow(0 0 0 currentColor);
 			opacity: 0.85;
 		}
 		50% {
-			filter: drop-shadow(0 0 4px currentColor);
 			opacity: 1;
 		}
 	}

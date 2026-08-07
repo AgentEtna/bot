@@ -90,6 +90,9 @@ body::before {
 	inset: 0;
 	pointer-events: none;
 	z-index: 0;
+	/* own compositor layer — otherwise the full-screen pattern re-rasterizes
+	   with every scroll frame of the content beneath it */
+	transform: translateZ(0);
 	background:
 		/* very faint hex pattern — chozo terminal feel */
 		url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='56' height='64' viewBox='0 0 56 64'><g fill='none' stroke='%23b86b3a' stroke-width='0.6' opacity='0.08'><polygon points='14,2 42,2 56,18 42,34 14,34 0,18'/><polygon points='14,34 42,34 56,50 42,66 14,66 0,50'/></g></svg>"),
@@ -113,6 +116,7 @@ body::after {
 	inset: 0;
 	pointer-events: none;
 	z-index: 0;
+	transform: translateZ(0);
 	background: radial-gradient(
 		ellipse at center,
 		transparent 0%,
@@ -215,12 +219,13 @@ a:hover {
 		left: 0;
 		right: 0;
 		padding: 8px 14px 11px;
+		/* no backdrop-filter here: a full-width fixed blur strip re-blurs
+		   everything beneath it on every scroll frame, and behind a ~97%
+		   opaque gradient it was invisible anyway. opaque is free. */
 		background:
-			linear-gradient(180deg, rgba(7, 9, 15, 0.97), rgba(7, 9, 15, 0.9)),
+			linear-gradient(180deg, rgba(7, 9, 15, 1), rgba(7, 9, 15, 0.97)),
 			radial-gradient(circle at 50% 0%, rgba(126, 192, 212, 0.08), transparent 64%);
 		border-bottom: 1px solid rgba(74, 139, 154, 0.18);
-		backdrop-filter: blur(16px) saturate(1.15);
-		-webkit-backdrop-filter: blur(16px) saturate(1.15);
 	}
 
 	.hud-bl {
@@ -349,8 +354,6 @@ a:hover {
 .panel {
 	background: var(--bg-panel);
 	border: 1px solid var(--line-mid);
-	backdrop-filter: blur(8px);
-	-webkit-backdrop-filter: blur(8px);
 	padding: 12px 14px;
 }
 
@@ -386,19 +389,21 @@ button.active {
 
 /* ---------- pulse animation ---------- */
 
+/* opacity-only: animating `filter` repaints the layer every frame for the
+   lifetime of the page; a static glow with animated opacity is
+   compositor-only and looks the same at this size. */
 @keyframes pulse {
 	0%,
 	100% {
 		opacity: 0.55;
-		filter: drop-shadow(0 0 0 currentColor);
 	}
 	50% {
 		opacity: 1;
-		filter: drop-shadow(0 0 4px currentColor);
 	}
 }
 
 .pulse {
+	filter: drop-shadow(0 0 3px currentColor);
 	animation: pulse 2.4s ease-in-out infinite;
 }
 
