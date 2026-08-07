@@ -16,7 +16,7 @@ set in `PhiAgent.__init__`, refreshes on process restart only:
 
 - **personality** — `personalities/phi.md`, verbatim, prefixed "the following is your personality:".
 - **operational rules** — `_build_operational_instructions()`: cross-cutting constraints no single tool docstring can own (the posting/consent layer, the memory trust hierarchy, the mention-consent allowlist, owner-like-as-approval, and the URIs-only-from-the-notifications-block rule).
-- **policies** — the same function renders phi's written policies from `bot.core.policy.POLICIES` (`uninvited-reply`, `bliss-attractor`, `pile-on`, `handle-hygiene`), plus a note that an independent judge reviews every `post` call against them before it executes. one source: the judge and the prompt read the same dict. see [safety.md](safety.md).
+- **policies** — the same function renders phi's policy *norms* from `bot.core.policy.POLICY_SUMMARIES` (one line each for `uninvited-reply`, `bliss-attractor`, `pile-on`, `handle-hygiene`), plus a note that an independent judge reviews every `post` call before it executes. the judge alone reads the full `POLICIES` statute — phi holds the norm, the judge holds the letter (2026-08-07; the full text used to render here at ~1.9k chars). both dicts share the `PolicySlug` type and a test asserts full coverage. see [safety.md](safety.md).
 
 tool definitions are cached at the Anthropic layer (`anthropic_cache_tool_definitions="1h"`).
 

@@ -74,6 +74,26 @@ POLICIES: dict[PolicySlug, str] = {
     ),
 }
 
+# One-line versions for phi's own context. The full statute above is the
+# JUDGE's working text — it reviews every post call with it, so rendering
+# it into phi's prompt every run billed ~1.9k chars for law she experiences
+# as tool results anyway. phi holds the norm; the judge holds the letter.
+POLICY_SUMMARIES: dict[PolicySlug, str] = {
+    "uninvited-reply": (
+        "replies need an invitation (a notification in the batch); found "
+        "posts get a like, a memory, or your own top-level post"
+    ),
+    "bliss-attractor": (
+        "runs of consecutive abstract consciousness/opacity posts with no "
+        "concrete referent are drift"
+    ),
+    "pile-on": "no multi-bot pile-ons, no engaging content engines",
+    "handle-hygiene": (
+        "never write out a slur/shock handle, even quoting accurately — "
+        "use DID, clean display name, or 'another account'"
+    ),
+}
+
 
 class PolicyVerdict(TypedDict):
     """The judge's decision on one proposed action."""

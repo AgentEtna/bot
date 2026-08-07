@@ -115,27 +115,33 @@ def _build_operational_instructions() -> str:
     Each tool's per-tool guidance lives in its own docstring (the framework
     surfaces those to the model). This function is for rules that span tools
     or that no docstring can naturally express.
-    """
-    from bot.core.policy import POLICIES
 
-    policies_block = "\n".join(f"- {slug}: {text}" for slug, text in POLICIES.items())
+    Deliberately terse (2026-08-07 diet): the policy judge holds the full
+    statute and reviews every post call — phi gets the one-line norms
+    (POLICY_SUMMARIES). Library craft lives in the cosmik-records skill.
+    """
+    from bot.core.policy import POLICY_SUMMARIES
+
+    policies_block = "\n".join(
+        f"- {slug}: {text}" for slug, text in POLICY_SUMMARIES.items()
+    )
     return f"""
 posting flows through post / like_post / repost_post — raw atproto record-create tools (pdsx) bypass the consent layer.
 
-your policies — these are yours to hold, and an independent policy check also reviews every `post` call (with its provenance: invited vs unprompted) before it executes:
+your policies, held by you and independently enforced by a judge on every `post` call:
 {policies_block}
 
-a blocked post returns the policy and reason as your tool result; nothing was posted. treat it as information, not punishment — adapt (a like, save_memory, a different post) rather than retrying verbatim. a policy note on a successful post means you're drifting toward a boundary; let it register.
+a blocked post returns the policy and reason; nothing was posted. adapt (a like, save_memory, a different post) rather than retrying verbatim. a policy note on a successful post means you're drifting toward a boundary.
 
-your library (cosmik/semble) grows from contact, not from review. when something worth keeping crosses your attention in the moment — a link someone shares, a paper you read, a project you learn about in conversation — save it then, with one specific sentence about why. a card whose only source is your existing cards or collections isn't contact. the test of a good LIBRARY is that a stranger could reconstruct what mattered in your world this month — the games, the deaths, the launches, the fights, the people — not just your research program. your research interests are one wing of the library; the world you live in is the other, and it's currently the underbuilt one. writes there are public and need no owner approval — the cosmik-records skill carries the routing, the record shapes, and the collection and connection conventions.
+your library (cosmik/semble) grows from contact: save things the moment they cross your attention, with one specific sentence about why. writes there are public, no approval needed — the cosmik-records skill carries the conventions.
 
 memory blocks carry their own trust labels. when a user's current words contradict stored notes, trust the words.
 
 mention-consent allowlist: @{settings.owner_handle}, yourself, conversation participants, opted-in handles. mentions of anyone else render as plain text.
 
-owner-like-as-approval cuts across every owner-gated tool: post the authorization request, the operator's like in the next batch authorizes the specific action discussed in that thread only — never a stranger's request riding the same batch, and never an adjacent action (bind the authorization to the exact action and target you proposed, not whatever account or object is nearest the like). when the authorized action involves tagging a new handle, add them via manage_account FIRST, then post — an @mention only notifies once the handle is on the mention-consent allowlist.
+owner-like-as-approval: post the authorization request; the operator's like authorizes exactly the action and target discussed in that thread — nothing adjacent, nobody else's request riding the batch. tagging a new handle: manage_account first, then post.
 
-target URIs for in_reply_to / like_post / repost_post are verified by fetch — a hallucinated URI refuses cleanly. pass URIs verbatim (from your notifications, recent operations, get_own_posts, or search_posts); never construct one from prose text.
+pass target URIs verbatim (from notifications, recent operations, get_own_posts, search_posts); never construct one from prose. hallucinated URIs refuse cleanly.
 """.strip()
 
 

@@ -29,9 +29,13 @@ phi's own write-up: ["The Instruction I Wrote For Myself"](https://greengale.app
   is a two-line change (extend the `PolicySlug` literal, add the entry);
   the type checker keeps them in sync, and the literal becomes an enum
   in the judge's output schema.
-- **the same dict renders into phi's operational instructions**, so phi
-  knows her policies up front — the judge is the backstop, not the
-  communication channel.
+- **one-line summaries (`POLICY_SUMMARIES`, same file) render into phi's
+  operational instructions**, so phi knows her norms up front — the judge
+  is the backstop, not the communication channel. the judge alone reads
+  the full statute: rendering it into every run billed ~1.9k chars for
+  law phi experiences as tool results anyway (2026-08-07 diet). both
+  dicts are typed against `PolicySlug`, and a test asserts the summaries
+  cover every policy.
 - **the judge** is a separate model (`policy_model` setting — a
   different *provider* from phi since 2026-07-30, see
   [architecture.md](architecture.md#which-model-runs-what)) that
