@@ -182,3 +182,13 @@ def test_op_rows_roundtrip_through_jsonl():
     ops_log.append_op(row)
     line = open(ops_log.settings.ops_log_path).read().strip()
     assert json.loads(line) == row
+
+
+def test_read_ops_dedupes_reconnect_replays():
+    """The consumer rewinds the cursor 5s on reconnect; replayed appends
+    must collapse to one row."""
+    row = ops_log.event_to_row(_event("create", record={"text": "once"}))
+    assert row
+    ops_log.append_op(row)
+    ops_log.append_op(row)
+    assert len(ops_log.read_ops(48)) == 1

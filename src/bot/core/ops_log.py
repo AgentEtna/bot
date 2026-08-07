@@ -107,14 +107,22 @@ def read_ops(window_hours: float = 48.0) -> list[OpRow]:
         return []
     cutoff_us = int((time.time() - window_hours * 3600) * 1_000_000)
     rows: list[OpRow] = []
+    seen: set[tuple] = set()
     with path.open(encoding="utf-8") as f:
         for line in f:
             try:
                 row = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if row.get("time_us", 0) >= cutoff_us:
-                rows.append(row)
+            if row.get("time_us", 0) < cutoff_us:
+                continue
+            # reconnects rewind the cursor 5s so a crash can't skip ops;
+            # the price is replayed appends, deduped here at read time.
+            key = (row.get("time_us"), row.get("nsid"), row.get("rkey"), row.get("op"))
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append(row)
     rows.sort(key=lambda r: r["time_us"])
     return rows
 
