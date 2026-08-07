@@ -155,7 +155,10 @@ app.add_exception_handler(
 )
 
 try:
-    logfire.instrument_fastapi(app, excluded_urls="/health")
+    # comma-separated regexes matched against the full url. /health is fly's
+    # check every few seconds; /_app/ is the sveltekit bundle served by the
+    # StaticFiles mount below — one span per asset on every page load.
+    logfire.instrument_fastapi(app, excluded_urls="/health,/_app/,/favicon")
 except Exception as _e:
     logger.warning(f"logfire fastapi instrumentation failed: {_e}")
 
