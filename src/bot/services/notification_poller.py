@@ -248,13 +248,12 @@ class NotificationPoller:
             self._processed_uris.add(n.uri)
 
         # Dispatch the entire batch as one task — one cognitive event per poll
-        task = asyncio.create_task(self._handle_batch_with_semaphore(batch))
+        task = asyncio.create_task(
+            self._handle_batch_with_semaphore(batch, check_time)
+        )
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
-
-        # Mark notifications as seen on bsky immediately — don't wait for processing
-        await self.client.mark_notifications_seen(check_time)
-        logger.info(f"dispatched batch of {len(batch)} notifications, marked as read")
+        logger.info(f"dispatched batch of {len(batch)} notifications")
 
         if len(self._processed_uris) > 1000:
             self._processed_uris = set(list(self._processed_uris)[-500:])
@@ -308,14 +307,30 @@ class NotificationPoller:
         async with self._semaphore:
             await self.handler.workflow_failures()
 
-    async def _handle_batch_with_semaphore(self, batch: list):
-        """Handle a notification batch with concurrency limiting."""
+    async def _handle_batch_with_semaphore(self, batch: list, check_time: str):
+        """Handle a notification batch with concurrency limiting.
+
+        Notifications are marked seen AFTER the handler finishes, not at
+        dispatch. Marking at dispatch permanently consumed any batch the
+        process died holding — on 2026-08-07 a mention landed mid-deploy,
+        the poller marked it read, the machine restarted before the run
+        replied, and phi never saw the thread. Died-holding batches now
+        stay unread and a fresh process re-batches them (the in-memory
+        _processed_uris dedup is empty after restart, and within one
+        process it prevents re-dispatch between polls). A handler that
+        *failed* still marks seen — retrying a poison batch every 10s
+        forever is the worse failure; the error is logged and counted.
+        """
         async with self._semaphore:
             try:
                 await self.handler.handle_batch(batch)
             except Exception as e:
                 logger.error(f"batch handler error: {e}", exc_info=settings.debug)
                 bot_status.record_error()
+            try:
+                await self.client.mark_notifications_seen(check_time)
+            except Exception as e:
+                logger.warning(f"mark_notifications_seen failed: {e}")
 
     def _should_do_daily_post(self) -> bool:
         """Check if it's time for a daily reflection (operator-local hour)."""
