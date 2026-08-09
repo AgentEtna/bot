@@ -30,6 +30,10 @@ source = "vcs"
 extend-select = ["I", "UP"]
 
 [tool.pytest.ini_options]
+# bare `pytest` collects only the deterministic suite. evals/ calls a live
+# model and asserts on sampled output, so it flakes by construction and a
+# stray failure there reads as a broken build. run it on purpose: `just evals`.
+testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 filterwarnings = [
