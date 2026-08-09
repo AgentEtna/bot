@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -34,7 +34,12 @@ async def fetch_recent_failures() -> list[dict[str, Any]] | None:
                 f"{base}/flow_runs/filter",
                 json={
                     "limit": 50,
-                    "sort": "END_TIME_DESC",
+                    # NOT END_TIME_DESC: a run that crashed before it started
+                    # has no end_time, and that is most of them. Sorting on a
+                    # null key returns an unstable subset of the whole failure
+                    # history, so runs drift in and out of the window and one
+                    # that has never landed in it before reads as new.
+                    "sort": "EXPECTED_START_TIME_DESC",
                     "flow_runs": {"state": {"type": {"any_": ["FAILED", "CRASHED"]}}},
                 },
             )
@@ -43,6 +48,52 @@ async def fetch_recent_failures() -> list[dict[str, Any]] | None:
     except Exception as exc:
         logger.warning(f"workflow failure fetch failed: {exc}")
         return None
+
+
+FRESH_WINDOW_SECONDS = 6 * 3600
+"""A crash older than this is history, not news.
+
+2026-08-09: phi alerted on four separate crashes from July 2, 5, 13 and 21 in
+one morning, and correctly called them stale herself. Prefect keeps failed
+runs indefinitely, so being absent from phi's seen-list is not evidence that
+something just broke — it only means this particular old run had not surfaced
+before. Freshness is the property that actually distinguishes a break from a
+gravestone, so alerting tests that instead.
+"""
+
+
+def _state_age_seconds(run: dict[str, Any], now: float) -> float | None:
+    stamp = (run.get("state") or {}).get("timestamp")
+    if not stamp:
+        return None
+    try:
+        when = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    return now - when.timestamp()
+
+
+def fresh_failures(
+    failures: list[dict[str, Any]], now: float, window: int = FRESH_WINDOW_SECONDS
+) -> list[dict[str, Any]]:
+    """Keep only failures whose terminal state is recent enough to be news.
+
+    A run with no readable timestamp is kept: unknown age should not silence
+    a real break.
+    """
+    keep = []
+    for run in failures:
+        age = _state_age_seconds(run, now)
+        if age is None or age <= window:
+            keep.append(run)
+        else:
+            logger.info(
+                f"ignoring stale failure {run.get('name')} "
+                f"({humanize_duration(timedelta(seconds=age))} old)"
+            )
+    return keep
 
 
 def unseen_failures(

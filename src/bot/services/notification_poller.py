@@ -13,6 +13,7 @@ from bot.core.atproto_client import BotClient
 from bot.core.workflow_failures import (
     add_pending,
     fetch_recent_failures,
+    fresh_failures,
     gate_alerts,
     unseen_failures,
 )
@@ -279,7 +280,12 @@ class NotificationPoller:
         if not new:
             return
 
+        # record every newly-seen id, including the stale ones dropped below,
+        # so the backlog drains for good instead of resurfacing next poll
         bot_status.record_workflow_failures([run["id"] for run in new])
+        new = fresh_failures(new, time.time())
+        if not new:
+            return
         # incident gating: a flow failing repeatedly is one incident, not a
         # post per run. only opens and windowed escalations reach phi.
         to_alert, incidents = gate_alerts(
