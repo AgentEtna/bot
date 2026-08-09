@@ -166,6 +166,10 @@ RISK: dict[str, Risk] = {
         "magnitude": "high",
         "reason": "creates or deletes public feeds other people may be subscribed to; the delete is not recoverable from here.",
     },
+    "propose_code_change": {
+        "magnitude": "moderate",
+        "reason": "runs a coding agent against one of the operator's repos and opens a public pull request under her name; owner-gated, the repo is a closed set, and nothing merges without his review — so the blast radius is a PR he can close, but the words on it are hers.",
+    },
 }
 
 
