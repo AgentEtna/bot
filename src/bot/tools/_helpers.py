@@ -186,6 +186,11 @@ SERVICE_CHECKS = [
     {"url": "https://prefect-metrics.waow.tech/api/health", "name": "grafana"},
     {"url": "https://relay.waow.tech/xrpc/_health", "name": "indigo relay"},
     {"url": "https://zlay.waow.tech/_health", "name": "zlay"},
+    # the operator's jetstream v2 instance (docs: stream.waow.tech/llms.txt).
+    # /status is the scriptable field report — there is no /health. note this
+    # proves the http server answers, NOT that the live tail is advancing;
+    # a stalled tail still returns 200. relay-eval is meant to cover it later.
+    {"url": "https://stream.waow.tech/status", "name": "stream (jetstream v2)"},
     {"url": "https://coral.fly.dev/health", "name": "trending"},
     {
         "url": "https://leaflet-search-backend.fly.dev/health",
