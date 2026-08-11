@@ -563,16 +563,23 @@ class PhiAgent:
             if not ctx.deps.memory:
                 return ""
             # Batch notifications have a real semantic seed: the posts phi is
-            # reacting to. Scheduled paths have task text like "you have a
-            # moment", which made vector recall noisy; let those paths call
-            # search_memory explicitly when they need private memory.
+            # reacting to. Scheduled runs have no notification seed and their
+            # task text ("you have a moment") made vector recall noisy, so
+            # they used to get no episodic block at all — which is how the
+            # plyr catalog got "discovered" three runs in a row. Residue is
+            # the seed instead: what recent runs left behind is exactly what
+            # a scheduled run is most likely to pick back up.
             notifs = ctx.deps.notifications_context or {}
-            if not notifs:
-                return ""
-            texts = [
-                e.get("post_text", "") for e in notifs.values() if e.get("post_text")
-            ]
-            query = " ".join(texts)
+            if notifs:
+                texts = [
+                    e.get("post_text", "")
+                    for e in notifs.values()
+                    if e.get("post_text")
+                ]
+                query = " ".join(texts)
+            else:
+                block = await render_residue_block(bot_client)
+                query = "\n".join(block.splitlines()[1:]).strip()
             if not query:
                 return ""
             # Pass phi's goals so the synthesis can rank by relevance to intent.
@@ -847,6 +854,21 @@ class PhiAgent:
                 await update_residue_from_run(bot_client, label, summary)
             except Exception as e:
                 logger.warning(f"residue update after {label} failed: {e}")
+            # Scheduled runs relied on phi voluntarily calling save_memory to
+            # record what they did, which never happened — the 08-10 plyr dig
+            # left no episodic trace and got re-discovered on 08-11. The run
+            # summary is written unconditionally so "have I done this" has an
+            # answer. Batch runs are excluded: their material flows through
+            # the extraction pipeline already.
+            if summary and deps and deps.memory and not deps.notifications_context:
+                try:
+                    await deps.memory.store_episodic_memory(
+                        f"{label}: {summary[:1000]}",
+                        tags=["run-summary", label],
+                        source=f"run:{label}",
+                    )
+                except Exception as e:
+                    logger.warning(f"episodic store after {label} failed: {e}")
         return summary
 
     async def process_notifications(
