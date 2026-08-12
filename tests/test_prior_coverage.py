@@ -136,3 +136,20 @@ def test_watermark_roundtrip(tmp_path, monkeypatch):
 )
 def test_links_in_text_normalizes_and_dedupes(text, expected):
     assert links_in_text(text) == expected
+
+
+def test_render_coverage_carries_speech_act_kind():
+    from datetime import UTC, datetime, timedelta
+
+    ts = (datetime.now(UTC) - timedelta(days=2)).isoformat()
+    hits = [
+        {"text": "said in a thread", "links": [], "created_at": ts,
+         "distance": 0.2, "is_reply": True},
+        {"text": "said out loud", "links": [], "created_at": ts,
+         "distance": 0.2, "is_reply": False},
+    ]
+    block = render_coverage(hits, [])
+    assert "reply)" in block and "top-level post)" in block, (
+        "recall must say what kind of speech each hit was — "
+        "'didn't I just say this' needs in-what-context, not just when"
+    )

@@ -113,11 +113,13 @@ async def search_own_posts(
 ) -> list[dict]:
     """Nearest of phi's own top-level posts to *query_text*, with distances."""
     try:
+        # replies included: "have I said this" must cover everything phi
+        # has said, not just top-level posts — a point made five times in
+        # threads used to look never-made (operator feedback, 2026-08-12)
         response = _namespace(memory).query(
             rank_by=("vector", "ANN", await memory.embed(query_text)),
             top_k=top_k,
-            filters=("is_reply", "Eq", False),
-            include_attributes=["text", "links", "created_at"],
+            include_attributes=["text", "links", "created_at", "is_reply"],
         )
         return [
             {
@@ -125,6 +127,7 @@ async def search_own_posts(
                 "text": row.text,
                 "links": getattr(row, "links", []) or [],
                 "created_at": getattr(row, "created_at", ""),
+                "is_reply": bool(getattr(row, "is_reply", False)),
                 "distance": row["$dist"],
             }
             for row in response.rows or []
@@ -219,7 +222,10 @@ def render_coverage(hits: list[dict], candidate_links: list[str]) -> str:
             continue
         ts = hit.get("created_at", "")
         when = relative_when(ts) if ts else ""
-        stamp = f"{ts[:16]} ({when})" if ts and when else (ts or "undated")
+        kind = "reply" if hit.get("is_reply") else "top-level post"
+        stamp = (
+            f"{ts[:16]} ({when}, {kind})" if ts and when else f"{ts or 'undated'} ({kind})"
+        )
         text = " ".join((hit.get("text") or "").split())
         if len(text) > PREVIEW:
             text = text[: PREVIEW - 1] + "…"

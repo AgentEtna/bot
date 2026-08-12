@@ -160,6 +160,10 @@ def _get_episodic_synth_agent() -> Agent:
                 "conflict. Flag entries that may be stale (e.g. 'pending X' "
                 "notes about actions that may have completed since) — phi "
                 "can verify with tools if it matters.\n\n"
+                "Every line you keep MUST carry its age and origin from the "
+                "bracket tag (e.g. '2d ago, cycle summary'). A memory "
+                "without when-and-where-from reads as a live fact and "
+                "misleads phi — never strip the tag.\n\n"
                 "Lowercase. No preamble, no meta-commentary. If nothing in "
                 "the candidates is actually relevant, return an empty string."
             ),
@@ -183,8 +187,17 @@ async def _synthesize_episodic(
     else:
         goals_block = "(no goals set)"
 
+    def _kind(source: str) -> str:
+        if source.startswith("run:"):
+            return f"{source[4:]} summary"
+        return {"tool": "note phi saved", "conversation": "from a conversation"}.get(
+            source, source or "unknown origin"
+        )
+
     notes_block = "\n".join(
-        f"[{(n.get('created_at') or '')[:10]}] {n.get('content', '')}"
+        f"[{(n.get('created_at') or '')[:10]}"
+        f"{' · ' + w if (w := relative_when(n.get('created_at') or '')) else ''}"
+        f" · {_kind(n.get('source', ''))}] {n.get('content', '')}"
         for n in raw_notes
     )
 
