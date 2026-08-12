@@ -13,11 +13,15 @@ Covers authoring scenes through the `excalidraw` MCP server (`read_me`,
 
 1. `lexidraw_save` — pass `rkey` to update a scene in place, omit it to create a
    new one. Returns the `at://` uri and a `https://lexidraw.app/#atproto=<did>,<rkey>` link.
-   For large scenes, build incrementally: save the layout first, then update by
-   rkey adding batches — several modest saves beat one giant one.
-2. You cannot render the scene, so review it **numerically**: `lexidraw_open`
+2. **HARD RULE: never emit more than ~10 elements in a single save call.**
+   This applies to revisions as much as creation — one giant save has killed
+   entire runs twice by blowing the per-response output cap before anything
+   landed. Create with the first ~10 elements, then update by rkey, passing
+   the full element list so far plus the next batch, until done.
+3. You cannot render the scene, so review it **numerically**: `lexidraw_open`
    the saved scene and check the geometry (see "numeric self-review" below).
-3. Name what's wrong concretely, fix via rkey update, repeat. Expect 2–3 passes.
+4. Name what's wrong concretely, fix via rkey update (in batches, same hard
+   rule), repeat. Expect 2–3 passes.
 
 ## arrows connect edges, not centers
 
