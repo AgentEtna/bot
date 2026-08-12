@@ -318,9 +318,12 @@ class PhiAgent:
                 anthropic_cache_instructions=CACHE_TTLS["instructions"],
                 anthropic_cache_messages=CACHE_TTLS["messages"],
                 # the 2026-07-10 chicken precheck died on the provider-default
-                # output cap before producing anything — a scheduled slot must
-                # not be able to fail that way
-                max_tokens=8192,
+                # output cap before producing anything, and 8192 killed the
+                # 2026-08-12 source-informed redraw batch (thinking + a large
+                # lexidraw scene in one response). 16k is the documented safe
+                # ceiling for non-streaming requests; sonnet-5 supports 128k
+                # but larger values need streaming
+                max_tokens=16000,
             ),
             output_type=str,
             deps_type=PhiDeps,
