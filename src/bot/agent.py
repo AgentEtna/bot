@@ -12,7 +12,7 @@ from typing import Any, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic_ai import Agent, ImageUrl, RunContext
-from pydantic_ai.mcp import MCPServerStreamableHTTP
+from pydantic_ai.mcp import MCPServerStdio, MCPServerStreamableHTTP
 from pydantic_ai.models.anthropic import AnthropicModelSettings
 from pydantic_ai.toolsets import AbstractToolset
 from pydantic_ai_skills import SkillsToolset
@@ -796,6 +796,23 @@ class PhiAgent:
                 process_tool_call=make_mcp_guard("tangled", run_label),
             ),
         ]
+        # Lexidraw — phi draws into her own repo (app.lexidraw.scene records,
+        # viewable at lexidraw.app). Stdio server baked into the image; her
+        # own credentials, so scenes attribute to her. lexidraw_save is a
+        # public artifact in her name → guard treats it as a mutation.
+        if Path(settings.lexidraw_mcp_path).exists():
+            toolsets.append(
+                MCPServerStdio(
+                    "node",
+                    args=[settings.lexidraw_mcp_path],
+                    env={
+                        "LEXIDRAW_HANDLE": settings.bluesky_handle,
+                        "LEXIDRAW_APP_PASSWORD": settings.bluesky_password,
+                    },
+                    timeout=30,
+                    process_tool_call=make_mcp_guard("lexidraw", run_label),
+                )
+            )
         # Prefect MCP — only included when auth is configured, so phi degrades
         # gracefully in dev/local without the secret set.
         if settings.prefect_api_auth_string:

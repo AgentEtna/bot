@@ -145,9 +145,11 @@ def get_reconciliation_agent() -> Agent[None, ReconciliationResult]:
 EPISODIC_SCHEMA = {
     "content": {"type": "string", "full_text_search": True},
     "tags": {"type": "[]string", "filterable": True},
-    "source": {"type": "string", "filterable": True},  # "tool", "conversation"
+    "source": {"type": "string", "filterable": True},  # "tool", "run:<label>", ...
     "source_uris": {"type": "[]string"},  # AT-URIs backing this memory (optional)
     "created_at": {"type": "string"},
+    "status": {"type": "string", "filterable": True},  # active, superseded
+    "supersedes": {"type": "string"},  # id of the episodic row this replaces
 }
 
 USER_NAMESPACE_SCHEMA = {

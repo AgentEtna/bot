@@ -633,27 +633,143 @@ class NamespaceMemory:
     ):
         """Store an episodic memory — something phi learned about the world.
 
+        Consolidates at write time, the same way observations do: the
+        candidate is reconciled against the most similar existing episode
+        (ADD / UPDATE / DELETE / NOOP, superseded rows patched, pedigree
+        linked). Without this, every loop's run summary is one permanent
+        near-duplicate row per run, forever — the store fills with the log
+        instead of the gist. A reconciler outage degrades to a raw ADD:
+        losing dedup for one write is fine, losing the memory is not.
+
         source_uris are AT-URIs that back this memory (a post phi was reading,
         a thread phi was in, a card phi made). Empty allowed but lower-trust
         on read.
         """
+        embedding = await self._get_embedding(content)
+        try:
+            similar = await self._find_similar_episodic(embedding, top_k=3)
+        except Exception as e:
+            logger.warning(f"episodic similarity lookup failed, raw ADD: {e}")
+            similar = []
+
+        if not similar:
+            await self._write_episodic(content, tags, source, source_uris, embedding)
+            logger.info(f"stored episodic memory [{source}]: {content[:80]}")
+            return
+
+        best = similar[0]
+        try:
+            result = await get_reconciliation_agent().run(
+                f"EXISTING observation: {best['content']}\n"
+                f"EXISTING tags: {best['tags']}\n\n"
+                f"NEW observation: {content}\n"
+                f"NEW tags: {tags}"
+            )
+            decision = result.output.decision
+            action = decision.action.upper()
+        except Exception as e:
+            logger.warning(f"episodic reconciliation failed, raw ADD: {e}")
+            decision = None
+            action = "ADD"
+
+        if action == "NOOP":
+            logger.info(
+                f"episodic NOOP [{source}]: '{content[:60]}' ({decision.reason})"
+            )
+            return
+
+        if action in ("UPDATE", "DELETE") and decision is not None:
+            self.namespaces["episodic"].write(
+                patch_rows=[{"id": best["id"], "status": "superseded"}],
+            )
+            if action == "UPDATE":
+                merged_content = decision.new_content or content
+                merged_tags = decision.new_tags or tags
+                unioned = list(
+                    dict.fromkeys(
+                        list(best.get("source_uris") or []) + list(source_uris or [])
+                    )
+                )
+                merged_embedding = await self._get_embedding(merged_content)
+                await self._write_episodic(
+                    merged_content,
+                    merged_tags,
+                    source,
+                    unioned,
+                    merged_embedding,
+                    supersedes=best["id"],
+                )
+                logger.info(
+                    f"episodic UPDATE [{source}]: '{best['content'][:40]}' -> "
+                    f"'{merged_content[:40]}' ({decision.reason})"
+                )
+            else:
+                await self._write_episodic(
+                    content, tags, source, source_uris, embedding,
+                    supersedes=best["id"],
+                )
+                logger.info(
+                    f"episodic DELETE+ADD [{source}]: superseded "
+                    f"'{best['content'][:40]}' ({decision.reason})"
+                )
+            return
+
+        await self._write_episodic(content, tags, source, source_uris, embedding)
+        logger.info(f"stored episodic memory [{source}]: {content[:80]}")
+
+    async def _write_episodic(
+        self,
+        content: str,
+        tags: list[str],
+        source: str,
+        source_uris: list[str] | None,
+        embedding: list[float],
+        supersedes: str = "",
+    ) -> None:
         entry_id = self._generate_id("episodic", source, content)
         self.namespaces["episodic"].write(
             upsert_rows=[
                 {
                     "id": entry_id,
-                    "vector": await self._get_embedding(content),
+                    "vector": embedding,
                     "content": content,
                     "tags": tags,
                     "source": source,
                     "source_uris": list(source_uris or []),
                     "created_at": datetime.now().isoformat(),
+                    "status": "active",
+                    "supersedes": supersedes,
                 }
             ],
             distance_metric="cosine_distance",
             schema=EPISODIC_SCHEMA,
         )
-        logger.info(f"stored episodic memory [{source}]: {content[:80]}")
+
+    async def _find_similar_episodic(
+        self, embedding: list[float], top_k: int = 3
+    ) -> list[dict]:
+        """Nearest active episodic rows. Legacy rows predate the status
+        field, so superseded rows are dropped client-side rather than with
+        an Eq filter that would also drop every row missing the attribute.
+        """
+        response = self.namespaces["episodic"].query(
+            rank_by=("vector", "ANN", embedding),
+            top_k=top_k + 5,
+            include_attributes=["content", "tags", "source_uris", "status"],
+        )
+        rows = []
+        for row in response.rows or []:
+            if getattr(row, "status", None) == "superseded":
+                continue
+            rows.append(
+                {
+                    "id": row.id,
+                    "content": row.content,
+                    "tags": getattr(row, "tags", []) or [],
+                    "source_uris": list(getattr(row, "source_uris", []) or []),
+                }
+            )
+        return rows[:top_k]
 
     async def search_episodic(self, query: str, top_k: int = 10) -> list[dict]:
         """Semantic search over phi's episodic memories."""
@@ -661,12 +777,14 @@ class NamespaceMemory:
             query_embedding = await self._get_embedding(query)
             response = self.namespaces["episodic"].query(
                 rank_by=("vector", "ANN", query_embedding),
-                top_k=top_k,
-                include_attributes=["content", "tags", "source", "created_at"],
+                top_k=top_k + 5,
+                include_attributes=["content", "tags", "source", "created_at", "status"],
             )
             results = []
             if response.rows:
                 for row in response.rows:
+                    if getattr(row, "status", None) == "superseded":
+                        continue
                     results.append(
                         {
                             "content": row.content,
@@ -675,7 +793,7 @@ class NamespaceMemory:
                             "created_at": getattr(row, "created_at", ""),
                         }
                     )
-            return results
+            return results[:top_k]
         except Exception as e:
             if "was not found" in str(e):
                 return []
@@ -750,13 +868,21 @@ class NamespaceMemory:
                     None,
                     lambda: self.namespaces["episodic"].query(
                         rank_by=("vector", "ANN", query_embedding),
-                        top_k=top_k,
-                        include_attributes=["content", "tags", "source", "created_at"],
+                        top_k=top_k + 5,
+                        include_attributes=[
+                            "content",
+                            "tags",
+                            "source",
+                            "created_at",
+                            "status",
+                        ],
                     ),
                 )
                 results = []
                 if response.rows:
                     for row in response.rows:
+                        if getattr(row, "status", None) == "superseded":
+                            continue
                         results.append(
                             {
                                 "content": row.content,
@@ -766,7 +892,7 @@ class NamespaceMemory:
                                 "_source": "episodic",
                             }
                         )
-                return results
+                return results[:top_k]
             except Exception as e:
                 if "was not found" in str(e):
                     return []

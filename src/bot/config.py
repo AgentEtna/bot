@@ -250,6 +250,14 @@ class Settings(BaseSettings):
         description="URL of the tangled MCP server (fastmcp.app deployment)",
     )
 
+    # Lexidraw — drawings as app.lexidraw.scene records in phi's own repo,
+    # via the stdio node MCP server baked into the image. Absent path (dev,
+    # local) simply leaves the toolset out.
+    lexidraw_mcp_path: str = Field(
+        default="/opt/lexidraw/dist/index.js",
+        description="path to the built lexidraw-mcp entrypoint; toolset is skipped if missing",
+    )
+
     # Discovery pool — generic agents endpoint serving authors the operator
     # has been liking. Currently lives on hub.waow.tech as part of the
     # prefect-server side; consumers (phi here) read it as opaque JSON.

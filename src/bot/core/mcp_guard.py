@@ -56,12 +56,13 @@ _READ_VERBS = (
     "resolve",
     "inspect",
     "schema",
+    "open",
 )
 
 
 def _bare_verb(name: str) -> str:
     """Strip pydantic-ai's ``tool_prefix`` so verbs compare across servers."""
-    for prefix in ("pub_", "semble_", "tangled_", "prefect_"):
+    for prefix in ("pub_", "semble_", "tangled_", "prefect_", "lexidraw_"):
         if name.startswith(prefix):
             return name[len(prefix) :]
     return name

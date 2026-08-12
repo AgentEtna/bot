@@ -8,6 +8,14 @@ RUN bun install --frozen-lockfile
 COPY web/ ./
 RUN bun run build
 
+# --- lexidraw-mcp build stage (stdio node MCP server phi draws with) ---
+FROM node:22-slim AS lexidraw-builder
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN git clone https://tangled.org/zzstoatzz.io/lexidraw-mcp /lexidraw \
+    && git -C /lexidraw checkout c4774e97c6364f7c3718174a108e026b65e98138
+WORKDIR /lexidraw
+RUN npm ci && npm run build && npm prune --omit=dev
+
 # --- python deps stage ---
 FROM python:3.12-slim AS builder
 
@@ -37,6 +45,14 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # --- runtime stage ---
 FROM python:3.12-slim
+
+# node runtime for the lexidraw stdio MCP server; the copied binary needs
+# libstdc++ which python-slim doesn't guarantee
+RUN apt-get update && apt-get install -y --no-install-recommends libstdc++6 && rm -rf /var/lib/apt/lists/*
+COPY --from=node:22-slim /usr/local/bin/node /usr/local/bin/node
+COPY --from=lexidraw-builder /lexidraw/dist /opt/lexidraw/dist
+COPY --from=lexidraw-builder /lexidraw/node_modules /opt/lexidraw/node_modules
+COPY --from=lexidraw-builder /lexidraw/package.json /opt/lexidraw/package.json
 
 COPY --from=builder /app /app
 
