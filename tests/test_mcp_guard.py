@@ -284,3 +284,47 @@ async def test_the_self_record_is_still_readable_through_pdsx(monkeypatch, calls
     )
     assert result == "ok"
     assert len(calls) == 1
+
+
+# --- prior coverage rides along on every sizeable MCP read ------------------
+
+
+async def test_guard_appends_coverage_to_sizeable_read(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(mcp_guard, "get_override", override(False))
+    monkeypatch.setattr(
+        mcp_guard, "coverage_note", AsyncMock(return_value="[PRIOR COVERAGE] note")
+    )
+    guard = mcp_guard.make_mcp_guard("pdsx", "test")
+    big = "x" * 500
+
+    async def call_tool(name, args, meta):
+        return big
+
+    ctx = SimpleNamespace(deps=SimpleNamespace(memory=object()))
+    result = await guard(ctx, call_tool, "list_records", {"collection": "fm.plyr.track"})
+    assert result == f"{big}\n\n[PRIOR COVERAGE] note"
+
+
+async def test_guard_skips_coverage_for_small_or_memoryless(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(mcp_guard, "get_override", override(False))
+    note = AsyncMock(return_value="[PRIOR COVERAGE] note")
+    monkeypatch.setattr(mcp_guard, "coverage_note", note)
+    guard = mcp_guard.make_mcp_guard("pdsx", "test")
+
+    async def call_tool(name, args, meta):
+        return "tiny"
+
+    ctx = SimpleNamespace(deps=SimpleNamespace(memory=object()))
+    assert await guard(ctx, call_tool, "list_records", {}) == "tiny"
+
+    async def call_tool_big(name, args, meta):
+        return "y" * 500
+
+    assert await guard(None, call_tool_big, "list_records", {}) == "y" * 500
+    note.assert_not_awaited()

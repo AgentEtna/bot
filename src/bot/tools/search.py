@@ -144,7 +144,10 @@ def register(agent):
                 lines.append(f"   {url}")
             if content:
                 lines.append(f"   {content[:400]}")
-        return "\n".join(lines)
+        result = "\n".join(lines)
+        if note := await coverage_note(ctx.deps.memory, result):
+            result = f"{result}\n\n{note}"
+        return result
 
     @agent.tool
     async def get_trending(ctx: RunContext[PhiDeps]) -> str:

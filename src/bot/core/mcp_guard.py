@@ -23,6 +23,7 @@ from typing import Any
 import logfire
 
 from bot.core.override import get_override, refusal_text
+from bot.core.prior_coverage import coverage_note
 
 logger = logging.getLogger("bot.mcp_guard")
 
@@ -209,10 +210,32 @@ def make_mcp_guard(server: str, run_label: str = ""):
         # calls race on its side.
         if server == "semble" and name.endswith("execute"):
             async with _semble_execute_lock:
-                return await _invoke(call_tool, server, name, tool_args, run_label)
-        return await _invoke(call_tool, server, name, tool_args, run_label)
+                result = await _invoke(call_tool, server, name, tool_args, run_label)
+        else:
+            result = await _invoke(call_tool, server, name, tool_args, run_label)
+        return await _with_coverage(ctx, result)
 
     return process
+
+
+_COVERAGE_MIN_CHARS = 400
+
+
+async def _with_coverage(ctx: Any, result: Any) -> Any:
+    """Perception-keyed recall on every MCP result, structurally.
+
+    Any sizeable textual result is material entering phi's context, so her
+    own posts nearest it ride along — the same recall feeds/search carry
+    inline, without per-tool wiring. This seam exists because a pdsx
+    list_records call fed her the plyr catalog with no recall attached and
+    she "discovered" it three runs straight. Recall going quiet must never
+    break the call itself.
+    """
+    memory = getattr(getattr(ctx, "deps", None), "memory", None)
+    if not memory or not isinstance(result, str) or len(result) < _COVERAGE_MIN_CHARS:
+        return result
+    note = await coverage_note(memory, result)
+    return f"{result}\n\n{note}" if note else result
 
 
 async def _invoke(
