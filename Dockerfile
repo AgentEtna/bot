@@ -12,7 +12,7 @@ RUN bun run build
 FROM node:22-slim AS lexidraw-builder
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN git clone https://tangled.org/zzstoatzz.io/lexidraw-mcp /lexidraw \
-    && git -C /lexidraw checkout c4774e97c6364f7c3718174a108e026b65e98138
+    && git -C /lexidraw checkout 638f62bb5cedd3c65fe9552179d3970bf8daa3a1
 WORKDIR /lexidraw
 RUN npm ci && npm run build && npm prune --omit=dev
 
