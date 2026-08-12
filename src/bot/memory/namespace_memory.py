@@ -755,7 +755,9 @@ class NamespaceMemory:
         response = self.namespaces["episodic"].query(
             rank_by=("vector", "ANN", embedding),
             top_k=top_k + 5,
-            include_attributes=["content", "tags", "source_uris", "status"],
+            # include_attributes=True — naming "status" errors on namespaces
+            # that predate the schema field (see the same pattern above)
+            include_attributes=True,
         )
         rows = []
         for row in response.rows or []:
@@ -778,7 +780,7 @@ class NamespaceMemory:
             response = self.namespaces["episodic"].query(
                 rank_by=("vector", "ANN", query_embedding),
                 top_k=top_k + 5,
-                include_attributes=["content", "tags", "source", "created_at", "status"],
+                include_attributes=True,
             )
             results = []
             if response.rows:
@@ -869,13 +871,7 @@ class NamespaceMemory:
                     lambda: self.namespaces["episodic"].query(
                         rank_by=("vector", "ANN", query_embedding),
                         top_k=top_k + 5,
-                        include_attributes=[
-                            "content",
-                            "tags",
-                            "source",
-                            "created_at",
-                            "status",
-                        ],
+                        include_attributes=True,
                     ),
                 )
                 results = []

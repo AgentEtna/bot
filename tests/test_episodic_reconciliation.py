@@ -145,6 +145,9 @@ async def test_search_episodic_drops_superseded():
     assert "old version" not in contents
     assert "current version" in contents
     assert "legacy row without status" in contents
+    # naming "status" in include_attributes 400s on namespaces that predate
+    # the schema field (took episodic reads down in prod, 2026-08-12)
+    assert ns.query.call_args.kwargs["include_attributes"] is True
 
 
 async def test_find_similar_episodic_missing_namespace_degrades():
