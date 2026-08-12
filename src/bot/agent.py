@@ -566,13 +566,12 @@ class PhiAgent:
         async def inject_episodic(ctx: RunContext[PhiDeps]) -> str:
             if not ctx.deps.memory:
                 return ""
-            # Batch notifications have a real semantic seed: the posts phi is
-            # reacting to. Scheduled runs have no notification seed and their
-            # task text ("you have a moment") made vector recall noisy, so
-            # they used to get no episodic block at all — which is how the
-            # plyr catalog got "discovered" three runs in a row. Residue is
-            # the seed instead: what recent runs left behind is exactly what
-            # a scheduled run is most likely to pick back up.
+            # Recall is keyed to what started the run and nothing else — the
+            # task cues the memory. Batches seed from the posts phi is
+            # reacting to; scheduled runs seed from their own prompt. The
+            # residue-seeded variant (2026-08-12, briefly) retrieved more of
+            # whatever was already lingering — months-old prefect logs, the
+            # same catalog itch every slot — memory as amplifier, not cue.
             notifs = ctx.deps.notifications_context or {}
             if notifs:
                 texts = [
@@ -582,9 +581,8 @@ class PhiAgent:
                 ]
                 query = " ".join(texts)
             else:
-                block = await render_residue_block(bot_client)
-                query = "\n".join(block.splitlines()[1:]).strip()
-            if not query:
+                query = ctx.deps.run_prompt
+            if not query.strip():
                 return ""
             # Pass phi's goals so the synthesis can rank by relevance to intent.
             try:
@@ -843,6 +841,8 @@ class PhiAgent:
     ) -> str:
         """Run phi with fresh MCP toolsets and consistent error logging."""
         toolsets = self._mcp_toolsets(run_label=label)
+        if deps is not None and isinstance(prompt, str):
+            deps.run_prompt = prompt
         cache_monitor.begin_run(label)
         try:
             async with contextlib.AsyncExitStack() as stack:

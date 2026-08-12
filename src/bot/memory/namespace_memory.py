@@ -114,6 +114,28 @@ def _citation_tail(source_uris: list[str], created_at: str = "") -> str:
 
 logger = logging.getLogger("bot.memory")
 
+_RECENCY_HALF_LIFE_DAYS = 14.0
+
+
+def _recency_weight(created_at: str) -> float:
+    """Age discount for episodic recall: 1.0 now, halving every 14 days.
+
+    Unparseable/missing timestamps count as ~90 days old — legacy rows
+    without created_at shouldn't outrank dated recent ones.
+    """
+    from datetime import UTC
+
+    try:
+        ts = datetime.fromisoformat(created_at)
+        if ts.tzinfo is None:
+            age_days = (datetime.now() - ts).total_seconds() / 86400
+        else:
+            age_days = (datetime.now(UTC) - ts).total_seconds() / 86400
+        age_days = max(age_days, 0.0)
+    except (ValueError, TypeError):
+        age_days = 90.0
+    return 0.5 ** (age_days / _RECENCY_HALF_LIFE_DAYS)
+
 
 # Lazy haiku agent — synthesizes top-K episodic candidates into a coherent
 # block, given phi's goals + the current query as context. Replaces a raw
@@ -774,12 +796,19 @@ class NamespaceMemory:
         return rows[:top_k]
 
     async def search_episodic(self, query: str, top_k: int = 10) -> list[dict]:
-        """Semantic search over phi's episodic memories."""
+        """Semantic search over phi's episodic memories, recency-weighted.
+
+        Pure cosine ranking let four-month-old prefect status dumps outrank
+        last week's lived episodes whenever wording matched — in the
+        2026-08-12 14:02 run all ten candidates were April/May ops logs.
+        Similarity is discounted by age (14-day half-life), so old entries
+        must be much closer to surface at all.
+        """
         try:
             query_embedding = await self._get_embedding(query)
             response = self.namespaces["episodic"].query(
                 rank_by=("vector", "ANN", query_embedding),
-                top_k=top_k + 5,
+                top_k=top_k * 3,
                 include_attributes=True,
             )
             results = []
@@ -787,14 +816,20 @@ class NamespaceMemory:
                 for row in response.rows:
                     if getattr(row, "status", None) == "superseded":
                         continue
+                    created_at = getattr(row, "created_at", "") or ""
                     results.append(
                         {
                             "content": row.content,
                             "tags": getattr(row, "tags", []),
                             "source": getattr(row, "source", "unknown"),
-                            "created_at": getattr(row, "created_at", ""),
+                            "created_at": created_at,
+                            "_score": (1.0 - row["$dist"])
+                            * _recency_weight(created_at),
                         }
                     )
+            results.sort(key=lambda r: r["_score"], reverse=True)
+            for r in results:
+                del r["_score"]
             return results[:top_k]
         except Exception as e:
             if "was not found" in str(e):
@@ -870,7 +905,7 @@ class NamespaceMemory:
                     None,
                     lambda: self.namespaces["episodic"].query(
                         rank_by=("vector", "ANN", query_embedding),
-                        top_k=top_k + 5,
+                        top_k=top_k * 3,
                         include_attributes=True,
                     ),
                 )
@@ -879,15 +914,21 @@ class NamespaceMemory:
                     for row in response.rows:
                         if getattr(row, "status", None) == "superseded":
                             continue
+                        created_at = getattr(row, "created_at", "") or ""
                         results.append(
                             {
                                 "content": row.content,
                                 "tags": getattr(row, "tags", []),
                                 "source": getattr(row, "source", "unknown"),
-                                "created_at": getattr(row, "created_at", ""),
+                                "created_at": created_at,
                                 "_source": "episodic",
+                                "_score": (1.0 - row["$dist"])
+                                * _recency_weight(created_at),
                             }
                         )
+                results.sort(key=lambda r: r["_score"], reverse=True)
+                for r in results:
+                    del r["_score"]
                 return results[:top_k]
             except Exception as e:
                 if "was not found" in str(e):

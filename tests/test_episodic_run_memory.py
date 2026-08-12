@@ -87,18 +87,18 @@ async def test_episodic_store_failure_does_not_kill_run():
     assert out == _FakeResult.output
 
 
-def test_inject_episodic_seeds_from_residue_on_scheduled_runs():
+def test_inject_episodic_seeds_from_run_prompt_only():
     """inject_episodic is a closure in __init__; assert its shape at source
-    level (the idiom test_now_block uses): the no-notification branch must
-    query via residue rather than returning "" outright.
+    level (the idiom test_now_block uses): recall is keyed to the prompt
+    that started the run — never to residue, which amplified whatever was
+    already lingering (2026-08-12: months-old prefect logs every slot).
     """
     src = inspect.getsource(PhiAgent.__init__)
     _, _, episodic = src.partition("async def inject_episodic")
     episodic = episodic.split("@_run_scoped")[0]
-    assert "render_residue_block" in episodic, (
-        "scheduled runs must seed episodic recall from residue"
+    assert "run_prompt" in episodic, (
+        "scheduled runs must seed episodic recall from the run's own prompt"
     )
-    assert "if not notifs:\n                return " not in episodic, (
-        "the old early-return for scheduled runs is back — episodic recall "
-        "would be silent exactly where re-discovery happens"
+    assert "render_residue_block" not in episodic, (
+        "residue-seeded recall is back — memory as amplifier, not cue"
     )

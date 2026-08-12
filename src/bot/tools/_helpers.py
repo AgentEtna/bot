@@ -37,6 +37,9 @@ class PhiDeps:
     # clears them — that is what "addressed" means, and it keeps the
     # bookkeeping structural instead of asking phi to self-report.
     seen_incident_ids: list[str] = field(default_factory=list)
+    # the prompt that started this run. memory recall is keyed to this and
+    # nothing else — the task cues the memory, the way a person's does.
+    run_prompt: str = ""
 
 
 def _is_owner(ctx: RunContext[PhiDeps]) -> bool:

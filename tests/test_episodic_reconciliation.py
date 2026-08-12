@@ -122,21 +122,28 @@ async def test_reconciler_outage_degrades_to_add():
     assert rows[0]["content"] == "must not be lost"
 
 
+class _Row(SimpleNamespace):
+    def __getitem__(self, k):
+        if k == "$dist":
+            return self.dist
+        raise KeyError(k)
+
+
 async def test_search_episodic_drops_superseded():
     mem, ns = _memory_with_episodic_ns()
     ns.query.return_value = SimpleNamespace(
         rows=[
-            SimpleNamespace(
+            _Row(
                 content="old version", tags=[], source="tool",
-                created_at="", status="superseded",
+                created_at="", status="superseded", dist=0.2,
             ),
-            SimpleNamespace(
+            _Row(
                 content="current version", tags=[], source="tool",
-                created_at="", status="active",
+                created_at="", status="active", dist=0.2,
             ),
-            SimpleNamespace(
+            _Row(
                 content="legacy row without status", tags=[], source="tool",
-                created_at="", status=None,
+                created_at="", status=None, dist=0.2,
             ),
         ]
     )
@@ -160,3 +167,28 @@ async def test_find_similar_episodic_missing_namespace_degrades():
     ns.query.side_effect = RuntimeError("namespace 'phi-episodic' was not found")
     await mem.store_episodic_memory("first ever memory", ["t"])
     assert len(_upserted_rows(ns)) == 1
+
+
+async def test_search_episodic_recency_beats_stale_similarity():
+    from datetime import UTC, datetime, timedelta
+
+    mem, ns = _memory_with_episodic_ns()
+    now = datetime.now(UTC)
+    ns.query.return_value = SimpleNamespace(
+        rows=[
+            _Row(  # April ops dump: slightly closer, four months old
+                content="prefect check 2026-04-26: ingest healthy",
+                tags=[], source="tool", status="active", dist=0.30,
+                created_at=(now - timedelta(days=120)).isoformat(),
+            ),
+            _Row(  # last week's lived episode: a bit further, recent
+                content="dug through fm.plyr.track, posted, blogged",
+                tags=[], source="run:cycle", status="active", dist=0.40,
+                created_at=(now - timedelta(days=5)).isoformat(),
+            ),
+        ]
+    )
+    results = await mem.search_episodic("anything", top_k=2)
+    assert results[0]["content"].startswith("dug through"), (
+        "a 4-month-old entry outranked last week's despite recency weighting"
+    )
