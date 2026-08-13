@@ -200,3 +200,92 @@ async def check_action(
             f"{verdict.get('reason', '')} (action: {action[:120]})"
         )
     return verdict
+
+
+# --- self-record admissibility -----------------------------------------------
+
+
+class SelfRecordVerdict(TypedDict):
+    """The judge's decision on a proposed self-record rewrite."""
+
+    verdict: Literal["allow", "block"]
+    reasons: NotRequired[
+        Annotated[
+            list[str],
+            Field(
+                description=(
+                    "on block: one entry per offending line — quote the line "
+                    "fragment, name which rule it breaks, in words addressed "
+                    "to phi. omit on allow."
+                )
+            ),
+        ]
+    ]
+
+
+# the charter is what phi reviews; this statute is what the judge enforces,
+# with the case law the charter alone failed to carry (all 2026-08-13):
+# a machine-state tally survived a retro that ran with the rules present; a
+# charter-clean rewrite still narrated the record's own scope; hours after
+# agreeing to cut that line, a scheduled run proposed reinstating the day's
+# audit finding as a "receipt". self-assessment against the charter lost
+# three times in one day — so the letter lives here, with a judge that is
+# not the writer.
+_SELF_RECORD_STATUTE = """\
+the self record holds what stays true of phi between runs — character, not
+state. block any line that:
+- tallies machine state: incident counts, alert ratios, post statistics,
+  which flow or deployment broke. these describe the operator's
+  infrastructure during some stretch, never phi.
+- encodes a single event or a dominated stretch as a trait. this includes
+  events being smuggled in as "receipts": a receipt makes a durable claim
+  admissible; the event itself is not the claim. "today i found X" is an
+  event even when X is true and interesting.
+- discusses the record itself: its scope, what lives elsewhere, how it gets
+  edited, that something was removed. omission is silent.
+- states an aspiration (those live in goals).
+- attaches a specific noun (a flow name, a number, a date) to a citation
+  when the claim reads as reconstructed rather than sourced — when in
+  doubt about whether the cited source actually says it, block and say so.
+judge lines, not vibes: a record can be blocked for one bad line while the
+rest is fine — name each offending line so phi can cut it and resubmit in
+the same run. character claims with honest receipts, in phi's voice, pass."""
+
+
+def _get_self_record_judge() -> Agent[None, SelfRecordVerdict]:
+    return Agent[None, SelfRecordVerdict](
+        name="phi-self-record-judge",
+        model=settings.policy_model,
+        output_type=SelfRecordVerdict,
+        system_prompt=(
+            "you are the admissibility judge for phi's self record — the "
+            "self-description injected into every run she makes. you are "
+            "not phi; you are the independent check between her draft and "
+            "the record. you receive the statute, the current record, and "
+            "the proposed replacement. judge the proposed text line by "
+            "line against the statute only — do not add taste rules of "
+            "your own, and do not block for brevity, tone, or lowercase. "
+            "when no line violates the statute, allow."
+        ),
+    )
+
+
+async def check_self_record(proposed: str, current: str = "") -> SelfRecordVerdict:
+    """Judge a proposed self-record rewrite. Raises on judge failure —
+    the caller fails closed (a wrong record injected into every subsequent
+    run outlives any single missed rewrite window)."""
+    parts = [
+        "statute:",
+        _SELF_RECORD_STATUTE,
+        "",
+        f"current record:\n{current or '(none)'}",
+        "",
+        f"proposed replacement:\n{proposed}",
+    ]
+    result = await _get_self_record_judge().run("\n".join(parts))
+    verdict = result.output
+    if verdict["verdict"] != "allow":
+        logger.warning(
+            f"self-record judge blocked rewrite: {verdict.get('reasons', [])}"
+        )
+    return verdict

@@ -153,10 +153,62 @@ async def test_the_owner_can_after_review(monkeypatch):
         AsyncMock(return_value="at://did:plc:phi/io.zzstoatzz.phi.self/self"),
     )
     monkeypatch.setattr(self_record_tool, "get_self_block", AsyncMock(return_value=""))
+    monkeypatch.setattr(
+        self_record_tool, "check_self_record", AsyncMock(return_value={"verdict": "allow"})
+    )
     ctx = _ctx(settings.owner_handle)
     await _tool("write_self").function(ctx, "text")
     result = await _tool("write_self").function(ctx, "text")
     assert "rewritten" in result
+
+
+# --- the judge --------------------------------------------------------------
+
+
+async def test_judge_block_stops_the_write_with_reasons(monkeypatch):
+    """Self-assessment against the charter lost three times on 2026-08-13
+    (tally survived a retro; clean rewrite narrated its own scope; the day's
+    audit finding nearly reinstated as a 'receipt'). The letter lives with a
+    judge that is not the writer; a block names lines and keeps the
+    authorization standing so phi can cut and resubmit in the same run."""
+    called = AsyncMock()
+    monkeypatch.setattr(self_record_tool, "write_self_record", called)
+    monkeypatch.setattr(self_record_tool, "get_self_block", AsyncMock(return_value=""))
+    monkeypatch.setattr(
+        self_record_tool,
+        "check_self_record",
+        AsyncMock(
+            return_value={
+                "verdict": "block",
+                "reasons": ['"today i found a wrong flow name" — an event, not a trait'],
+            }
+        ),
+    )
+    ctx = _ctx(settings.owner_handle)
+    await _tool("write_self").function(ctx, "draft")
+    result = await _tool("write_self").function(ctx, "draft")
+    assert "not written" in result
+    assert "an event, not a trait" in result
+    assert "authorization still stands" in result
+    called.assert_not_awaited()
+
+
+async def test_judge_outage_fails_closed(monkeypatch):
+    """A wrong record injected into every subsequent run outlives any single
+    missed rewrite window."""
+    called = AsyncMock()
+    monkeypatch.setattr(self_record_tool, "write_self_record", called)
+    monkeypatch.setattr(self_record_tool, "get_self_block", AsyncMock(return_value=""))
+    monkeypatch.setattr(
+        self_record_tool,
+        "check_self_record",
+        AsyncMock(side_effect=RuntimeError("judge down")),
+    )
+    ctx = _ctx(settings.owner_handle)
+    await _tool("write_self").function(ctx, "draft")
+    result = await _tool("write_self").function(ctx, "draft")
+    assert "not written" in result
+    called.assert_not_awaited()
 
 
 # --- the forced review ------------------------------------------------------

@@ -19,6 +19,7 @@ from bot.config import settings
 from bot.core import persona as persona_core
 from bot.core.atproto_client import bot_client
 from bot.core.persona import PERSONA_MAX_CHARS, PERSONA_MAX_DAYS
+from bot.core.policy import check_self_record
 from bot.core.self_record import (
     SELF_CHARTER,
     SELF_MAX_CHARS,
@@ -81,6 +82,27 @@ def register(agent):
             return (
                 f"only @{settings.owner_handle} can authorize a self-record "
                 "rewrite — post the request first and have it liked"
+            )
+        # the charter shown above is self-assessed; this is not. an
+        # independent judge holds the letter — self-assessment lost three
+        # times on 2026-08-13 alone (see _SELF_RECORD_STATUTE's case law).
+        # fails closed: a wrong record injected into every subsequent run
+        # outlives any single missed rewrite window.
+        try:
+            current = await get_self_block(bot_client)
+            verdict = await check_self_record(text, current)
+        except Exception as e:
+            return (
+                f"self-record judge unavailable ({e}) — not written. "
+                "try again next run; the operator's authorization stands."
+            )
+        if verdict["verdict"] == "block":
+            reasons = "\n".join(f"- {r}" for r in verdict.get("reasons", []))
+            return (
+                "not written — the self-record judge blocked these lines:\n"
+                f"{reasons}\n"
+                "cut or rewrite them and call write_self again in this run; "
+                "the authorization still stands."
             )
         try:
             uri = await write_self_record(bot_client, text)
