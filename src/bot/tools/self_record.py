@@ -19,7 +19,12 @@ from bot.config import settings
 from bot.core import persona as persona_core
 from bot.core.atproto_client import bot_client
 from bot.core.persona import PERSONA_MAX_CHARS, PERSONA_MAX_DAYS
-from bot.core.self_record import SELF_MAX_CHARS, write_self_record
+from bot.core.self_record import (
+    SELF_CHARTER,
+    SELF_MAX_CHARS,
+    get_self_block,
+    write_self_record,
+)
 from bot.tools._helpers import PhiDeps, _is_owner
 
 
@@ -53,7 +58,25 @@ def register(agent):
         A receipt makes a claim admissible; it doesn't get to be the claim. A
         record made of incidents describes the month your infrastructure had,
         not you.
+
+        The first call in a run writes nothing: it returns the record's
+        charter and its current text for you to check your draft against,
+        line by line. Call again with the final text to write.
         """
+        # forced review: admissibility rules held as retro-prompt advice lost
+        # to context pressure two retros running — the review is structural now
+        review_key = "write_self_review"
+        if not ctx.deps.run_cache.get(review_key):
+            ctx.deps.run_cache[review_key] = "shown"
+            current = await get_self_block(bot_client)
+            return (
+                "not written yet — review first (every edit, structurally):\n\n"
+                f"{SELF_CHARTER}\n\n"
+                f"--- current record ---\n{current or '(no record yet)'}\n\n"
+                "hold each line of your draft against the charter — including "
+                "lines you're keeping unchanged — then call write_self again "
+                "with the final text."
+            )
         if not _is_owner(ctx):
             return (
                 f"only @{settings.owner_handle} can authorize a self-record "

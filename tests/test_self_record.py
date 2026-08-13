@@ -138,19 +138,57 @@ def _ctx(author_handle: str) -> RunContext[PhiDeps]:
 async def test_a_stranger_cannot_rewrite_who_phi_is(monkeypatch):
     called = AsyncMock()
     monkeypatch.setattr(self_record_tool, "write_self_record", called)
-    result = await _tool("write_self").function(_ctx("stranger.bsky.social"), "text")
+    monkeypatch.setattr(self_record_tool, "get_self_block", AsyncMock(return_value=""))
+    ctx = _ctx("stranger.bsky.social")
+    await _tool("write_self").function(ctx, "text")  # first call: review, writes nothing
+    result = await _tool("write_self").function(ctx, "text")
     assert settings.owner_handle in result
     called.assert_not_awaited()
 
 
-async def test_the_owner_can(monkeypatch):
+async def test_the_owner_can_after_review(monkeypatch):
     monkeypatch.setattr(
         self_record_tool,
         "write_self_record",
         AsyncMock(return_value="at://did:plc:phi/io.zzstoatzz.phi.self/self"),
     )
-    result = await _tool("write_self").function(_ctx(settings.owner_handle), "text")
+    monkeypatch.setattr(self_record_tool, "get_self_block", AsyncMock(return_value=""))
+    ctx = _ctx(settings.owner_handle)
+    await _tool("write_self").function(ctx, "text")
+    result = await _tool("write_self").function(ctx, "text")
     assert "rewritten" in result
+
+
+# --- the forced review ------------------------------------------------------
+
+
+async def test_first_call_reviews_instead_of_writing(monkeypatch):
+    """Admissibility rules held as retro-prompt advice lost to context
+    pressure two retros running (a machine-state tally survived the 08-01
+    retro with the instruction present). The review is structural now: the
+    first write_self call in a run returns the charter + current record and
+    writes nothing, even for the owner."""
+    called = AsyncMock()
+    monkeypatch.setattr(self_record_tool, "write_self_record", called)
+    monkeypatch.setattr(
+        self_record_tool,
+        "get_self_block",
+        AsyncMock(return_value="[SELF]\nold text with a tally"),
+    )
+    ctx = _ctx(settings.owner_handle)
+    result = await _tool("write_self").function(ctx, "new text")
+    assert "not written yet" in result
+    assert "circumstance, not identity" in result  # the charter rendered
+    assert "old text with a tally" in result  # the current record rendered
+    called.assert_not_awaited()
+
+
+async def test_review_happens_even_with_no_existing_record(monkeypatch):
+    monkeypatch.setattr(self_record_tool, "write_self_record", AsyncMock())
+    monkeypatch.setattr(self_record_tool, "get_self_block", AsyncMock(return_value=""))
+    ctx = _ctx(settings.owner_handle)
+    result = await _tool("write_self").function(ctx, "first ever text")
+    assert "no record yet" in result
 
 
 async def test_the_length_cap_is_structural():

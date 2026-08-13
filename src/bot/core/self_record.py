@@ -26,6 +26,28 @@ SELF_RKEY = "self"
 # with `updatedAt` still reading two weeks old. Both are structural now.
 SELF_MAX_CHARS = 2800
 
+# Shown to phi on every write_self attempt before anything lands (the tool's
+# first call in a run returns this + the current record instead of writing).
+# The admissibility rules lived only in the character retro's prompt, which
+# fires monthly — the 08-01 retro ran with them in place and a machine-state
+# tally survived into the record anyway, upgraded with a wrong flow name.
+# Prose advice loses to context pressure; a forced review step does not.
+SELF_CHARTER = """\
+the self record's purpose: what stays true of you between runs, in your
+words — character, not state.
+
+before any rewrite, hold every line you plan to keep or add against this:
+- state with a live block (standings, library shape, open threads, current
+  experiments) does not belong — it renders fresh every run and is stale
+  here by tomorrow.
+- a month where one thing dominated is circumstance, not identity. tallies
+  of machine state (incident counts, alert ratios, which flow broke)
+  describe the operator's infrastructure, never you.
+- a receipt makes a claim admissible; it doesn't get to be the claim.
+  follow every citation you keep — if the source doesn't actually say it,
+  the line goes.
+- aspirations live in goals, not here."""
+
 _TTL_SECONDS = 300
 _cache: dict = {"text": "", "fetched_at": 0.0}
 
