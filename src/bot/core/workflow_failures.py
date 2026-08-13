@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -71,7 +71,7 @@ def _state_age_seconds(run: dict[str, Any], now: float) -> float | None:
     except ValueError:
         return None
     if when.tzinfo is None:
-        when = when.replace(tzinfo=timezone.utc)
+        when = when.replace(tzinfo=UTC)
     return now - when.timestamp()
 
 

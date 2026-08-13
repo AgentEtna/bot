@@ -18,6 +18,7 @@ override), profile records — passes through untouched.
 import asyncio
 import logging
 import re
+from datetime import UTC, datetime
 from typing import Any
 
 import logfire
@@ -33,6 +34,12 @@ logger = logging.getLogger("bot.mcp_guard")
 # was the unchecked one.
 _PDSX_MUTATIONS = {"create_record", "update_record", "delete_record"}
 _BLOCKED_PREFIX = "app.bsky.feed."
+
+# Reaction records: zero-content pointers at someone else's work. These are
+# ordinary create_record calls governed here (subject verification, self-
+# refusal, policy judge) rather than routed to a dedicated tool — the
+# collection is the policy key, so a future star/vote is a row, not a tool.
+_REACTION_COLLECTIONS = {"app.bsky.feed.like": "like", "app.bsky.feed.repost": "repost"}
 
 # Collections whose trusted tool carries a gate that a raw record write would
 # skip. The self record joined this on 2026-07-30: it is owner-gated through
@@ -108,6 +115,10 @@ def _structural_refusal(
         )
     if not collection.startswith(_BLOCKED_PREFIX):
         return None
+    if collection in _REACTION_COLLECTIONS and name != "update_record":
+        # create is governed by _govern_reaction; delete is un-reacting,
+        # which is her own record and benign
+        return None
     logger.warning(
         f"pdsx guard refused {name} into {collection} "
         f"(rkey={tool_args.get('rkey', '')!r})"
@@ -115,8 +126,10 @@ def _structural_refusal(
     return (
         f"refused: raw {name} into {collection} bypasses your "
         "consent layer, policy check, and any operator override. "
-        "posting, liking, and reposting flow through the trusted "
-        "tools: post / like_post / repost_post."
+        "composed posts flow through the trusted tool: post. "
+        "likes and reposts are ordinary create_record calls into "
+        "app.bsky.feed.like / app.bsky.feed.repost — pass "
+        "record.subject.uri and the guard verifies and completes the rest."
     )
 
 
@@ -206,6 +219,14 @@ def make_mcp_guard(server: str, run_label: str = ""):
                 changes=changes,
             )
 
+        if server == "pdsx" and name == "create_record":
+            verb = _REACTION_COLLECTIONS.get(str(tool_args.get("collection", "")))
+            if verb:
+                result = await _govern_reaction(
+                    ctx, call_tool, verb, name, tool_args, run_label
+                )
+                return await _with_coverage(ctx, result)
+
         # semble's code-mode server is single-flight: concurrent execute
         # calls race on its side.
         if server == "semble" and name.endswith("execute"):
@@ -216,6 +237,97 @@ def make_mcp_guard(server: str, run_label: str = ""):
         return await _with_coverage(ctx, result)
 
     return process
+
+
+async def _govern_reaction(
+    ctx: Any,
+    call_tool: Any,
+    verb: str,
+    name: str,
+    tool_args: dict[str, Any],
+    run_label: str,
+) -> Any:
+    """Verify, judge, and complete a reaction record before it lands.
+
+    phi supplies only ``record.subject.uri``; the guard resolves the cid
+    (batch fast path, then fetch — hallucinated URIs refuse cleanly),
+    refuses her own posts, runs the policy judge with the same provenance
+    fail-open/fail-closed split as ``post``, and stamps subject.cid +
+    createdAt into the record. This replaced the like_post/repost_post
+    tools (2026-08-13): the checks were never verb-specific, so they
+    moved to the seam every write already passes through.
+    """
+    # local imports: bot.tools.posting imports nothing from this module,
+    # but keeping the guard import-light avoids ever creating that cycle
+    from bot.config import settings
+    from bot.core.atproto_client import bot_client
+    from bot.status import bot_status
+    from bot.tools.posting import _policy_gate, _resolve_post_ref
+
+    raw_record = tool_args.get("record")
+    record = dict(raw_record) if isinstance(raw_record, dict) else {}
+    subject = record.get("subject")
+    uri = (
+        subject.get("uri", "")
+        if isinstance(subject, dict)
+        else subject
+        if isinstance(subject, str)
+        else ""
+    )
+    if not uri:
+        return (
+            f"refused: a {verb} record needs record.subject.uri "
+            "(the AT-URI of the post) — the guard fills in the cid."
+        )
+
+    deps = getattr(ctx, "deps", None)
+    notifs = getattr(deps, "notifications_context", None) or {}
+    ref = await _resolve_post_ref(uri, notifs)
+    if ref is None:
+        return f"refused: could not verify {uri} — not a fetchable post record"
+    cid, _, _, author_handle, post_text = ref
+    if not cid:
+        return f"refused: could not determine cid for {uri}"
+
+    own_did = getattr(getattr(bot_client.client, "me", None), "did", "")
+    if author_handle == settings.bluesky_handle or (
+        own_did and uri.startswith(f"at://{own_did}/")
+    ):
+        return f"refused: that's your own post — a {verb} is for other people's work"
+
+    unprompted = not notifs and not getattr(deps, "author_handle", "")
+    action = f"{verb} of {uri}"
+    if author_handle:
+        action += f" by @{author_handle}"
+    if post_text:
+        action += f': "{post_text[:120]}"'
+    refusal, warn_note = await _policy_gate(
+        action,
+        "reaction record, triggered during "
+        + (
+            "notification handling."
+            if not unprompted
+            else "a scheduled cycle (nobody prompted this)."
+        ),
+        unprompted=unprompted,
+        tool=verb,
+    )
+    if refusal:
+        return refusal
+
+    subject_cid = subject.get("cid") if isinstance(subject, dict) else None
+    record["subject"] = {"uri": uri, "cid": subject_cid or cid}
+    record.setdefault("createdAt", datetime.now(UTC).isoformat())
+    record.setdefault("$type", str(tool_args.get("collection", "")))
+    result = await _invoke(
+        call_tool, "pdsx", name, {**tool_args, "record": record}, run_label
+    )
+    bot_status.record_response()
+    target = f"@{author_handle}" if author_handle else uri
+    logger.info(f"{verb}d {target}")
+    if warn_note and isinstance(result, str):
+        return result + warn_note
+    return result
 
 
 _COVERAGE_MIN_CHARS = 400

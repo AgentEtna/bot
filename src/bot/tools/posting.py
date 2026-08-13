@@ -9,7 +9,8 @@ The agent is told (in operational instructions) to use these tools instead of
 raw atproto record tools via pdsx — the latter would bypass gating and could
 accidentally tag arbitrary users via uncontrolled mention facets.
 
-Target URIs (for replies, likes, reposts) are verified by fetching the record;
+Target URIs for replies are verified by fetching the record; reactions
+(likes, reposts) live in bot/core/mcp_guard.py as governed pdsx writes.
 hallucinated URIs refuse cleanly. Posts already in the current notifications
 batch short-circuit the fetch since their cid + author + thread root are
 already loaded.
@@ -155,7 +156,7 @@ async def _policy_gate(
             return (
                 "policy check unavailable and this action is unprompted — "
                 "refusing (fail-closed). nothing was posted. lower-stakes "
-                "moves (like_post, save_memory) are still open, or try "
+                "moves (a like record, save_memory) are still open, or try "
                 "again next cycle.",
                 "",
             )
@@ -385,80 +386,3 @@ def register(agent):
 
         return f"replied to {target} at {in_reply_to}" + warn_note
 
-    @agent.tool
-    async def like_post(
-        ctx: RunContext[PhiDeps],
-        uri: Annotated[
-            str,
-            Field(
-                description=(
-                    "AT-URI of the post to like. verified by fetch; refuses "
-                    "cleanly if it doesn't resolve."
-                )
-            ),
-        ],
-    ) -> str:
-        """Like a post. Use this to acknowledge something without saying anything."""
-        override = await get_override()
-        if override["active"]:
-            return refusal_text(override)
-        ref = await _resolve_post_ref(uri, ctx.deps.notifications_context or {})
-        if ref is None:
-            return f"refused: could not verify {uri}"
-        parent_cid, _, _, author_handle, _ = ref
-        if not parent_cid:
-            return f"refused: could not determine cid for {uri}"
-        # engagement notifications put phi's own post URI in the batch, so
-        # "acknowledge the like" is one confused hop from liking herself.
-        # out-of-batch URIs resolve with author_handle="" — match her DID too.
-        own_did = getattr(getattr(bot_client.client, "me", None), "did", "")
-        if author_handle == settings.bluesky_handle or (
-            own_did and uri.startswith(f"at://{own_did}/")
-        ):
-            return "refused: that's your own post — likes are for other people's work"
-
-        try:
-            await bot_client.like_post(uri=uri, cid=parent_cid)
-        except Exception as e:
-            logger.exception(f"like_post failed for {uri}: {e}")
-            return f"failed to like: {e}"
-
-        bot_status.record_response()
-        target = f"@{author_handle}" if author_handle else uri
-        logger.info(f"liked {target}")
-        return f"liked {uri}"
-
-    @agent.tool
-    async def repost_post(
-        ctx: RunContext[PhiDeps],
-        uri: Annotated[
-            str,
-            Field(
-                description=(
-                    "AT-URI of the post to repost. verified by fetch; refuses "
-                    "cleanly if it doesn't resolve."
-                )
-            ),
-        ],
-    ) -> str:
-        """Repost a post. Use rarely — only when something genuinely deserves amplification."""
-        override = await get_override()
-        if override["active"]:
-            return refusal_text(override)
-        ref = await _resolve_post_ref(uri, ctx.deps.notifications_context or {})
-        if ref is None:
-            return f"refused: could not verify {uri}"
-        parent_cid, _, _, author_handle, _ = ref
-        if not parent_cid:
-            return f"refused: could not determine cid for {uri}"
-
-        try:
-            await bot_client.repost(uri=uri, cid=parent_cid)
-        except Exception as e:
-            logger.exception(f"repost_post failed for {uri}: {e}")
-            return f"failed to repost: {e}"
-
-        bot_status.record_response()
-        target = f"@{author_handle}" if author_handle else uri
-        logger.info(f"reposted {target}")
-        return f"reposted {uri}"

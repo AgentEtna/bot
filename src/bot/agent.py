@@ -127,7 +127,7 @@ def _build_operational_instructions() -> str:
         f"- {slug}: {text}" for slug, text in POLICY_SUMMARIES.items()
     )
     return f"""
-posting flows through post / like_post / repost_post — raw atproto record-create tools (pdsx) bypass the consent layer.
+composed posts flow through `post` — raw record-creates into app.bsky.feed.post bypass the consent layer. likes and reposts are plain create_record calls into app.bsky.feed.like / app.bsky.feed.repost: pass record.subject.uri and the guard verifies the post, refuses your own, and fills in cid + createdAt.
 
 your policies, held by you and independently enforced by a judge on every `post` call:
 {policies_block}
@@ -273,7 +273,7 @@ class PhiAgent:
         #
         # output_type=str: the agent's "decision" is no longer a structured
         # action — actions happen as tool calls during the run (post,
-        # like_post, etc). The final string return is just a brief summary
+        # reaction records, etc). The final string return is just a brief summary
         # for logging.
         # anthropic prompt caching — tool definitions are perfectly static
         # across runs (~30 tools; observed ~12k tokens cached). 1h TTL chosen
@@ -902,8 +902,8 @@ class PhiAgent:
 
         The unit of work is "the set of new notifications since the last poll."
         The agent looks at all of them at once, decides what (if anything) to do
-        about each, and acts via the trusted posting tools (post / like_post /
-        repost_post). Side effects happen as tool calls during the run; the
+        about each, and acts via the trusted post tool or governed reaction
+        record-creates. Side effects happen as tool calls during the run; the
         return value is just a summary string for logging.
 
         notifications_context: dict mapping post URI -> per-notification context
@@ -938,10 +938,11 @@ class PhiAgent:
         # Images from any post in the batch are attached as multimodal inputs.
         prompt_text = (
             "process your new notifications batch. look at the [NEW NOTIFICATIONS] "
-            "block in your context, decide what to do, and use the trusted posting "
-            "tools to act — `post(text, in_reply_to=<uri>)` for replies, "
-            "`post(text)` for top-level, both with optional threading off your own "
-            "posts. you don't have to act on every item — silence is fine, "
+            "block in your context, decide what to do, and act — "
+            "`post(text, in_reply_to=<uri>)` for replies, `post(text)` for "
+            "top-level, and create_record into app.bsky.feed.like with "
+            "record.subject.uri to like (the guard fills in the rest). "
+            "you don't have to act on every item — silence is fine, "
             "and a like is often the right whole response. likes also have "
             "value in posterity: they're your public record of what caught "
             "your attention, and you revisit them (get_own_likes) — so like "

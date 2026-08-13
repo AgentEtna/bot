@@ -64,7 +64,7 @@ if you want a specific rkey (e.g. for `app.bsky.actor.profile/self`), pass `rkey
 
 ## the consent / posting layer
 
-pdsx will happily let you create `app.bsky.feed.post` records — but **don't post via pdsx**. the trusted posting tools (`post`, `like_post`, `repost_post`) handle mention-consent allowlisting, reply-ref construction (`post(text, in_reply_to=uri)` for any reply, including threading your own), grapheme splitting, and memory writes. raw pdsx posting bypasses all of that. use it for everything *except* posts.
+pdsx will happily let you create `app.bsky.feed.post` records — but **don't post via pdsx**. the trusted `post` tool handles mention-consent allowlisting, reply-ref construction (`post(text, in_reply_to=uri)` for any reply, including threading your own), grapheme splitting, and memory writes. likes and reposts, though, ARE pdsx: `create_record` into `app.bsky.feed.like` or `app.bsky.feed.repost` with just `record.subject.uri` — the guard verifies the post exists, refuses your own posts, runs the policy judge, and fills in `subject.cid` + `createdAt` for you.
 
 pdsx's `query` tool is **GET-only** — sync, identity, and the `app.bsky` getter surface (`getQuotes`, `getProfile`, `getPostThread`, `searchPosts`, etc.). auth is automatic and not yours to choose: the few session-backed NSIDs on the server's allowlist (currently `app.bsky.notification.listNotifications` / `getUnreadCount`) attach your session by themselves; everything else is queried publicly. there is no `authenticated` parameter worth passing — it's deprecated and ignored. if a session-backed endpoint you need isn't allowlisted, raise it with the operator (extending the allowlist is a deliberate pdsx-server decision, not a parallel local tool).
 

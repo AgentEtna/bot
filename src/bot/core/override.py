@@ -7,7 +7,7 @@ own repo, but the bot only reads ``settings.owner_did``'s copy. atproto's
 own security model is the allowlist.
 
 While active:
-- outward-facing tools (post / like_post / repost_post) refuse with the
+- outward-facing writes (post, governed reaction records) refuse with the
   operator's message, verbatim
 - the message renders as an [OPERATOR OVERRIDE] block in phi's system
   prompt, so she learns about it up front rather than by bumping into

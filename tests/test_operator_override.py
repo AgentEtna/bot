@@ -121,7 +121,7 @@ async def test_guard_blocks_feed_post_create():
         {"collection": "app.bsky.feed.post", "record": {"text": "hi", "reply": {}}},
     )
     assert "refused" in result
-    assert "post / like_post / repost_post" in result
+    assert "trusted tool: post" in result
     call_tool.assert_not_called()
 
 

@@ -12,6 +12,7 @@ phi as a string and never logged.
 """
 
 import logging
+from datetime import UTC
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -187,9 +188,9 @@ class TestStaleFailuresAreNotNews:
 
     @staticmethod
     def _run(name: str, age_seconds: float, now: float) -> dict:
-        from datetime import datetime, timezone
+        from datetime import datetime
 
-        when = datetime.fromtimestamp(now - age_seconds, tz=timezone.utc)
+        when = datetime.fromtimestamp(now - age_seconds, tz=UTC)
         return {"id": name, "name": name, "state": {"timestamp": when.isoformat()}}
 
     def test_a_july_crash_is_not_reported_in_august(self):

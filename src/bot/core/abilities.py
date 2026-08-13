@@ -108,10 +108,6 @@ RISK: dict[str, Risk] = {
         "magnitude": "moderate",
         "reason": "rewrites her public profile description; visible to everyone who looks at her, and she can rewrite it again.",
     },
-    "like_post": {
-        "magnitude": "moderate",
-        "reason": "notifies one person that phi read them, which is a social act she cannot un-send even after unliking.",
-    },
     "follow_user": {
         "magnitude": "moderate",
         "reason": "notifies the account and changes who phi is publicly associated with; reversible, and owner-gated because who she follows reads as endorsement.",
@@ -150,10 +146,6 @@ RISK: dict[str, Risk] = {
         "magnitude": "high",
         "reason": "a reply lands in someone's notifications and cannot be un-notified; a top-level post is read by people who were not in the conversation that produced it.",
     },
-    "repost_post": {
-        "magnitude": "high",
-        "reason": "amplifies someone else's post to phi's followers under her name, which endorses whatever it turns out to say.",
-    },
     "publish_blog_post": {
         "magnitude": "high",
         "reason": "publishes a document to greengale under her name and she has no tool to delete one afterwards.",
@@ -177,6 +169,21 @@ RISK: dict[str, Risk] = {
 }
 
 
+# Reaction verbs are not tools — they're governed create_record writes
+# (bot/core/mcp_guard.py), keyed by collection. The judge still needs their
+# risk text, so they declare here, outside the tool bijection.
+REACTION_RISK: dict[str, Risk] = {
+    "like": {
+        "magnitude": "moderate",
+        "reason": "notifies one person that phi read them, which is a social act she cannot un-send even after unliking.",
+    },
+    "repost": {
+        "magnitude": "high",
+        "reason": "amplifies someone else's post to phi's followers under her name, which endorses whatever it turns out to say.",
+    },
+}
+
+
 def risk_of(tool_name: str) -> Risk | None:
     """The declaration for a tool, or None when it has none."""
     return RISK.get(tool_name)
@@ -189,7 +196,7 @@ def describe(tool_name: str) -> str:
     adds what the tool itself can cost, so a borderline call is weighed
     against a real consequence rather than the judge's guess at one.
     """
-    risk = RISK.get(tool_name)
+    risk = RISK.get(tool_name) or REACTION_RISK.get(tool_name)
     if not risk:
         return ""
     return f"{tool_name} is {risk['magnitude']}-risk: {risk['reason']}"
