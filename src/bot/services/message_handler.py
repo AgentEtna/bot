@@ -378,6 +378,10 @@ class MessageHandler:
         """Coral editorial-context refresh — see :meth:`PhiAgent.process_editorial`."""
         await self._run_scheduled("editorial", self.agent.process_editorial)
 
+    async def likes_review(self):
+        """Weekly read-back of phi's likes — see :meth:`PhiAgent.process_likes_review`."""
+        await self._run_scheduled("likes review", self.agent.process_likes_review)
+
     async def character_retro(self):
         """Self-record rewrite — see :meth:`PhiAgent.process_character_retro`."""
         await self._run_scheduled("character retro", self.agent.process_character_retro)

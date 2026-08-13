@@ -243,6 +243,15 @@ class BotClient:
         )
         return response.feed
 
+    async def get_own_likes(self, limit: int = 25):
+        """Fetch posts the bot has liked, newest first. Auth-only: the
+        appview restricts getActorLikes to the requesting account."""
+        await self.authenticate()
+        response = self.client.app.bsky.feed.get_actor_likes(
+            params={"actor": self.client.me.did, "limit": limit}
+        )
+        return response.feed
+
     async def get_timeline(self, limit: int = 25):
         """Fetch the 'following' timeline feed."""
         await self.authenticate()

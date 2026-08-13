@@ -221,6 +221,7 @@ _TRIGGER_SLOTS = {
     "curation": lambda handler: handler.curation,
     "editorial": lambda handler: handler.editorial,
     "character-retro": lambda handler: handler.character_retro,
+    "likes-review": lambda handler: handler.likes_review,
 }
 
 

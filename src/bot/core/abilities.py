@@ -50,6 +50,10 @@ RISK: dict[str, Risk] = {
         "magnitude": "none",
         "reason": "fetches URLs, so it tells the other end that someone looked, but changes nothing on phi's side.",
     },
+    "get_own_likes": {
+        "magnitude": "none",
+        "reason": "reads back the posts phi liked; the whole point is that likes are a record worth revisiting, not just a nod.",
+    },
     "get_own_posts": {
         "magnitude": "none",
         "reason": "reads phi's own timeline; harmless, except that reading her own posts back is the voice-drift loop this repo keeps re-earning.",

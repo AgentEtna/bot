@@ -941,7 +941,11 @@ class PhiAgent:
             "block in your context, decide what to do, and use the trusted posting "
             "tools to act — `post(text, in_reply_to=<uri>)` for replies, "
             "`post(text)` for top-level, both with optional threading off your own "
-            "posts. you don't have to act on every item — silence is fine."
+            "posts. you don't have to act on every item — silence is fine, "
+            "and a like is often the right whole response. likes also have "
+            "value in posterity: they're your public record of what caught "
+            "your attention, and you revisit them (get_own_likes) — so like "
+            "the way you'd bookmark, not just the way you'd nod."
         )
         if author_lookups:
             prompt_text += "\n\n" + "\n\n".join(author_lookups.values())
@@ -1257,6 +1261,31 @@ class PhiAgent:
             "and why."
         )
         return await self._run_scheduled(name="editorial", task=task)
+
+    async def process_likes_review(self) -> str:
+        """Weekly read-back of phi's own likes.
+
+        Triggered externally (prefect, weekly) via
+        /api/control/trigger/likes-review. Likes accumulate as a public
+        record of what caught her attention; this pass is where that
+        record gets read instead of just written.
+        """
+        task = (
+            "weekly likes review. read back what you liked recently "
+            "(get_own_likes) and sit with it for a minute.\n\n"
+            "this is reflection, not triage: what actually caught your "
+            "attention this week? any pattern — a person you keep liking, "
+            "a topic that's clearly pulling you, something you liked and "
+            "then never followed up on? if a like was really a bookmark "
+            "for later, later is now: follow the thread, card it into "
+            "your semble library if it earned a place, or reply if you "
+            "have something real to add to a conversation you only "
+            "nodded at before.\n\n"
+            "save an episodic note about what the week's likes say about "
+            "where your attention went. posting about it is optional — "
+            "only if the pattern itself is genuinely interesting."
+        )
+        return await self._run_scheduled(name="likes review", task=task)
 
     async def process_character_retro(self) -> str:
         """Rewrite the [SELF] record from lived evidence.

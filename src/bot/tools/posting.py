@@ -408,6 +408,14 @@ def register(agent):
         parent_cid, _, _, author_handle, _ = ref
         if not parent_cid:
             return f"refused: could not determine cid for {uri}"
+        # engagement notifications put phi's own post URI in the batch, so
+        # "acknowledge the like" is one confused hop from liking herself.
+        # out-of-batch URIs resolve with author_handle="" — match her DID too.
+        own_did = getattr(getattr(bot_client.client, "me", None), "did", "")
+        if author_handle == settings.bluesky_handle or (
+            own_did and uri.startswith(f"at://{own_did}/")
+        ):
+            return "refused: that's your own post — likes are for other people's work"
 
         try:
             await bot_client.like_post(uri=uri, cid=parent_cid)

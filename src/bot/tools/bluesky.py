@@ -88,6 +88,29 @@ def register(agent):
             return f"failed to get own posts: {e}"
 
     @agent.tool
+    async def get_own_likes(ctx: RunContext[PhiDeps], limit: int = 25) -> str:
+        """Read back the posts you've liked, newest first. Your likes are a public record of what caught your attention — this is how you revisit it."""
+        try:
+            feed = await bot_client.get_own_likes(limit=limit)
+            if not feed:
+                return "no likes yet"
+            today = date.today()
+            lines = []
+            for item in feed:
+                p = item.post
+                text = p.record.text if hasattr(p.record, "text") else ""
+                age = (
+                    _relative_age(p.indexed_at, today)
+                    if getattr(p, "indexed_at", "")
+                    else ""
+                )
+                age_str = f" ({age})" if age else ""
+                lines.append(f"@{p.author.handle} [{p.uri}]{age_str}: {text[:200]}")
+            return "\n\n".join(lines)
+        except Exception as e:
+            return f"failed to get likes: {e}"
+
+    @agent.tool
     async def check_urls(ctx: RunContext[PhiDeps], urls: list[str]) -> str:
         """Check whether URLs are reachable. Use this before sharing links to verify they actually work. Accepts full URLs (https://...) or bare domains (example.com/path)."""
 
