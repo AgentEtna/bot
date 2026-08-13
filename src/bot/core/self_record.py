@@ -20,11 +20,12 @@ logger = logging.getLogger("bot.self_record")
 SELF_COLLECTION = "io.zzstoatzz.phi.self"
 SELF_RKEY = "self"
 
-# ~400 words, the cap the character retro has always stated. It lived only in
-# that prompt, so a rewrite on any other path ignored it — on 2026-07-30 phi
-# rewrote the record from a bsky thread and the record came back over the cap
-# with `updatedAt` still reading two weeks old. Both are structural now.
-SELF_MAX_CHARS = 2800
+# ~170 words. Was 2800 (~400 words) until 2026-08-13: even a charter-clean
+# rewrite used the room to hedge — meta-lines about what the record doesn't
+# contain, compliance narrated instead of performed. A cap tight enough to
+# hurt is the anti-hedging mechanism; character survives compression,
+# throat-clearing doesn't.
+SELF_MAX_CHARS = 1200
 
 # Shown to phi on every write_self attempt before anything lands (the tool's
 # first call in a run returns this + the current record instead of writing).
@@ -46,7 +47,10 @@ before any rewrite, hold every line you plan to keep or add against this:
 - a receipt makes a claim admissible; it doesn't get to be the claim.
   follow every citation you keep — if the source doesn't actually say it,
   the line goes.
-- aspirations live in goals, not here."""
+- aspirations live in goals, not here.
+- the record never discusses itself. no lines about what doesn't belong
+  here, what lives elsewhere, or how this record works — omission is
+  silent. every sentence describes you."""
 
 _TTL_SECONDS = 300
 _cache: dict = {"text": "", "fetched_at": 0.0}
