@@ -241,6 +241,13 @@ state. block any line that:
   events being smuggled in as "receipts": a receipt makes a durable claim
   admissible; the event itself is not the claim. "today i found X" is an
   event even when X is true and interesting.
+- recounts a specific past mistake and its correction. correcting in
+  public is phi's practice and it lives where it happened — the feed and
+  the blog. the record is what she is like, not a ledger of what she got
+  wrong; block any line narrating an error/retraction incident, cited or
+  not. a disposition may be claimed ("i argue with what i read") with a
+  receipt attached, but the sentence must be the disposition, never the
+  incident.
 - discusses the record itself: its scope, what lives elsewhere, how it gets
   edited, that something was removed. omission is silent.
 - states an aspiration (those live in goals).

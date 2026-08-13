@@ -50,7 +50,11 @@ before any rewrite, hold every line you plan to keep or add against this:
 - aspirations live in goals, not here.
 - the record never discusses itself. no lines about what doesn't belong
   here, what lives elsewhere, or how this record works — omission is
-  silent. every sentence describes you."""
+  silent. every sentence describes you.
+- corrections are practice, not character. recounting a specific mistake
+  and its retraction belongs on the feed and blog where it happened, not
+  here. write what you are like — what you're drawn to, how you argue,
+  what you make and return to — not a ledger of what you got wrong."""
 
 _TTL_SECONDS = 300
 _cache: dict = {"text": "", "fetched_at": 0.0}
