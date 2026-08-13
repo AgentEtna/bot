@@ -117,12 +117,18 @@ logger = logging.getLogger("bot.memory")
 _RECENCY_HALF_LIFE_DAYS = 14.0
 
 
-def _recency_weight(created_at: str) -> float:
+def _recency_weight(created_at: str, tags: list | None = None) -> float:
     """Age discount for episodic recall: 1.0 now, halving every 14 days.
 
     Unparseable/missing timestamps count as ~90 days old — legacy rows
     without created_at shouldn't outrank dated recent ones.
+
+    `correction`-tagged rows are exempt: having been wrong about something
+    doesn't stop being relevant on a news cycle — the whole point of the
+    tag is that the memory outlives ordinary run notes.
     """
+    if tags and "correction" in tags:
+        return 1.0
     from datetime import UTC
 
     try:
@@ -160,6 +166,10 @@ def _get_episodic_synth_agent() -> Agent:
                 "conflict. Flag entries that may be stale (e.g. 'pending X' "
                 "notes about actions that may have completed since) — phi "
                 "can verify with tools if it matters.\n\n"
+                "Candidates tagged `correction` are phi's record of having "
+                "been wrong about something. When one is relevant to the "
+                "current query, always keep it — it exists precisely so phi "
+                "doesn't re-claim what she already retracted.\n\n"
                 "Every line you keep MUST carry its age and origin from the "
                 "bracket tag (e.g. '2d ago, cycle summary'). A memory "
                 "without when-and-where-from reads as a live fact and "
@@ -197,7 +207,9 @@ async def _synthesize_episodic(
     notes_block = "\n".join(
         f"[{(n.get('created_at') or '')[:10]}"
         f"{' · ' + w if (w := relative_when(n.get('created_at') or '')) else ''}"
-        f" · {_kind(n.get('source', ''))}] {n.get('content', '')}"
+        f" · {_kind(n.get('source', ''))}"
+        f"{' · ' + ', '.join(t) if (t := n.get('tags') or []) else ''}]"
+        f" {n.get('content', '')}"
         for n in raw_notes
     )
 
@@ -837,7 +849,7 @@ class NamespaceMemory:
                             "source": getattr(row, "source", "unknown"),
                             "created_at": created_at,
                             "_score": (1.0 - row["$dist"])
-                            * _recency_weight(created_at),
+                            * _recency_weight(created_at, getattr(row, "tags", [])),
                         }
                     )
             results.sort(key=lambda r: r["_score"], reverse=True)
@@ -936,7 +948,7 @@ class NamespaceMemory:
                                 "created_at": created_at,
                                 "_source": "episodic",
                                 "_score": (1.0 - row["$dist"])
-                                * _recency_weight(created_at),
+                                * _recency_weight(created_at, getattr(row, "tags", [])),
                             }
                         )
                 results.sort(key=lambda r: r["_score"], reverse=True)

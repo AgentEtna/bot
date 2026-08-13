@@ -192,3 +192,45 @@ async def test_search_episodic_recency_beats_stale_similarity():
     assert results[0]["content"].startswith("dug through"), (
         "a 4-month-old entry outranked last week's despite recency weighting"
     )
+
+
+async def test_correction_tag_exempt_from_recency_decay():
+    """A correction from four months ago must outrank a fresher ordinary
+    note of equal similarity — having been wrong doesn't expire, and the
+    whole point of the tag is that the memory outlives run notes."""
+    from datetime import UTC, datetime, timedelta
+
+    mem, ns = _memory_with_episodic_ns()
+    now = datetime.now(UTC)
+    ns.query.return_value = SimpleNamespace(
+        rows=[
+            _Row(
+                content="relays A and B are synchronized (claimed, then retracted)",
+                tags=["correction"], source="tool", status="active", dist=0.35,
+                created_at=(now - timedelta(days=120)).isoformat(),
+            ),
+            _Row(
+                content="checked the relay dashboards this morning",
+                tags=[], source="run:cycle", status="active", dist=0.35,
+                created_at=(now - timedelta(days=2)).isoformat(),
+            ),
+        ]
+    )
+    results = await mem.search_episodic("relay synchronization", top_k=2)
+    assert results[0]["content"].startswith("relays A and B"), (
+        "a 4-month-old correction lost to a 2-day-old note at equal "
+        "similarity — corrections must not decay"
+    )
+
+
+def test_synth_candidates_render_tags():
+    """The ambient block's candidate lines must carry tags — a correction
+    invisible in [RELEVANT MEMORIES] is a correction phi can't act on."""
+    import inspect
+
+    from bot.memory import namespace_memory
+
+    src = inspect.getsource(namespace_memory._synthesize_episodic)
+    assert "tags" in src.split("notes_block")[1].split("payload")[0], (
+        "synth candidate lines no longer render tags"
+    )

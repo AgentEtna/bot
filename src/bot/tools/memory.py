@@ -29,6 +29,15 @@ def register(agent):
                 )
             ),
         ] = "",
+        tag: Annotated[
+            str,
+            Field(
+                description=(
+                    "optional tag to filter episodic results by (e.g. "
+                    "'correction' to audit what you've gotten wrong)"
+                )
+            ),
+        ] = "",
     ) -> str:
         """Search your private memory. Use to find past conversations and
         things you've explicitly saved.
@@ -39,10 +48,22 @@ def register(agent):
 
         With `about="@handle"`: searches that user's namespace only.
 
+        With `tag`: only episodic notes carrying that tag come back —
+        `tag="correction"` is how you audit your own errata.
+
         For public network knowledge, use the semble tools instead.
         Write-side companion: `save_memory` (episodic notes)."""
         if not ctx.deps.memory:
             return "memory not available"
+
+        if tag:
+            results = await ctx.deps.memory.search_episodic(query, top_k=30)
+            results = [r for r in results if tag in (r.get("tags") or [])][:10]
+            if not results:
+                return f"no memories tagged '{tag}' match that query"
+            from bot.tools._helpers import _format_episodic_results
+
+            return "\n".join(_format_episodic_results(results))
 
         if about.startswith("@"):
             handle = about.lstrip("@")
@@ -85,16 +106,26 @@ def register(agent):
             ),
         ] = "",
     ) -> str:
-        """Save something to your private memory for future semantic search.
+        """Save something to your private memory.
 
-        Writes to your private vector store (turbopuffer episodic namespace)
-        — found later via `search_memory`, never surfaces back to you on its
-        own.
+        Two ways it comes back: ambient recall (relevant notes ride into
+        your context at the start of a run, keyed to what you're
+        processing) and explicit `search_memory`.
+
+        Re-saving a refined version of something you remember SUPERSEDES
+        the old row — write-time reconciliation patches it with pedigree.
+        This is how you edit your memory: save the better version, the
+        stale one retires.
+
+        Tag `correction` when recording that you got something wrong
+        (claim, fix, and the post uri where you corrected it). Correction
+        notes never fade from recall the way ordinary notes do. The
+        corrected FACT belongs in your semble library only if it earns a
+        place on its own — filed under its subject, never under the
+        mistake.
 
         Pass source_uri when the memory is grounded in a specific post,
-        thread, or card you can cite — it makes it checkable later. Empty
-        is allowed when the thought is purely your own, but cite when you
-        can.
+        thread, or card you can cite — it makes it checkable later.
         """
         if ctx.deps.memory:
             sources = [source_uri] if source_uri else None
