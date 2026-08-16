@@ -23,7 +23,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
+from slowapi.middleware import SlowAPIMiddleware
 
 from bot.config import settings
 from bot.core import ops_log, prior_coverage
@@ -38,6 +38,7 @@ from bot.memory import NamespaceMemory
 from bot.services.notification_poller import NotificationPoller
 from bot.status import bot_status
 from bot.ui import activity_router
+from bot.utils.rate_limit import client_ip
 
 logger = logging.getLogger("bot.main")
 
@@ -138,7 +139,7 @@ async def lifespan(app: FastAPI):
     logger.info("phi shutdown complete")
 
 
-limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
+limiter = Limiter(key_func=client_ip, default_limits=["60/minute"])
 
 app = FastAPI(
     title=settings.bot_name,
@@ -146,6 +147,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.state.limiter = limiter
+# default_limits only apply through this middleware — without it the ceiling
+# was decorative and only the two @limiter.limit routes were enforced. Note it
+# cannot see the StaticFiles mount or the SPA fallback (a Mount has no
+# .endpoint, so slowapi exempts it), which is why page loads and their assets
+# are unaffected — and why this is not what stops a path scanner.
+app.add_middleware(SlowAPIMiddleware)
 app.add_exception_handler(
     RateLimitExceeded,
     lambda request, exc: JSONResponse(
@@ -166,6 +173,7 @@ app.include_router(activity_router)
 
 
 @app.get("/health")
+@limiter.exempt
 async def health():
     """Health check endpoint — also consumed by the frontend's status pill."""
     return {
