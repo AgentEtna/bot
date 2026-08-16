@@ -213,6 +213,13 @@ def register(agent):
                 evidence_uris=evid,
                 progress_signal=progress_signal,
             )
+            if uri is None:
+                return (
+                    f"unchanged — not written: {rkey} already holds this "
+                    "current_state and next_step. your run summary is "
+                    "recorded automatically; update the goal when its state "
+                    "actually moves."
+                )
             invalidate_state_cache()
             return f"progress updated for {rkey} ({uri})"
         except Exception as e:

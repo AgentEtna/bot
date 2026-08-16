@@ -228,3 +228,48 @@ def test_compact_leaves_top_level_posts_alone():
     )
     block = _render(rows)
     assert '"one"' in block and '"two"' in block
+
+
+def test_routine_writes_tally_instead_of_row_per_write():
+    """2026-08-15 audit: [RECENT OPERATIONS] averaged 10-14k chars, ~1/3 of
+    every prompt, mostly one-row-per-reply/like/goal-write. Routine activity
+    tallies to one line; content rows stay individual."""
+    rows = _rows_from_ops(
+        [
+            _op("create", "3p", nsid="app.bsky.feed.post", record={"text": "kept whole"}),
+            _op("update", "3g1", nsid="io.zzstoatzz.phi.goal",
+                record={"title": "make 3 friends", "created_at": "a", "updated_at": "b"},
+                offset_s=10),
+            _op("update", "3g1", nsid="io.zzstoatzz.phi.goal",
+                record={"title": "make 3 friends", "created_at": "a", "updated_at": "c"},
+                offset_s=20),
+            _op("create", "3l", nsid="app.bsky.feed.like",
+                record={"subject": {"uri": "at://x"}}, offset_s=30),
+        ]
+    )
+    for r in rows:
+        r["local"] = True
+    block = _render(rows)
+    assert '"kept whole"' in block
+    assert "goal updates ×2" in block
+    assert "likes ×1" in block
+    assert "goal updated" not in block  # no per-write goal rows
+    assert block.count("routine (") == 1
+
+
+def test_anomalies_never_tally():
+    """Deletes and external edits stay row-level — the tamper channel."""
+    rows = _rows_from_ops(
+        [
+            _op("create", "3l", nsid="app.bsky.feed.like",
+                record={"subject": {"uri": "at://x"}}),
+            _op("delete", "3l", nsid="app.bsky.feed.like", offset_s=5),
+            _op("update", "3g", nsid="io.zzstoatzz.phi.goal",
+                record={"title": "t", "created_at": "a", "updated_at": "b"},
+                offset_s=10),
+        ]
+    )
+    block = _render(rows)  # local=False: external edit must not tally
+    assert "DELETED (not via this process)" in block
+    assert "EDITED (not via this process)" in block
+    assert "likes ×1" in block

@@ -268,33 +268,66 @@ _OP_TAGS = {"create": "", "update": "EDITED", "delete": "DELETED"}
 
 _REPLY_RE = re.compile(r"^reply \(\d+ chars\)$")
 
+# Routine kinds tally into one line each instead of one row per write.
+# Keyed by (nsid, is_reply); the value is the tally label. Deletes and
+# non-local edits never tally — that's the anomaly channel, it stays
+# row-level (the semble tripwire).
+_ROUTINE_KINDS: dict[tuple[str, bool], str] = {
+    ("app.bsky.feed.post", True): "replies",
+    ("app.bsky.feed.like", False): "likes",
+    ("app.bsky.feed.repost", False): "reposts",
+    ("app.bsky.graph.follow", False): "follows",
+    ("io.zzstoatzz.phi.goal", False): "goal updates",
+}
+
+
+def _routine_kind(r: _Row) -> str | None:
+    if r["op"] == "delete" or (r["op"] == "update" and not r["local"]):
+        return None
+    if r["nsid"] == "io.zzstoatzz.phi.goal":
+        return _ROUTINE_KINDS[("io.zzstoatzz.phi.goal", False)]
+    is_reply = bool(_REPLY_RE.match(r["summary"]))
+    if r["op"] != "create":
+        return None
+    return _ROUTINE_KINDS.get((r["nsid"], is_reply))
+
+
+def _split_rows(rows: list[_Row]) -> tuple[list[_Row], list[_Row]]:
+    """Content rows render individually; routine rows collapse to tallies.
+
+    Content is what phi risks repeating (top-level posts, cards, docs,
+    connections) plus anything anomalous (deletes, external edits).
+    Routine is high-volume continuity noise: replies, likes, reposts,
+    follows, goal-progress writes.
+    """
+    content: list[_Row] = []
+    routine: list[_Row] = []
+    for r in rows:
+        (routine if _routine_kind(r) else content).append(r)
+    return content, routine
+
+
+def _tally_line(routine: list[_Row]) -> str:
+    counts: dict[str, tuple[int, str]] = {}
+    for r in routine:
+        kind = _routine_kind(r)
+        assert kind is not None
+        n, latest = counts.get(kind, (0, ""))
+        counts[kind] = (n + 1, max(latest, r["created_at"]))
+    parts = [
+        f"{kind} ×{n} (latest {relative_when(latest)})"
+        for kind, (n, latest) in counts.items()
+    ]
+    return f"routine ({WINDOW_HOURS:.0f}h): " + " · ".join(parts)
+
 
 def _compact(rows: list[_Row]) -> list[_Row]:
-    """Collapse rows that carry no distinct information.
-
-    - consecutive reply rows → one `replies ×N` row (timestamp of the last)
-    - a NOTE card created within a minute of a URL card → folded into the
-      URL card's row (`… +note`); semble saves always write the pair, so
-      two rows per save was pure double-billing
-    """
+    """Fold a NOTE card created within a minute of a URL card into the URL
+    card's row (`… +note`); semble saves always write the pair, so two rows
+    per save was pure double-billing."""
     out: list[_Row] = []
     for r in rows:
         prev = out[-1] if out else None
-        if (
-            prev is not None
-            and r["nsid"] == "app.bsky.feed.post"
-            and prev["nsid"] == "app.bsky.feed.post"
-            and r["op"] == prev["op"] == "create"
-            and _REPLY_RE.match(r["summary"])
-            and (_REPLY_RE.match(prev["summary"]) or prev["summary"].startswith("replies ×"))
-        ):
-            n = (
-                int(prev["summary"].split("×")[1]) + 1
-                if prev["summary"].startswith("replies ×")
-                else 2
-            )
-            out[-1] = {**prev, "created_at": r["created_at"], "summary": f"replies ×{n}"}
-            continue
         if (
             prev is not None
             and r["nsid"] == prev["nsid"] == "network.cosmik.card"
@@ -313,8 +346,8 @@ def _render(rows: list[_Row], truncated: int = 0) -> str:
     """Render rows as the [RECENT OPERATIONS] block. Pure function — easy to template later."""
     if not rows:
         return ""
-    rows = _compact(rows)
-    nsid_width = max(len(r["nsid"]) for r in rows)
+    content, routine = _split_rows(rows)
+    rows = _compact(content)
     header = (
         "[RECENT OPERATIONS — your repo's last "
         f"{WINDOW_HOURS:.0f}h, chronological: what you already said, so you "
@@ -325,6 +358,7 @@ def _render(rows: list[_Row], truncated: int = 0) -> str:
     if truncated:
         header += f" (showing newest {len(rows)}; {truncated} older rows elided)"
     lines = [header]
+    nsid_width = max((len(r["nsid"]) for r in rows), default=0)
     for r in rows:
         ts = r["created_at"]
         when = relative_when(ts) if ts else ""
@@ -335,6 +369,8 @@ def _render(rows: list[_Row], truncated: int = 0) -> str:
             tag += " (not via this process)"
         tag_part = f"{tag}  " if tag else ""
         lines.append(f"{time_part}  {nsid_part}  {tag_part}{r['summary']}")
+    if routine:
+        lines.append(_tally_line(routine))
     return "\n".join(lines)
 
 

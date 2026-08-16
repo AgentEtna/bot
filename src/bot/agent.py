@@ -1159,8 +1159,10 @@ class PhiAgent:
             "learned. the operator's invariants in place_chicken_trade (ruin "
             "floor, pre-registration, one wallet) bound sizing; risk "
             "appetite within them is a doctrine choice you own.\n\n"
-            "finish by recording the decision, its reasoning, and your "
-            "estimated hit probability with update_goal_progress."
+            "state the decision, its reasoning, and your estimated hit "
+            "probability in your closing summary — it's recorded "
+            "automatically. touch update_goal_progress only if the goal's "
+            "state actually moved (a doctrine revision, a new next step)."
         )
         return await self._run_scheduled(name="chicken precheck", task=task)
 
@@ -1187,8 +1189,10 @@ class PhiAgent:
             "decision with a stated reason, not a default. the operator's "
             "invariants in place_chicken_trade (ruin floor, pre-registration, "
             "one wallet) bound sizing; risk appetite is yours.\n\n"
-            "finish by recording the decision, reasoning, and estimated hit "
-            "probability with update_goal_progress."
+            "state the decision, reasoning, and estimated hit probability "
+            "in your closing summary — it's recorded automatically. touch "
+            "update_goal_progress only if the goal's state actually moved "
+            "(a doctrine revision, a new next step)."
         )
         return await self._run_scheduled(name="chicken scout", task=task)
 

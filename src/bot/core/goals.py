@@ -144,18 +144,27 @@ async def update_goal_progress(
     blocked_by: str = "",
     evidence_uris: list[str] | None = None,
     progress_signal: str | None = None,
-) -> str:
+) -> str | None:
     """Update a goal's OPERATIONAL fields, preserving its constitutional ones.
 
     Not owner-gated at the tool layer — phi keeps its own goals honest (what
     it just did, where things stand, the next concrete step). Sets
     last_step_at to now so the [GOALS AND INTERESTS] block can show staleness.
+
+    Returns None without writing when current_state and next_step match the
+    stored record — re-recording an unchanged state is journaling, and the
+    journal is episodic memory (run summaries land there unconditionally).
     """
     await client.authenticate()
     assert client.client.me is not None
     existing = await get_goal(client, rkey)
     if existing is None:
         raise ValueError(f"no goal with rkey {rkey!r}")
+    if (
+        existing.get("current_state") == current_state
+        and existing.get("next_step") == next_step
+    ):
+        return None
     now = datetime.now(UTC).isoformat()
     record = dict(existing)
     record.pop("_rkey", None)
