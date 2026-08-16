@@ -140,33 +140,11 @@ async def lifespan(app: FastAPI):
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
 
-
-class RejectWebsockets:
-    """Close websocket handshakes before they reach the HTTP stack.
-
-    phi serves no inbound websockets, but uvicorn ships with the websockets
-    lib, so an upgrade request (crawlers probe for them with Go's default
-    UA) gets a ws scope that the http-only middleware stack trips over —
-    seen 2026-08-16 as bare AssertionErrors on `/`. Closing pre-accept
-    makes uvicorn answer with a 403 handshake rejection instead.
-    """
-
-    def __init__(self, app):
-        self.app = app
-
-    async def __call__(self, scope, receive, send):
-        if scope["type"] == "websocket":
-            await send({"type": "websocket.close", "code": 1008})
-            return
-        await self.app(scope, receive, send)
-
-
 app = FastAPI(
     title=settings.bot_name,
     description="phi: a bluesky bot with episodic memory",
     lifespan=lifespan,
 )
-app.add_middleware(RejectWebsockets)
 app.state.limiter = limiter
 app.add_exception_handler(
     RateLimitExceeded,
