@@ -48,7 +48,6 @@ async def test_dead_mcp_toolset_does_not_kill_run():
     phi.agent = type("A", (), {"run": staticmethod(fake_run)})()
     with (
         patch.object(PhiAgent, "_mcp_toolsets", return_value=[dead, good]),
-        patch("bot.agent.update_residue_from_run"),
     ):
         out = await phi._run_agent(label="test run", prompt="hi", deps=None)
 

@@ -8,8 +8,8 @@ exploration had already happened. Two invariants now:
 
 - _run_agent stores the run summary as an episodic memory for scheduled
   runs (no notifications_context), unconditionally.
-- inject_episodic seeds recall from residue on scheduled runs instead of
-  going silent.
+- inject_episodic seeds recall from the run's own prompt on scheduled runs
+  instead of going silent.
 """
 
 import inspect
@@ -48,7 +48,6 @@ async def test_scheduled_run_stores_episodic_summary():
     deps = _deps()
     with (
         patch.object(PhiAgent, "_mcp_toolsets", return_value=[]),
-        patch("bot.agent.update_residue_from_run"),
     ):
         out = await phi._run_agent(label="original thought", prompt="hi", deps=deps)
 
@@ -67,7 +66,6 @@ async def test_batch_run_does_not_double_store():
     deps = _deps(notifications_context={"at://x": {"post_text": "hello"}})
     with (
         patch.object(PhiAgent, "_mcp_toolsets", return_value=[]),
-        patch("bot.agent.update_residue_from_run"),
     ):
         await phi._run_agent(label="notification batch", prompt="hi", deps=deps)
 
@@ -80,7 +78,6 @@ async def test_episodic_store_failure_does_not_kill_run():
     deps.memory.store_episodic_memory = AsyncMock(side_effect=RuntimeError("tpuf down"))
     with (
         patch.object(PhiAgent, "_mcp_toolsets", return_value=[]),
-        patch("bot.agent.update_residue_from_run"),
     ):
         out = await phi._run_agent(label="original thought", prompt="hi", deps=deps)
 
@@ -100,5 +97,6 @@ def test_inject_episodic_seeds_from_run_prompt_only():
         "scheduled runs must seed episodic recall from the run's own prompt"
     )
     assert "render_residue_block" not in episodic, (
-        "residue-seeded recall is back — memory as amplifier, not cue"
+        "residue-seeded recall is back — memory as amplifier, not cue "
+        "(residue itself was removed 2026-08-15 for laundering stale claims)"
     )

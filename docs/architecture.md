@@ -16,7 +16,7 @@ three settings, all full pydantic-ai `provider:model` strings:
 | --- | --- | --- |
 | `agent_model` | `phi`, `phi-extractor` | `anthropic:claude-sonnet-5` |
 | `policy_model` | `phi-policy-judge` | `openai-responses:gpt-5.6-luna` |
-| `extraction_model` | `phi-episodic-synth`, `observation-reconciler`, `phi-posting-inventory`, `phi-residue-synth` | `openai-responses:gpt-5.6-luna` |
+| `extraction_model` | `phi-episodic-synth`, `observation-reconciler`, `phi-posting-inventory` | `openai-responses:gpt-5.6-luna` |
 
 phi herself stays on one model deliberately. her voice is the product of a specific model reading [personalities/phi.md](../personalities/phi.md), and `core/cache_stability.py` wraps `agent_model` only — the cache accounting reads Anthropic's `cache_read_tokens` / `cache_write_tokens` off each response, so it observes the main agent and nothing else. sub-agents produce *structured context*, not voice, which is why they can move independently.
 

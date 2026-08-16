@@ -44,7 +44,7 @@ def test_logfire_instrumentation_degrades_gracefully():
 class TestSubAgentModelStrings:
     """Regression: sub-agent model settings are full `provider:model` strings.
 
-    bot.memory.extraction and bot.core.residue used to interpolate
+    bot.memory.extraction (and the since-removed bot.core.residue) used to interpolate
     settings.extraction_model into f"anthropic:{...}". That was invisible
     while every sub-agent ran on Anthropic, but it silently produced
     "anthropic:openai-responses:gpt-5.6-luna" at two of the four
@@ -53,12 +53,11 @@ class TestSubAgentModelStrings:
     """
 
     def _agents(self):
-        from bot.core import policy, residue, self_state
+        from bot.core import policy, self_state
         from bot.memory import extraction, namespace_memory
 
         for mod, attr, factory in (
             (extraction, "_reconciliation_agent", extraction.get_reconciliation_agent),
-            (residue, "_synth_agent", residue.get_residue_synth_agent),
             (namespace_memory, "_episodic_synth_agent", namespace_memory._get_episodic_synth_agent),
             (self_state, "_inventory_agent", self_state._get_inventory_agent),
             (policy, "_judge", policy._get_judge),

@@ -73,7 +73,6 @@ durable intent that phi acts against:
 when phi processes a notification batch, the system prompt assembles blocks from each kind of state:
 
 ```
-[RESIDUE]                              ← what recent runs left behind (PDS, decaying, descriptive-only)
 [GOALS AND INTERESTS]                  ← goals + interests, w/ next step + staleness (PDS)
 [SELF-AWARENESS]                       ← sub-agent description of what recent posts have been about, first person
 [NEW NOTIFICATIONS]                    ← the batch itself
@@ -89,13 +88,9 @@ each section is labeled with its trust level. operational instructions tell phi 
 
 see [system-prompt.md](system-prompt.md) for the full block-by-block reference (sources, refresh cadences, purposes).
 
-## residue
+## why residue was removed (2026-08-15)
 
-the system prompt is rebuilt from scratch every run, so without help nothing connects one cognitive event to the next. residue (`io.zzstoatzz.phi.residue`, a public singleton record on phi's PDS) is that continuity: at most 7 terse items describing what recent runs left behind, written **automatically** at the end of each run by a synthesis pass over the run's summary — the periphery writes, the deliberate workspace reads. phi never writes it directly.
-
-items are **strictly descriptive** — facts and unresolved state ("alice's question about embeddings went unanswered"), never instructions or plans ("follow up with alice"). this is the curiosity-queue lesson: an ungated store of self-assigned agenda items is standing pressure toward action that nothing reviews. residue records; whether to act is decided fresh inside a run, under the usual gates.
-
-decay is time-based and enforced in code: an item expires 3 days after it was last carried; the synth carrying an item forward verbatim reinforces it (bumps `lastHeldAt`, preserves `firstHeldAt`), while rewording resets its age. most runs carry the buffer unchanged — adding is the exception.
+residue (`io.zzstoatzz.phi.residue`) was a 7-item decaying buffer of "what recent runs left behind", synthesized at end-of-run and injected as `[RESIDUE]`. it was removed: the synth carried claims like "X went unanswered" with no ground truth, each carry reset the TTL, and the daily reflection copied those claims into goal records — two long-resolved threads stayed flagged open for weeks (2026-08-11), each memory surface corroborating the other. run summaries already land in episodic memory unconditionally; that is the continuity mechanism now.
 
 ## why episodic gets synthesized, observations don't
 

@@ -91,7 +91,6 @@ WITH s AS (
 )
 SELECT length(c) AS total,
   strpos(c,'[GOALS AND INTERESTS —') AS goals,
-  strpos(c,'[RESIDUE —')             AS residue,
   strpos(c,'[SEMBLE —')              AS semble,
   strpos(c,'[NEW NOTIFICATIONS')     AS notifs
 FROM s

@@ -38,7 +38,6 @@ from bot.core.prior_coverage import coverage_note
 from bot.core.public_memory import get_public_memory_block
 from bot.core.recent_flow_mentions import get_recent_flow_mentions_block
 from bot.core.recent_operations import get_operations_block
-from bot.core.residue import render_residue_block, update_residue_from_run
 from bot.core.self_record import get_self_block
 from bot.core.self_state import get_inventory_block, get_state_block
 from bot.core.workflow_failures import render_pending_block
@@ -462,11 +461,6 @@ class PhiAgent:
             return await get_state_block(bot_client, self.memory)
 
         @_run_scoped
-        async def inject_residue() -> str:
-            """[RESIDUE] — what recent runs left behind."""
-            return await render_residue_block(bot_client)
-
-        @_run_scoped
         async def inject_recent_operations() -> str:
             """[RECENT OPERATIONS] — last N PDS writes across collections, for continuity."""
             return await get_operations_block(bot_client)
@@ -873,10 +867,6 @@ class PhiAgent:
         summary = result.output or ""
         logger.info(f"{label} finished: {summary[:200]}")
         if label != "bio rewrite":
-            try:
-                await update_residue_from_run(bot_client, label, summary)
-            except Exception as e:
-                logger.warning(f"residue update after {label} failed: {e}")
             # Scheduled runs relied on phi voluntarily calling save_memory to
             # record what they did, which never happened — the 08-10 plyr dig
             # left no episodic trace and got re-discovered on 08-11. The run

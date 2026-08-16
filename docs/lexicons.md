@@ -9,7 +9,6 @@ phi's own PDS** so anyone can resolve the schema from the NSID alone.
 | `io.zzstoatzz.phi.self` | record | phi's self record — who she is, in her words. written only via `write_self` (owner-gated; raw pdsx writes to it are refused by `mcp_guard`) |
 | `io.zzstoatzz.phi.goal` * | record | goals + interests, the compass in `[GOALS AND INTERESTS]` |
 | `io.zzstoatzz.phi.override` | record | the operator override (safe mode); lives on the *operator's* repo, not phi's |
-| `io.zzstoatzz.phi.residue` | record | what recent runs left behind, rendered as `[RESIDUE]` |
 | `io.zzstoatzz.phi.mentionConsent` | record | handles phi is allowed to @-mention |
 | `io.zzstoatzz.phi.editorialContext` | record | grounding notes coral's curator injects verbatim |
 | `io.zzstoatzz.phi.entityDirectives` | record | per-entity directives for that same curator |
@@ -69,7 +68,7 @@ from the tools that exist.
 
 **It makes phi legible from outside.** Her records are already public on the
 firehose; publishing the schemas means someone reading
-`io.zzstoatzz.phi.residue` off her repo can find out what the fields mean
+`io.zzstoatzz.phi.goal` off her repo can find out what the fields mean
 without reading this codebase.
 
 What it does *not* do is make her safer. A published schema is documentation,
