@@ -147,6 +147,13 @@ def gate_firings(
         if state["detail"]:
             inc["detail"] = state["detail"]
     live_keys = {state["key"] for state in states}
+    for key, inc in out.items():
+        if (
+            key not in live_keys
+            and not inc.get("closed_ts")
+            and now_ts - inc.get("last_seen_ts", now_ts) >= QUIET_CLOSE_SECONDS
+        ):
+            inc["closed_ts"] = now_ts
     new_cursor = {k: v for k, v in new_cursor.items() if k in live_keys}
     return out, new_cursor
 

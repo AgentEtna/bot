@@ -93,6 +93,17 @@ def test_snoozed_and_inactive_do_not_fire():
     assert incidents == {}
 
 
+def test_deleted_alert_incident_quiet_closes():
+    incidents, cursor = gate_firings([_state()], {}, {}, T0)
+    # the alert vanishes from the snapshot (deleted); before the quiet
+    # window it stays open, after it it closes like any recovered alert
+    incidents, cursor = gate_firings([], incidents, cursor, T0 + 60)
+    assert "closed_ts" not in incidents["pub-search:abc"]
+    t_close = T0 + QUIET_CLOSE_SECONDS
+    incidents, cursor = gate_firings([], incidents, cursor, t_close)
+    assert incidents["pub-search:abc"]["closed_ts"] == t_close
+
+
 def test_cursor_pruned_to_live_alerts():
     _, cursor = gate_firings([_state()], {}, {"gone:alert": "old"}, T0)
     assert "gone:alert" not in cursor
