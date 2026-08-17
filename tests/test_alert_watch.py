@@ -2,12 +2,14 @@
 
 from bot.core.alert_watch import (
     CLOSED_RETENTION_SECONDS,
+    ESCALATION_SECONDS,
+    QUIET_CLOSE_SECONDS,
     fold_firing,
     gate_firings,
+    mark_mentioned,
     parse_webhook,
     render_alert_watch,
 )
-from bot.core.workflow_failures import ESCALATION_SECONDS, QUIET_CLOSE_SECONDS
 
 T0 = 1_000_000.0
 
@@ -201,6 +203,29 @@ def test_render_open_and_eligibility():
     assert "ESCALATION-ELIGIBLE" not in young.split("]", 1)[1]
     old = render_alert_watch(incidents, T0 + ESCALATION_SECONDS)
     assert "[ESCALATION-ELIGIBLE]" in old
+
+
+def test_mention_disarms_then_rearms():
+    """One tag per incident; a second only after another full window."""
+    incidents, _ = gate_firings([_state()], {}, {}, T0)
+    t_eligible = T0 + ESCALATION_SECONDS
+    assert "[ESCALATION-ELIGIBLE]" in render_alert_watch(incidents, t_eligible)
+
+    incidents = mark_mentioned(incidents, ["pub-search:abc"], t_eligible)
+    just_after = render_alert_watch(incidents, t_eligible + 60)
+    assert "operator notified" in just_after
+    assert "do not mention them again" in just_after
+    assert "ESCALATION-ELIGIBLE" not in just_after.split("]", 1)[1]
+
+    rearmed = render_alert_watch(incidents, t_eligible + ESCALATION_SECONDS)
+    assert "still firing long after the last mention" in rearmed
+
+
+def test_mark_mentioned_skips_closed_and_missing():
+    incidents = {"p:closed": {"opened_ts": T0, "closed_ts": T0 + 1}}
+    out = mark_mentioned(incidents, ["p:closed", "p:missing"], T0 + 2)
+    assert "mentioned_ts" not in out["p:closed"]
+    assert "p:missing" not in out
 
 
 def test_render_quieted_history():

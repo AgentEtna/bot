@@ -313,10 +313,8 @@ def register(agent):
                 allowed = await _build_allowed_handles(ctx.deps.author_handle or "")
                 await bot_client.create_post(text, allowed_handles=allowed)
                 bot_status.record_response()
-                # a post is what "addressed" means for a pending incident:
-                # phi spoke, so it stops following her around. structural, so
-                # she is never asked to self-report having done it.
-                bot_status.clear_pending_incidents(ctx.deps.seen_incident_ids)
+                if f"@{settings.owner_handle}" in text:
+                    bot_status.record_operator_mention(ctx.deps.seen_alert_keys)
                 logger.info(f"posted: {text[:80]}")
                 return f"posted: {text[:100]}" + warn_note
             except Exception as e:
@@ -360,7 +358,8 @@ def register(agent):
             return f"failed to post reply: {e}"
 
         bot_status.record_response()
-        bot_status.clear_pending_incidents(ctx.deps.seen_incident_ids)
+        if f"@{settings.owner_handle}" in text:
+            bot_status.record_operator_mention(ctx.deps.seen_alert_keys)
         target = f"@{author_handle}" if author_handle else in_reply_to
         logger.info(f"replied to {target}: {text[:80]}")
 

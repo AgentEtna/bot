@@ -28,12 +28,6 @@ class BotStatus:
     # knows when she was offline — informs how to handle a catchup batch.
     paused_at: datetime | None = None
     resumed_at: datetime | None = None
-    workflow_failure_monitor_seeded: bool = False
-    workflow_failure_run_ids: list[str] = field(default_factory=list)
-    workflow_incidents: dict = field(default_factory=dict)
-    # incidents phi has seen but not yet said anything about. they render in
-    # her context until a post clears them, so silence stays visible.
-    pending_incidents: dict = field(default_factory=dict)
     # logfire alert incidents (core/alert_watch.py) and the per-alert
     # last_run cursor that keeps a re-observed firing from counting twice.
     alert_incidents: dict = field(default_factory=dict)
@@ -86,23 +80,20 @@ class BotStatus:
         self.resumed_at = datetime.now(UTC)
         self._save()
 
-    def clear_pending_incidents(self, run_ids: list[str]) -> None:
-        """Mark incidents as addressed once phi has actually posted."""
-        if not run_ids:
-            return
-        for run_id in run_ids:
-            self.pending_incidents.pop(run_id, None)
-        self._save()
+    def record_operator_mention(self, alert_keys: list[str]) -> None:
+        """Stamp alert incidents phi just @-mentioned the operator about.
 
-    def record_workflow_failures(self, run_ids: list[str]):
-        """Persist delivered Prefect failure IDs so alerts survive restarts."""
-        self.workflow_failure_monitor_seeded = True
-        known = set(self.workflow_failure_run_ids)
-        for run_id in run_ids:
-            if run_id not in known:
-                self.workflow_failure_run_ids.append(run_id)
-                known.add(run_id)
-        self.workflow_failure_run_ids = self.workflow_failure_run_ids[-200:]
+        Structural, so she is never asked to self-report having done it —
+        the [ALERT WATCH] render flips those incidents to 'operator
+        notified' and withdraws the escalation flag.
+        """
+        if not alert_keys:
+            return
+        from bot.core.alert_watch import mark_mentioned
+
+        self.alert_incidents = mark_mentioned(
+            self.alert_incidents, alert_keys, datetime.now(UTC).timestamp()
+        )
         self._save()
 
     def _save(self):
@@ -127,12 +118,8 @@ class BotStatus:
                 "paused": self.paused,
                 "paused_at": self.paused_at.isoformat() if self.paused_at else None,
                 "resumed_at": self.resumed_at.isoformat() if self.resumed_at else None,
-                "workflow_failure_run_ids": self.workflow_failure_run_ids,
-                "workflow_incidents": self.workflow_incidents,
-                "pending_incidents": self.pending_incidents,
                 "alert_incidents": self.alert_incidents,
                 "alert_watch_cursor": self.alert_watch_cursor,
-                "workflow_failure_monitor_seeded": self.workflow_failure_monitor_seeded,
             }
             STATUS_FILE.write_text(json.dumps(data))
         except Exception as e:
@@ -160,16 +147,8 @@ class BotStatus:
                 self.paused_at = datetime.fromisoformat(data["paused_at"])
             if data.get("resumed_at"):
                 self.resumed_at = datetime.fromisoformat(data["resumed_at"])
-            self.workflow_failure_run_ids = list(
-                data.get("workflow_failure_run_ids") or []
-            )[-200:]
-            self.workflow_incidents = dict(data.get("workflow_incidents") or {})
-            self.pending_incidents = dict(data.get("pending_incidents") or {})
             self.alert_incidents = dict(data.get("alert_incidents") or {})
             self.alert_watch_cursor = dict(data.get("alert_watch_cursor") or {})
-            self.workflow_failure_monitor_seeded = bool(
-                data.get("workflow_failure_monitor_seeded", False)
-            )
             logger.info(
                 f"restored status: {self.mentions_received} mentions, {self.responses_sent} responses"
             )

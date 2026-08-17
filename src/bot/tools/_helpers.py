@@ -33,10 +33,10 @@ class PhiDeps:
     # blocks must render once per run (stable text keeps the message-history
     # cache prefix intact; several blocks hit the network).
     run_cache: dict[str, str] = field(default_factory=dict)
-    # incident run-ids rendered into this run's context. a successful post
-    # clears them — that is what "addressed" means, and it keeps the
-    # bookkeeping structural instead of asking phi to self-report.
-    seen_incident_ids: list[str] = field(default_factory=list)
+    # open alert-incident keys rendered into this run's context. a post
+    # that @-mentions the operator stamps them mentioned — structural, so
+    # the repeat-tag question is never left to phi's self-report.
+    seen_alert_keys: list[str] = field(default_factory=list)
     # the prompt that started this run. memory recall is keyed to this and
     # nothing else — the task cues the memory, the way a person's does.
     run_prompt: str = ""

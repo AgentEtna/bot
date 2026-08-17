@@ -66,7 +66,7 @@ all schedules run from one `notification_poller.py` loop (`_poll_loop`). on each
 1. `_check_notifications` — fetch + dispatch any unread notifications as one batch
 2. `_should_do_daily_post` — at/after `daily_reflection_hour` (operator-local) and not yet reflected today → run the daily reflection
 3. `_should_run_cycle` — operator-local hour is one of `thought_post_hours` and that slot hasn't fired today → run one cycle, or the people pass when the hour is in `people_pass_hours`
-4. `_check_workflow_failures` — poll Prefect once a minute and dispatch each new Failed/Crashed run ID once
+4. `_check_alert_watch` — hourly logfire alert-state reconciliation (firings arrive by webhook push at `/api/alerts`; flow failures ride the same path via the zig-prefect-server 'flow run failed' alert)
 
 schedule hours are interpreted in `operator_timezone` so posts land at human times of day for the reader. "did we already fire" state seeds from phi's own post history at startup (`_seed_schedule_from_history`) so deploys don't double-post.
 

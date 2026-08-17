@@ -11,13 +11,6 @@ import logfire
 from bot.config import settings
 from bot.core.alert_watch import fetch_alert_states, gate_firings
 from bot.core.atproto_client import BotClient
-from bot.core.workflow_failures import (
-    add_pending,
-    fetch_recent_failures,
-    fresh_failures,
-    gate_alerts,
-    unseen_failures,
-)
 from bot.services.message_handler import MessageHandler
 from bot.status import bot_status
 
@@ -59,7 +52,6 @@ class NotificationPoller:
         self._last_thought_date: date | None = None
         self._semaphore = asyncio.Semaphore(MAX_CONCURRENT)
         self._background_tasks: set[asyncio.Task] = set()
-        self._next_workflow_failure_poll = 0.0
         self._next_alert_watch_poll = 0.0
 
     async def start(self) -> asyncio.Task:
@@ -176,15 +168,6 @@ class NotificationPoller:
                 logger.error(f"cycle error: {e}", exc_info=settings.debug)
 
             try:
-                if time.monotonic() >= self._next_workflow_failure_poll:
-                    self._next_workflow_failure_poll = (
-                        time.monotonic() + settings.workflow_failure_poll_interval
-                    )
-                    await self._check_workflow_failures()
-            except Exception as e:
-                logger.error(f"workflow failure poll error: {e}", exc_info=True)
-
-            try:
                 if time.monotonic() >= self._next_alert_watch_poll:
                     self._next_alert_watch_poll = (
                         time.monotonic() + settings.alert_poll_interval
@@ -270,56 +253,6 @@ class NotificationPoller:
         if len(self._processed_uris) > 1000:
             self._processed_uris = set(list(self._processed_uris)[-500:])
 
-    async def _check_workflow_failures(self):
-        """Wake Phi promptly for each new Failed/Crashed run ID."""
-        failures = await fetch_recent_failures()
-        if failures is None:
-            return
-
-        # The field did not exist before this monitor. Seed current history on
-        # first deployment instead of announcing up to 50 stale incidents.
-        if not bot_status.workflow_failure_monitor_seeded:
-            bot_status.record_workflow_failures(
-                [run["id"] for run in failures if run.get("id")]
-            )
-            logger.info(f"seeded workflow failure monitor with {len(failures)} runs")
-            return
-
-        if bot_status.paused:
-            return
-        new = unseen_failures(failures, bot_status.workflow_failure_run_ids)
-        if not new:
-            return
-
-        # record every newly-seen id, including the stale ones dropped below,
-        # so the backlog drains for good instead of resurfacing next poll
-        bot_status.record_workflow_failures([run["id"] for run in new])
-        new = fresh_failures(new, time.time())
-        if not new:
-            return
-        # incident gating: a flow failing repeatedly is one incident, not a
-        # post per run. only opens and windowed escalations reach phi.
-        to_alert, incidents = gate_alerts(
-            new, bot_status.workflow_incidents, time.time()
-        )
-        bot_status.workflow_incidents = incidents
-        # incidents become something phi carries until she speaks to them,
-        # rather than a command she is dispatched with (agent.py's
-        # inject_workflow_incidents renders them; a post clears them).
-        bot_status.pending_incidents = add_pending(
-            bot_status.pending_incidents, to_alert, time.time()
-        )
-        bot_status._save()
-        if not to_alert:
-            logger.info(
-                f"{len(new)} repeat failure(s) folded into open incidents, no alert"
-            )
-            return
-        task = asyncio.create_task(self._handle_workflow_failures_with_semaphore())
-        self._background_tasks.add(task)
-        task.add_done_callback(self._background_tasks.discard)
-        logger.info(f"dispatched {len(new)} new workflow failure(s) to phi")
-
     async def _check_alert_watch(self):
         """Fold the current logfire alert states into phi's incident record.
 
@@ -351,10 +284,6 @@ class NotificationPoller:
         bot_status.alert_incidents = incidents
         bot_status.alert_watch_cursor = cursor
         bot_status._save()
-
-    async def _handle_workflow_failures_with_semaphore(self):
-        async with self._semaphore:
-            await self.handler.workflow_failures()
 
     async def _handle_batch_with_semaphore(self, batch: list, check_time: str):
         """Handle a notification batch with concurrency limiting.

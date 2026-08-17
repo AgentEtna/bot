@@ -81,23 +81,31 @@ def test_persisted_format_includes_paused_key(monkeypatch, tmp_path):
     assert data.get("paused_at") is not None
 
 
-def test_workflow_failure_ids_persist_and_deduplicate(monkeypatch, tmp_path):
+def test_alert_incidents_persist(monkeypatch, tmp_path):
     _patch_status_file(monkeypatch, tmp_path)
     status = BotStatus()
-    status.record_workflow_failures(["run-a", "run-b", "run-a"])
+    status.alert_incidents = {"p:a": {"opened_ts": 1.0, "count": 2}}
+    status.alert_watch_cursor = {"p:a": "2026-08-17T00:00:00Z"}
+    status._save()
 
     restored = BotStatus()
     restored._load()
-    assert restored.workflow_failure_monitor_seeded is True
-    assert restored.workflow_failure_run_ids == ["run-a", "run-b"]
+    assert restored.alert_incidents == {"p:a": {"opened_ts": 1.0, "count": 2}}
+    assert restored.alert_watch_cursor == {"p:a": "2026-08-17T00:00:00Z"}
 
 
-def test_empty_workflow_failure_seed_persists(monkeypatch, tmp_path):
+def test_operator_mention_stamps_open_incidents(monkeypatch, tmp_path):
     _patch_status_file(monkeypatch, tmp_path)
     status = BotStatus()
-    status.record_workflow_failures([])
+    status.alert_incidents = {
+        "p:a": {"opened_ts": 1.0, "count": 1},
+        "p:closed": {"opened_ts": 1.0, "count": 1, "closed_ts": 2.0},
+    }
+    status.record_operator_mention(["p:a", "p:closed", "p:missing"])
+
+    assert "mentioned_ts" in status.alert_incidents["p:a"]
+    assert "mentioned_ts" not in status.alert_incidents["p:closed"]
 
     restored = BotStatus()
     restored._load()
-    assert restored.workflow_failure_monitor_seeded is True
-    assert restored.workflow_failure_run_ids == []
+    assert "mentioned_ts" in restored.alert_incidents["p:a"]

@@ -41,7 +41,6 @@ from bot.core.recent_operations import get_operations_block
 from bot.core.self_record import get_self_block
 from bot.core.self_state import get_inventory_block, get_state_block
 from bot.core.alert_watch import render_alert_watch
-from bot.core.workflow_failures import render_pending_block
 from bot.core.workflow_state import get_workflow_state_block
 from bot.memory.extraction import EXTRACTION_SYSTEM_PROMPT, ExtractionResult
 from bot.memory.namespace_memory import InteractionRow
@@ -467,25 +466,17 @@ class PhiAgent:
             return await get_operations_block(bot_client)
 
         @_run_scoped
-        def inject_workflow_incidents(ctx: RunContext[PhiDeps]) -> str:
-            """[WORKFLOW INCIDENTS] — failures phi hasn't spoken to yet.
-
-            Perception, not a dispatch. The run records which incidents it
-            saw so a successful post can clear them; until then they keep
-            rendering, and their ages grow.
-            """
-            pending = bot_status.pending_incidents
-            if not pending:
-                return ""
-            ctx.deps.seen_incident_ids = list(pending)
-            return render_pending_block(pending, time.time())
-
-        @_run_scoped
-        def inject_alert_watch() -> str:
+        def inject_alert_watch(ctx: RunContext[PhiDeps]) -> str:
             """[ALERT WATCH] — the operator's logfire alerts, carried as
             incidents. Perception with a silence-by-default doctrine; the
-            escalation-eligible flag is computed in code, not prose."""
-            return render_alert_watch(bot_status.alert_incidents, time.time())
+            escalation-eligible flag is computed in code, not prose. The
+            run records which open incidents it saw so a post that tags
+            the operator can stamp them mentioned."""
+            incidents = bot_status.alert_incidents
+            ctx.deps.seen_alert_keys = [
+                k for k, v in incidents.items() if not v.get("closed_ts")
+            ]
+            return render_alert_watch(incidents, time.time())
 
         @_run_scoped
         async def inject_discovery_pool(ctx: RunContext[PhiDeps]) -> str:
@@ -1088,21 +1079,6 @@ class PhiAgent:
             name="cycle",
             task=task,
             context_blocks=context_blocks,
-        )
-
-    async def process_workflow_failures(self) -> str:
-        """Wake phi because something of the operator's just broke.
-
-        The incidents themselves arrive as [WORKFLOW INCIDENTS] in her
-        context, like every other signal she acts on — this only says that
-        something changed, and leaves what to do about it to her. They stay
-        in context until a post clears them, so declining to speak now is a
-        choice she keeps facing rather than one that disappears.
-        """
-        return await self._run_agent(
-            label="workflow failure alert",
-            prompt="something of the operator's just broke — check your context.",
-            deps=PhiDeps(author_handle="", memory=self.memory),
         )
 
     async def process_alerts(self) -> str:

@@ -118,10 +118,6 @@ class Settings(BaseSettings):
     notification_poll_interval: int = Field(
         default=10, description="The interval for polling for notifications"
     )
-    workflow_failure_poll_interval: int = Field(
-        default=60,
-        description="Seconds between Prefect failed/crashed run checks",
-    )
     alert_poll_interval: int = Field(
         default=3600,
         description="Seconds between logfire alert-state reconciliation "

@@ -7,9 +7,9 @@ them as one @-mention per incident; everything else — flapping, self-resolved,
 known-cause — is absorbed silently. Tuning observations accumulate in phi's
 reflective surfaces, never as tags.
 
-Incident math mirrors core/workflow_failures.py (same window constants,
-imported) so the two monitors stay in doctrine lockstep: the unit of news is
-the incident, not the recurrence.
+The unit of news is the incident, not the recurrence — doctrine inherited
+from the retired prefect-specific workflow_failures monitor, whose job now
+rides this path as the 'flow run failed' logfire alert.
 """
 
 from __future__ import annotations
@@ -21,7 +21,6 @@ from typing import Any
 import httpx
 
 from bot.config import settings
-from bot.core.workflow_failures import ESCALATION_SECONDS, QUIET_CLOSE_SECONDS
 from bot.utils.time import humanize_duration
 
 logger = logging.getLogger("bot.alert_watch")
@@ -30,6 +29,16 @@ API_BASE = "https://api-us.pydantic.dev/api"
 
 CLOSED_RETENTION_SECONDS = 24 * 3600
 """A quieted incident stays visible for a day as recent history, then drops."""
+
+ESCALATION_SECONDS = 6 * 3600
+"""An incident may reach the operator only after this long open — and after a
+mention, only after this long *again* (still firing) may it bump them once
+more. The re-bump cadence is code, not judgment."""
+
+QUIET_CLOSE_SECONDS = 6 * 3600
+"""An incident closes after this long without matches; the next firing is
+news again. Inherited from the retired workflow_failures monitor (2026-07-23,
+ingest: run-ID dedup alone made phi a pager)."""
 
 RENDER_LIMIT = 12
 
@@ -243,6 +252,36 @@ def gate_firings(
     return out, new_cursor
 
 
+def mark_mentioned(
+    incidents: dict[str, dict[str, Any]], keys: list[str], now_ts: float
+) -> dict[str, dict[str, Any]]:
+    """Stamp mentioned_ts on the open incidents phi just told the operator
+    about. Pure. "I already told you" is state on the incident, not a memory
+    phi is trusted to keep — the render flips its eligibility flag off and
+    re-arms it only after another full escalation window of continued firing.
+    """
+    out = {k: dict(v) for k, v in incidents.items()}
+    for key in keys:
+        inc = out.get(key)
+        if inc and not inc.get("closed_ts"):
+            inc["mentioned_ts"] = now_ts
+    return out
+
+
+def _escalation_flag(inc: dict[str, Any], now_ts: float) -> str:
+    age_s = max(0.0, now_ts - inc.get("opened_ts", now_ts))
+    mentioned = inc.get("mentioned_ts")
+    if mentioned:
+        since = now_ts - mentioned
+        if since >= ESCALATION_SECONDS:
+            return " [ESCALATION-ELIGIBLE — still firing long after the last mention]"
+        ago = humanize_duration(timedelta(seconds=max(0.0, since)))
+        return f" [operator notified {ago} ago — do not mention them again]"
+    if age_s >= ESCALATION_SECONDS:
+        return " [ESCALATION-ELIGIBLE]"
+    return ""
+
+
 def _owner_handle() -> str:
     return f"@{settings.owner_handle}"
 
@@ -281,16 +320,14 @@ def render_alert_watch(incidents: dict[str, dict[str, Any]], now_ts: float) -> s
         "a standalone post.]"
     ]
     for key, inc in open_items[:RENDER_LIMIT]:
-        age_s = max(0.0, now_ts - inc.get("opened_ts", now_ts))
-        age = humanize_duration(timedelta(seconds=age_s))
+        age = humanize_duration(
+            timedelta(seconds=max(0.0, now_ts - inc.get("opened_ts", now_ts)))
+        )
         tally = f", {inc['count']} firings" if inc.get("count", 1) > 1 else ""
         detail = f" — {inc['detail']}" if inc.get("detail") else ""
-        eligible = (
-            " [ESCALATION-ELIGIBLE]" if age_s >= ESCALATION_SECONDS else ""
-        )
         lines.append(
             f"- {inc.get('project', '')}/{inc.get('name', key)}: firing, "
-            f"opened {age} ago{tally}{eligible}{detail}"
+            f"opened {age} ago{tally}{_escalation_flag(inc, now_ts)}{detail}"
         )
     if len(open_items) > RENDER_LIMIT:
         lines.append(f"- … and {len(open_items) - RENDER_LIMIT} more open")
