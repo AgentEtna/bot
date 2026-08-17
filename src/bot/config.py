@@ -16,6 +16,9 @@ class LogfireSettings(BaseSettings):
     # read token (project-scoped, query-only) — when set, phi gets the
     # logfire MCP query tools and can read her own traces
     read_token: str | None = None
+    # org API key with the "Alerts management" scope — when set, the poller
+    # watches every project's alerts (core/alert_watch.py). read-only use.
+    alerts_token: str | None = None
     environment: str | None = None
     send_to_logfire: Literal["if-token-present"] | None = "if-token-present"
     # project UI root, used to deep-link a run to its trace from the
@@ -118,6 +121,14 @@ class Settings(BaseSettings):
     workflow_failure_poll_interval: int = Field(
         default=60,
         description="Seconds between Prefect failed/crashed run checks",
+    )
+    alert_poll_interval: int = Field(
+        default=300,
+        description="Seconds between logfire alert-state polls",
+    )
+    alert_projects: list[str] = Field(
+        default_factory=list,
+        description="Logfire projects to watch; empty means all readable",
     )
 
     # Repo ops awareness — jetstream tail of phi's own PDS commits

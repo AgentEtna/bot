@@ -40,6 +40,7 @@ from bot.core.recent_flow_mentions import get_recent_flow_mentions_block
 from bot.core.recent_operations import get_operations_block
 from bot.core.self_record import get_self_block
 from bot.core.self_state import get_inventory_block, get_state_block
+from bot.core.alert_watch import render_alert_watch
 from bot.core.workflow_failures import render_pending_block
 from bot.core.workflow_state import get_workflow_state_block
 from bot.memory.extraction import EXTRACTION_SYSTEM_PROMPT, ExtractionResult
@@ -478,6 +479,13 @@ class PhiAgent:
                 return ""
             ctx.deps.seen_incident_ids = list(pending)
             return render_pending_block(pending, time.time())
+
+        @_run_scoped
+        def inject_alert_watch() -> str:
+            """[ALERT WATCH] — the operator's logfire alerts, carried as
+            incidents. Perception with a silence-by-default doctrine; the
+            escalation-eligible flag is computed in code, not prose."""
+            return render_alert_watch(bot_status.alert_incidents, time.time())
 
         @_run_scoped
         async def inject_discovery_pool(ctx: RunContext[PhiDeps]) -> str:

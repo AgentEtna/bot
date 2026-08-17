@@ -34,6 +34,10 @@ class BotStatus:
     # incidents phi has seen but not yet said anything about. they render in
     # her context until a post clears them, so silence stays visible.
     pending_incidents: dict = field(default_factory=dict)
+    # logfire alert incidents (core/alert_watch.py) and the per-alert
+    # last_run cursor that keeps a re-observed firing from counting twice.
+    alert_incidents: dict = field(default_factory=dict)
+    alert_watch_cursor: dict = field(default_factory=dict)
 
     @property
     def uptime_seconds(self) -> float:
@@ -126,6 +130,8 @@ class BotStatus:
                 "workflow_failure_run_ids": self.workflow_failure_run_ids,
                 "workflow_incidents": self.workflow_incidents,
                 "pending_incidents": self.pending_incidents,
+                "alert_incidents": self.alert_incidents,
+                "alert_watch_cursor": self.alert_watch_cursor,
                 "workflow_failure_monitor_seeded": self.workflow_failure_monitor_seeded,
             }
             STATUS_FILE.write_text(json.dumps(data))
@@ -159,6 +165,8 @@ class BotStatus:
             )[-200:]
             self.workflow_incidents = dict(data.get("workflow_incidents") or {})
             self.pending_incidents = dict(data.get("pending_incidents") or {})
+            self.alert_incidents = dict(data.get("alert_incidents") or {})
+            self.alert_watch_cursor = dict(data.get("alert_watch_cursor") or {})
             self.workflow_failure_monitor_seeded = bool(
                 data.get("workflow_failure_monitor_seeded", False)
             )

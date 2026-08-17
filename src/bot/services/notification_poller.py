@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import logfire
 
 from bot.config import settings
+from bot.core.alert_watch import fetch_alert_states, gate_firings
 from bot.core.atproto_client import BotClient
 from bot.core.workflow_failures import (
     add_pending,
@@ -59,6 +60,7 @@ class NotificationPoller:
         self._semaphore = asyncio.Semaphore(MAX_CONCURRENT)
         self._background_tasks: set[asyncio.Task] = set()
         self._next_workflow_failure_poll = 0.0
+        self._next_alert_watch_poll = 0.0
 
     async def start(self) -> asyncio.Task:
         """Start polling for notifications."""
@@ -181,6 +183,15 @@ class NotificationPoller:
                     await self._check_workflow_failures()
             except Exception as e:
                 logger.error(f"workflow failure poll error: {e}", exc_info=True)
+
+            try:
+                if time.monotonic() >= self._next_alert_watch_poll:
+                    self._next_alert_watch_poll = (
+                        time.monotonic() + settings.alert_poll_interval
+                    )
+                    await self._check_alert_watch()
+            except Exception as e:
+                logger.error(f"alert watch poll error: {e}", exc_info=True)
 
             try:
                 await asyncio.sleep(settings.notification_poll_interval)
@@ -308,6 +319,38 @@ class NotificationPoller:
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
         logger.info(f"dispatched {len(new)} new workflow failure(s) to phi")
+
+    async def _check_alert_watch(self):
+        """Fold the current logfire alert states into phi's incident record.
+
+        Perception only — no dispatch. The [ALERT WATCH] block in agent.py
+        renders whatever this accumulates; phi decides in her ordinary runs
+        whether anything deserves words.
+        """
+        states = await fetch_alert_states()
+        if states is None:
+            return
+        incidents, cursor = gate_firings(
+            states,
+            bot_status.alert_incidents,
+            bot_status.alert_watch_cursor,
+            time.time(),
+        )
+        opened = set(incidents) - set(bot_status.alert_incidents)
+        closed = [
+            k
+            for k, v in incidents.items()
+            if v.get("closed_ts")
+            and not bot_status.alert_incidents.get(k, {}).get("closed_ts")
+        ]
+        if opened or closed:
+            logger.info(
+                f"alert watch: {len(opened)} opened {sorted(opened)}, "
+                f"{len(closed)} quieted {sorted(closed)}"
+            )
+        bot_status.alert_incidents = incidents
+        bot_status.alert_watch_cursor = cursor
+        bot_status._save()
 
     async def _handle_workflow_failures_with_semaphore(self):
         async with self._semaphore:
