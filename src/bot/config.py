@@ -123,8 +123,15 @@ class Settings(BaseSettings):
         description="Seconds between Prefect failed/crashed run checks",
     )
     alert_poll_interval: int = Field(
-        default=300,
-        description="Seconds between logfire alert-state polls",
+        default=3600,
+        description="Seconds between logfire alert-state reconciliation "
+        "polls — firings arrive by webhook push (/api/alerts); the poll "
+        "catches missed deliveries and drives quiet-close",
+    )
+    alert_webhook_token: str | None = Field(
+        default=None,
+        description="Shared secret in the /api/alerts webhook URL; the "
+        "endpoint 401s everything when unset",
     )
     alert_projects: list[str] = Field(
         default_factory=list,

@@ -1105,6 +1105,20 @@ class PhiAgent:
             deps=PhiDeps(author_handle="", memory=self.memory),
         )
 
+    async def process_alerts(self) -> str:
+        """Wake phi because a logfire alert opened an incident.
+
+        The facts ride in [ALERT WATCH] like every other signal; the prompt
+        only says something fired. Most firings need nothing — the block's
+        own doctrine carries the escalation rules.
+        """
+        return await self._run_agent(
+            label="alert fired",
+            prompt="a logfire alert just fired — check [ALERT WATCH]. "
+            "most firings need nothing from you.",
+            deps=PhiDeps(author_handle="", memory=self.memory),
+        )
+
     async def process_people(self) -> str:
         """A pass pointed at people rather than systems.
 

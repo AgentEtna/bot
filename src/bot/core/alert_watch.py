@@ -93,6 +93,93 @@ def _match_detail(alert: dict[str, Any]) -> str:
     return " ".join(" ".join(pairs).split())[:240]
 
 
+def parse_webhook(payload: Any) -> dict[str, Any] | None:
+    """Best-effort state from a logfire webhook push. None when unreadable.
+
+    The raw-data webhook format is undocumented; this reads the obvious
+    candidate keys and the receiving endpoint logs every payload verbatim,
+    so a shape change shows up in traces rather than as silent drops.
+    """
+    if not isinstance(payload, dict):
+        return None
+    name = payload.get("alert_name") or payload.get("name")
+    alert_id = payload.get("alert_id") or payload.get("id") or name
+    if not name or not alert_id:
+        return None
+    project = (
+        payload.get("project_name") or payload.get("project") or "unknown"
+    )
+    detail = ""
+    rows = payload.get("rows") or payload.get("data") or payload.get("matches")
+    if rows:
+        detail = " ".join(str(rows[:3]).split())[:240]
+    return {
+        "key": f"{project}:{alert_id}",
+        "project": project,
+        "name": name,
+        "active": True,
+        "snoozed": False,
+        "has_matches": True,
+        "last_run": str(payload.get("timestamp") or payload.get("ts") or ""),
+        "detail": detail,
+    }
+
+
+def fold_firing(
+    state: dict[str, Any],
+    incidents: dict[str, dict[str, Any]],
+    cursor: dict[str, str],
+    now_ts: float,
+) -> tuple[bool, dict[str, dict[str, Any]], dict[str, str]]:
+    """Fold one pushed firing into the record. Pure.
+
+    Returns (opened, incidents, cursor) — ``opened`` is True when this
+    firing started a new incident (the only case that wakes phi). Unlike
+    ``gate_firings`` this never closes or prunes anything: a push says one
+    alert fired, not that the others are quiet.
+    """
+    out = {k: dict(v) for k, v in incidents.items()}
+    new_cursor = dict(cursor)
+    opened = _apply_firing(state, out, new_cursor, now_ts, always_observe=True)
+    return opened, out, new_cursor
+
+
+def _apply_firing(
+    state: dict[str, Any],
+    incidents: dict[str, dict[str, Any]],
+    cursor: dict[str, str],
+    now_ts: float,
+    always_observe: bool = False,
+) -> bool:
+    """Mutate ``incidents``/``cursor`` with one firing; True if it opened.
+
+    ``always_observe`` is the push path: each webhook delivery is a real
+    notify event, whereas a poll re-reading an unchanged ``last_run`` is
+    the same firing seen twice.
+    """
+    key = state["key"]
+    last_run = state.get("last_run") or ""
+    observed = always_observe or cursor.get(key) != last_run
+    cursor[key] = last_run
+    inc = incidents.get(key)
+    if inc is None or inc.get("closed_ts"):
+        incidents[key] = {
+            "opened_ts": now_ts,
+            "last_seen_ts": now_ts,
+            "count": 1,
+            "name": state["name"],
+            "project": state["project"],
+            "detail": state["detail"],
+        }
+        return True
+    inc["last_seen_ts"] = now_ts
+    if observed:
+        inc["count"] = inc.get("count", 0) + 1
+    if state["detail"]:
+        inc["detail"] = state["detail"]
+    return False
+
+
 def gate_firings(
     states: list[dict[str, Any]],
     incidents: dict[str, dict[str, Any]],
@@ -116,11 +203,9 @@ def gate_firings(
     }
     new_cursor = dict(cursor)
     for state in states:
-        key = state["key"]
         firing = state["active"] and not state["snoozed"] and state["has_matches"]
-        last_run = state.get("last_run") or ""
         if not firing:
-            inc = out.get(key)
+            inc = out.get(state["key"])
             if (
                 inc
                 and not inc.get("closed_ts")
@@ -128,24 +213,7 @@ def gate_firings(
             ):
                 inc["closed_ts"] = now_ts
             continue
-        observed = new_cursor.get(key) != last_run
-        new_cursor[key] = last_run
-        inc = out.get(key)
-        if inc is None or inc.get("closed_ts"):
-            out[key] = {
-                "opened_ts": now_ts,
-                "last_seen_ts": now_ts,
-                "count": 1,
-                "name": state["name"],
-                "project": state["project"],
-                "detail": state["detail"],
-            }
-            continue
-        inc["last_seen_ts"] = now_ts
-        if observed:
-            inc["count"] = inc.get("count", 0) + 1
-        if state["detail"]:
-            inc["detail"] = state["detail"]
+        _apply_firing(state, out, new_cursor, now_ts)
     live_keys = {state["key"] for state in states}
     for key, inc in out.items():
         if (

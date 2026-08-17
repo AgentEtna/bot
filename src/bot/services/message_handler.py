@@ -360,6 +360,10 @@ class MessageHandler:
             lambda: self.agent.process_workflow_failures(),
         )
 
+    async def alerts(self):
+        """Wake phi because a logfire alert just fired — see agent.process_alerts."""
+        await self._run_scheduled("alert fired", self.agent.process_alerts)
+
     async def chicken_precheck(self):
         """Pre-lock market check — see :meth:`PhiAgent.process_chicken_precheck`."""
         await self._run_scheduled(

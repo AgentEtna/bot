@@ -27,6 +27,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from bot.config import settings
 from bot.core import ops_log, prior_coverage
+from bot.core.alert_watch import fold_firing, parse_webhook
 from bot.core.atlas import get_atlas
 from bot.core.atproto_client import bot_client
 from bot.core.cache_stability import cache_monitor
@@ -250,6 +251,41 @@ async def trigger_slot(slot: str, request: Request, background_tasks: Background
     background_tasks.add_task(slot_fn(poller.handler))
     logger.info(f"{slot} triggered via API")
     return {"triggered": slot}
+
+
+@app.post("/api/alerts")
+async def alert_webhook(request: Request, background_tasks: BackgroundTasks):
+    """Logfire pushes here the moment an alert fires (raw-data webhook).
+
+    The token rides in the URL because logfire's webhook channels can't set
+    headers. A new incident wakes phi through the same loop as any other
+    signal; recurrences just update her incident record silently.
+    """
+    token = request.query_params.get("token", "")
+    if not settings.alert_webhook_token or token != settings.alert_webhook_token:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = None
+    logfire.info("alert webhook received", payload=payload)
+    state = parse_webhook(payload)
+    if state is None:
+        return {"ok": True, "parsed": False}
+    opened, incidents, cursor = fold_firing(
+        state,
+        bot_status.alert_incidents,
+        bot_status.alert_watch_cursor,
+        time.time(),
+    )
+    bot_status.alert_incidents = incidents
+    bot_status.alert_watch_cursor = cursor
+    bot_status._save()
+    poller: NotificationPoller | None = getattr(app.state, "poller", None)
+    if opened and poller and not bot_status.paused:
+        background_tasks.add_task(poller.handler.alerts)
+        logger.info(f"alert webhook opened incident {state['key']}, waking phi")
+    return {"ok": True, "opened": opened}
 
 
 @app.post("/api/control/post")

@@ -2,7 +2,9 @@
 
 from bot.core.alert_watch import (
     CLOSED_RETENTION_SECONDS,
+    fold_firing,
     gate_firings,
+    parse_webhook,
     render_alert_watch,
 )
 from bot.core.workflow_failures import ESCALATION_SECONDS, QUIET_CLOSE_SECONDS
@@ -107,6 +109,49 @@ def test_deleted_alert_incident_quiet_closes():
 def test_cursor_pruned_to_live_alerts():
     _, cursor = gate_firings([_state()], {}, {"gone:alert": "old"}, T0)
     assert "gone:alert" not in cursor
+
+
+def test_fold_firing_opens_once_then_counts():
+    opened, incidents, cursor = fold_firing(_state(), {}, {}, T0)
+    assert opened
+    # every push is a real notify event, so counts advance even when
+    # last_run hasn't changed (unlike a poll re-read)
+    opened, incidents, cursor = fold_firing(_state(), incidents, cursor, T0 + 60)
+    assert not opened
+    assert incidents["pub-search:abc"]["count"] == 2
+
+
+def test_fold_firing_reopens_closed_incident():
+    incidents = {
+        "pub-search:abc": {"opened_ts": T0, "last_seen_ts": T0, "count": 5,
+                           "closed_ts": T0 + 100}
+    }
+    opened, incidents, _ = fold_firing(_state(), incidents, {}, T0 + 200)
+    assert opened
+    assert incidents["pub-search:abc"]["count"] == 1
+
+
+def test_fold_firing_touches_nothing_else():
+    incidents = {"other:key": {"opened_ts": T0, "last_seen_ts": T0, "count": 1}}
+    _, out, cursor = fold_firing(_state(), incidents, {"other:key": "x"}, T0)
+    assert out["other:key"]["count"] == 1
+    assert "closed_ts" not in out["other:key"]
+    assert cursor["other:key"] == "x"
+
+
+def test_parse_webhook_reads_obvious_shapes():
+    state = parse_webhook(
+        {"alert_name": "p95", "alert_id": "a1", "project_name": "pub-search"}
+    )
+    assert state is not None
+    assert state["key"] == "pub-search:a1"
+    assert state["has_matches"]
+
+
+def test_parse_webhook_rejects_garbage():
+    assert parse_webhook(None) is None
+    assert parse_webhook("text") is None
+    assert parse_webhook({"unrelated": 1}) is None
 
 
 def test_render_empty_when_no_incidents():
