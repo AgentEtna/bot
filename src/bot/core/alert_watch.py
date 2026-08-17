@@ -26,7 +26,7 @@ from bot.utils.time import humanize_duration
 
 logger = logging.getLogger("bot.alert_watch")
 
-API_BASE = "https://api-us.pydantic.dev"
+API_BASE = "https://api-us.pydantic.dev/api"
 
 CLOSED_RETENTION_SECONDS = 24 * 3600
 """A quieted incident stays visible for a day as recent history, then drops."""
