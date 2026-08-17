@@ -94,25 +94,32 @@ def _match_detail(alert: dict[str, Any]) -> str:
 
 
 def parse_webhook(payload: Any) -> dict[str, Any] | None:
-    """Best-effort state from a logfire webhook push. None when unreadable.
+    """State from a logfire raw-data webhook push. None when unreadable.
 
-    The raw-data webhook format is undocumented; this reads the obvious
-    candidate keys and the receiving endpoint logs every payload verbatim,
-    so a shape change shows up in traces rather than as silent drops.
+    Captured shape (2026-08-17): {organization_name, project_name,
+    alert_name, timestamp, n_rows, data, columns, errors, description,
+    links}. The alert UUID only appears inside ``links.alert``
+    (…/alerts/{uuid}?…) — extracting it keeps push and poll folding into
+    the same incident key. The endpoint logs every payload verbatim, so a
+    shape change shows up in traces rather than as silent drops.
     """
     if not isinstance(payload, dict):
         return None
-    name = payload.get("alert_name") or payload.get("name")
-    alert_id = payload.get("alert_id") or payload.get("id") or name
-    if not name or not alert_id:
+    name = payload.get("alert_name")
+    project = payload.get("project_name")
+    if not name or not project:
         return None
-    project = (
-        payload.get("project_name") or payload.get("project") or "unknown"
-    )
+    alert_url = (payload.get("links") or {}).get("alert") or ""
+    _, _, tail = alert_url.partition("/alerts/")
+    alert_id = tail.split("?", 1)[0].strip("/") or name
+    cols = [c.get("name", "") for c in payload.get("columns") or []]
+    rows = payload.get("data") or []
     detail = ""
-    rows = payload.get("rows") or payload.get("data") or payload.get("matches")
     if rows:
-        detail = " ".join(str(rows[:3]).split())[:240]
+        pairs = [f"{c}={v}" for c, v in zip(cols, rows[0])]
+        detail = " ".join(" ".join(pairs).split())[:240] or " ".join(
+            str(rows[:3]).split()
+        )[:240]
     return {
         "key": f"{project}:{alert_id}",
         "project": project,
@@ -120,7 +127,7 @@ def parse_webhook(payload: Any) -> dict[str, Any] | None:
         "active": True,
         "snoozed": False,
         "has_matches": True,
-        "last_run": str(payload.get("timestamp") or payload.get("ts") or ""),
+        "last_run": str(payload.get("timestamp") or ""),
         "detail": detail,
     }
 

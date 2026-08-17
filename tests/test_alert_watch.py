@@ -139,13 +139,36 @@ def test_fold_firing_touches_nothing_else():
     assert cursor["other:key"] == "x"
 
 
-def test_parse_webhook_reads_obvious_shapes():
+def test_parse_webhook_real_payload():
+    """The raw-data shape actually delivered on 2026-08-17."""
     state = parse_webhook(
-        {"alert_name": "p95", "alert_id": "a1", "project_name": "pub-search"}
+        {
+            "organization_name": "waow",
+            "project_name": "phi",
+            "alert_name": "canary",
+            "timestamp": "2026-08-17T05:48:15.152674Z",
+            "n_rows": 1,
+            "data": [[739]],
+            "columns": [{"name": "n", "type": {}, "nullable": False}],
+            "errors": None,
+            "links": {
+                "alert": "https://logfire-us.pydantic.dev/waow/phi/alerts/"
+                "07d2edad-867b-4d15-a730-2162d7be20e1?alertRunId=x"
+            },
+        }
     )
     assert state is not None
-    assert state["key"] == "pub-search:a1"
+    # keyed by the UUID from links.alert so push and poll share incidents
+    assert state["key"] == "phi:07d2edad-867b-4d15-a730-2162d7be20e1"
     assert state["has_matches"]
+    assert state["detail"] == "n=739"
+    assert state["last_run"] == "2026-08-17T05:48:15.152674Z"
+
+
+def test_parse_webhook_missing_links_falls_back_to_name():
+    state = parse_webhook({"alert_name": "p95", "project_name": "pub-search"})
+    assert state is not None
+    assert state["key"] == "pub-search:p95"
 
 
 def test_parse_webhook_rejects_garbage():
