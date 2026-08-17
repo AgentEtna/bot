@@ -78,8 +78,12 @@ def _alert_state(project: str, alert: dict[str, Any]) -> dict[str, Any]:
         "active": bool(alert.get("active")),
         "snoozed": bool(alert.get("snoozed_until")),
         "has_matches": bool(alert.get("has_matches")),
+        "has_errors": bool(alert.get("has_errors")),
         "last_run": alert.get("last_run"),
-        "detail": _match_detail(alert),
+        "detail": "ALERT BROKEN — its query is erroring, so the condition "
+        "it watches is unmonitored"
+        if alert.get("has_errors")
+        else _match_detail(alert),
     }
 
 
@@ -210,7 +214,13 @@ def gate_firings(
     }
     new_cursor = dict(cursor)
     for state in states:
-        firing = state["active"] and not state["snoozed"] and state["has_matches"]
+        # a broken alert (query erroring) is itself an incident: its
+        # condition is unmonitored, which is a firing-shaped fact
+        firing = (
+            state["active"]
+            and not state["snoozed"]
+            and (state["has_matches"] or state.get("has_errors"))
+        )
         if not firing:
             inc = out.get(state["key"])
             if (

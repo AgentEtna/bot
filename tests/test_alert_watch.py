@@ -88,6 +88,19 @@ def test_closed_incident_pruned_after_retention():
     assert incidents == {}
 
 
+def test_broken_alert_is_an_incident():
+    """has_errors with no matches: the condition is unmonitored — news."""
+    broken = _state(has_matches=False, has_errors=True, detail="ALERT BROKEN — x")
+    incidents, _ = gate_firings([broken], {}, {}, T0)
+    inc = incidents["pub-search:abc"]
+    assert inc["count"] == 1
+    assert "ALERT BROKEN" in inc["detail"]
+    # repaired alert quiet-closes like any recovery
+    fixed = _state(has_matches=False, has_errors=False)
+    incidents, _ = gate_firings([fixed], incidents, {}, T0 + QUIET_CLOSE_SECONDS)
+    assert incidents["pub-search:abc"]["closed_ts"] == T0 + QUIET_CLOSE_SECONDS
+
+
 def test_snoozed_and_inactive_do_not_fire():
     incidents, _ = gate_firings(
         [_state(snoozed=True), _state(key="p:x", active=False)], {}, {}, T0
