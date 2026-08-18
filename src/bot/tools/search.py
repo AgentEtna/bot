@@ -16,6 +16,10 @@ from bot.core.atproto_client import bot_client
 from bot.core.prior_coverage import coverage_note
 from bot.tools._helpers import PhiDeps, _relative_age
 
+# coral: the operator's firehose NER service (sibling repo). `/` returns its
+# own endpoint list; the coral-editorial skill documents what each route is for.
+CORAL_BASE = "https://coral.fly.dev"
+
 
 def register(agent):
     @agent.tool
@@ -151,13 +155,35 @@ def register(agent):
 
     @agent.tool
     async def get_trending(ctx: RunContext[PhiDeps]) -> str:
-        """Get what's currently trending on Bluesky. Returns entity-level trends from the firehose (via coral) and official Bluesky trending topics. Use this when someone asks about current events, what people are talking about, or when you want timely context."""
+        """Get what's currently trending on Bluesky. Returns coral's curated stories (named groups of co-occurring entities from the firehose), the entities driving them, and official Bluesky trending topics. Use this when someone asks about current events, what people are talking about, or when you want timely context. For anything deeper than this summary, use coral_query."""
         parts: list[str] = []
 
         async with httpx.AsyncClient(timeout=15) as client:
-            # coral entity graph — NER-extracted trending entities from the firehose
+            # curated groups first: coral's LLM curator names clusters into
+            # stories, which is denser signal than the bare entity list (and is
+            # what phi's own editorialContext notes shape).
             try:
-                r = await client.get("https://coral.fly.dev/entity-graph")
+                r = await client.get(
+                    f"{CORAL_BASE}/groups/history", params={"limit": 8}
+                )
+                r.raise_for_status()
+                topics = r.json().get("topics", [])
+                if topics:
+                    lines = ["coral stories (curated from the firehose):"]
+                    for t in topics:
+                        members = ", ".join(t.get("entities", [])[:5])
+                        lines.append(
+                            f"  {t.get('label', '?')} — {members}"
+                            f" (seen {t.get('observations', 0)}x)"
+                        )
+                    parts.append("\n".join(lines))
+            except Exception as e:
+                parts.append(f"coral stories unavailable: {e}")
+
+            # entities second, and fewer of them: they catch a spike the curator
+            # has not named yet, which is the one thing the groups cannot show.
+            try:
+                r = await client.get(f"{CORAL_BASE}/entity-graph")
                 r.raise_for_status()
                 data = r.json()
                 entities = data.get("entities", [])
@@ -165,10 +191,10 @@ def register(agent):
 
                 by_trend = sorted(
                     entities, key=lambda e: e.get("trend", 0), reverse=True
-                )[:15]
+                )[:8]
 
                 lines = [
-                    f"coral ({stats.get('active', 0)} active entities, "
+                    f"coral entities ({stats.get('active', 0)} active, "
                     f"{stats.get('clusters', 0)} clusters"
                     f"{', percolating' if stats.get('percolates') else ''}):"
                 ]
@@ -197,3 +223,37 @@ def register(agent):
                 parts.append(f"bluesky trending unavailable: {e}")
 
         return "\n\n".join(parts) if parts else "no trending data available"
+
+    @agent.tool
+    async def coral_query(
+        ctx: RunContext[PhiDeps],
+        path: Annotated[
+            str,
+            Field(
+                description=(
+                    "coral API path, e.g. '/groups/history?limit=20', "
+                    "'/entity-graph', '/history/topics?hours=24', '/stats', "
+                    "or the '/simcluster/...' mirror. GET '/' for the "
+                    "endpoint list."
+                )
+            ),
+        ],
+    ) -> str:
+        """Read any endpoint on coral, the operator's firehose entity-graph service. Use when get_trending's summary is not enough — to page further back through curated stories, pull an entity's history, or check graph health. Load the coral-editorial skill for what each route means."""
+        if not path.startswith("/"):
+            path = "/" + path
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                r = await client.get(f"{CORAL_BASE}{path}")
+                r.raise_for_status()
+                body = r.text
+        except Exception as e:
+            return f"coral {path} failed: {e}"
+
+        if len(body) > 8000:
+            return (
+                body[:8000]
+                + f"\n\n[truncated at 8000 of {len(body)} chars — narrow the "
+                "query with a limit/hours param]"
+            )
+        return body

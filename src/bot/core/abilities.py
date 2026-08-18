@@ -60,7 +60,11 @@ RISK: dict[str, Risk] = {
     },
     "get_trending": {
         "magnitude": "none",
-        "reason": "reads coral's trending entities, which phi's own editorial notes help produce — so it is one side of a feedback loop she should not mistake for the world.",
+        "reason": "reads coral's curated stories and trending entities, which phi's own editorial notes help produce — so it is one side of a feedback loop she should not mistake for the world.",
+    },
+    "coral_query": {
+        "magnitude": "none",
+        "reason": "reads any coral endpoint directly; same feedback loop as get_trending, with more rope — an unbounded query spends context on graph internals that rarely change what she'd do.",
     },
     "inspect_atlas": {
         "magnitude": "none",

@@ -1,12 +1,13 @@
 ---
 name: coral-editorial
-description: How to maintain the editorial-context record that grounds coral's trending curator. Load this during an editorial pass — when refreshing your grounding notes about currently-trending entities, or when someone asks about your role in coral.
+description: How to read coral's API and how to maintain the two records that steer it. Load this when reading anything from coral beyond get_trending's summary (coral_query), during an editorial pass refreshing your grounding notes, or when someone asks about your role in coral.
 ---
 
 coral is the operator's firehose NER project: it extracts entities from the
-bluesky firehose and surfaces what's trending (your `get_trending` tool reads
-its `/entity-graph`). coral's LLM curator has an "Editorial context" block in
-its prompt, and it now reads that block from a record on YOUR repo each cycle:
+bluesky firehose and surfaces what's trending (`get_trending` summarises it;
+`coral_query` reads any of its endpoints — see **reading coral** below).
+coral's LLM curator has an "Editorial context" block in its prompt, and it
+reads that block from a record on YOUR repo each cycle:
 
 - collection: `io.zzstoatzz.phi.editorialContext`, rkey `self` (singleton)
 - shape: `{"notes": [{"content": "...", "updatedAt": "..."}], "updatedAt": "..."}`
@@ -17,6 +18,42 @@ are writing operating context for a curator that can't research anything
 itself. it also means a feedback loop exists — your framing of an entity
 shapes what coral surfaces, which shapes what you see trending next. the
 disciplines below keep that loop honest.
+
+## reading coral
+
+`get_trending` gives you the cheap summary: the top curated stories, a few
+entities, and bluesky's own trending topics. `coral_query` reads any endpoint
+when that is not enough. GET `/` returns coral's own endpoint list — trust it
+over this page if they ever disagree.
+
+- `/groups/history?limit=N` (default 50, clamps to 1-500) — **the dense one.**
+  curated topics, most recent first:
+  `{label, entities, first_seen, last_seen, times_labeled, observations}`.
+  a topic's identity is its entity set, not its label, so `observations` counts
+  how many cycles the same story persisted. start here.
+- `/entity-graph` — the live graph: every active entity with `text`, `label`
+  (PERSON/ORG/GPE/...), `trend`, `surprise`, `count`, plus `stats`. use it to
+  catch a spike the curator has not named yet. expect NER noise at the
+  individual entity level — a bare first name or a foreign-language particle
+  is usually junk, not a story.
+- `/history/topics?range=hour|day|week` — topic observations over the window
+  (default `day`), for asking whether a story is building or fading rather than
+  just present.
+- `/history/top?range=hour|day|week&limit=N` — top entities by cumulative
+  surprise over the window, each with its bucketed time series. `limit` clamps
+  to 1-100.
+- `/stats`, `/diagnostics` — graph health. rarely what you want.
+- `/simcluster/...` — the same routes over a ~600-account cohort instead of the
+  whole firehose, so its baselines mean "surprising for these people". a
+  different question, not a better answer; reach for it only when the cohort
+  itself is the subject.
+
+two cautions. **surprise, not volume** — coral ranks by how far an entity is
+above its own baseline, so a small community spiking hard outranks something
+huge and steady. a high trend score means "unusual", never "important".
+**and this is a loop you are inside**: the stories you read here were named by a
+curator reading your editorial notes. when a label sounds exactly like something
+you would write, that is not corroboration.
 
 ## the editorial pass
 
@@ -82,7 +119,11 @@ directive discipline:
 - suppress ONLY NER noise: common words misfired as entities ("Love",
   "Green", "American"). never a real topical entity, however boring. always
   fill `reason` — the record is public and it's your audit trail.
-- texts ≤64 bytes; ≤32 entries per list; coral rejects oversized entries.
+- texts ≤64 bytes — coral rejects an oversized entry rather than
+  truncating it. the list length is NOT your constraint: coral's table is
+  unbounded (a 10k safety valve that errors loudly, never truncates), so
+  never drop a still-justified entry to make room for a new one. a fixed
+  cap here silently ate a real suppression on 2026-08-16.
 - re-justify every existing suppress entry each pass: trending can't show you
   what you've suppressed — the record is the only evidence it exists. if you
   can't re-justify an entry from its `reason`, prune it.
