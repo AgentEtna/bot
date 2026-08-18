@@ -76,16 +76,23 @@ deeper reference in `docs/`:
 - `safety.md` — the policy judge, the pdsx feed-write guard, the operator override, and the incident that shaped them
 - `testing.md` — testing philosophy
 - `patterns.md` — recurring lessons; read before "fixing" anything that looks accidental
+- `observability.md` — logfire integration and its sharp edges
 - `internal/cockpit.md` — the web UI (internal, operator-facing)
+
+`CHANGELOG.md` (repo root) records what shipped and why — the reasoning that
+isn't in the diff. Docs describe how things *are*; the changelog describes how
+they got that way. Neither should be a status report.
 
 `docs/system-prompt.md` is drift-checked: `tests/test_docs_sync.py` fails if an `inject_*` prompt function or a policy slug isn't mentioned there. add the row, don't weaken the test.
 
 ## deployment
 
-this repo lives at `tangled.org/zzstoatzz.io/bot`; the plan is to move it to `tangled.org/phi.zzstoatzz.io` (phi's own identity) soon — phi reads her own source through the tangled MCP, so update any hardcoded repo references when that happens.
+this repo lives at `tangled.org/zzstoatzz.io/bot`. phi reads her own source
+through the tangled MCP, so update any hardcoded repo references if it moves.
 
-fly.io app `zzstoatzz-phi`. `just deploy` is the only deploy path — run it yourself after pushing, and expect a couple of minutes. push to both `origin` (tangled) and the `github` mirror; the mirror is what phi's `changelog` tool reads.
-
-there was a tag-triggered deploy workflow (`.tangled/workflows/deploy.yml`, `just release`). it stopped firing at some point and nobody noticed because every real deploy was already manual — pushing `v0.10.49` on 2026-07-24 produced no release while five `just deploy` runs that day all landed. it was deleted rather than left as decoration; `git show f811181` has it if CI deploys are wanted again, and it would need a `FLY_API_TOKEN` secret configured in tangled.
+fly.io app `zzstoatzz-phi`. `just deploy` is the only deploy path — there is no
+deploy CI. run it yourself after pushing and expect a couple of minutes. push to
+both `origin` (tangled) and the `github` mirror; the mirror is what phi's
+`changelog` tool reads.
 
 secrets via `fly secrets set` or `fly secrets import` (pipe `grep ^KEY .env` into it to keep values off the terminal).

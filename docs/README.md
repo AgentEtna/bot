@@ -10,6 +10,7 @@ deeper dive into phi's design.
 - [mcp.md](mcp.md) — model context protocol integration
 - [safety.md](safety.md) — how public actions are bounded: policies + judge, the pdsx guard, the operator override
 - [testing.md](testing.md) — testing philosophy
+- [observability.md](observability.md) — logfire integration and its sharp edges
 - [skill-or-tool.md](skill-or-tool.md) — the principle for deciding when something is a tool vs a skill, with the review trail
 - [tool-sprawl.md](tool-sprawl.md) — module-misplacement backlog from surfacing the catalogue in the UI
 - [patterns.md](patterns.md) — recurring lessons from the git history (deletion, feedback loops, DotDict, voice vs structure, silently-empty blocks, prescription in task prompts, attention shapes voice)
@@ -29,3 +30,7 @@ deeper dive into phi's design.
 9. **patterns.md** — recurring lessons; read before refactoring anything that looks accidental
 
 each doc is self-contained and can be read independently.
+
+these docs describe how phi works *now*. for how it came to work that way — the
+incidents, the reversals, the reasoning that isn't in any diff — see
+[../CHANGELOG.md](../CHANGELOG.md).

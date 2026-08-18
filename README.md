@@ -48,6 +48,8 @@ just deploy     # fly.io (the only deploy path)
 - [mcp](docs/mcp.md) — how external tool servers are integrated
 - [safety](docs/safety.md) — policies, the judge, the operator override
 - [testing](docs/testing.md) — testing philosophy
+- [observability](docs/observability.md) — logfire integration and its sharp edges
+- [CHANGELOG](CHANGELOG.md) — what shipped, and what it cost to find out
 
 ## reference projects
 
