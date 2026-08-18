@@ -19,6 +19,7 @@ from pydantic_ai_skills import SkillsToolset
 
 from bot.config import settings
 from bot.core.abilities import risk_of
+from bot.core.alert_watch import render_alert_watch
 from bot.core.atlas import get_atlas_digest
 from bot.core.atproto_client import bot_client, get_identity_block
 from bot.core.cache_stability import (
@@ -40,7 +41,6 @@ from bot.core.recent_flow_mentions import get_recent_flow_mentions_block
 from bot.core.recent_operations import get_operations_block
 from bot.core.self_record import get_self_block
 from bot.core.self_state import get_inventory_block, get_state_block
-from bot.core.alert_watch import render_alert_watch
 from bot.core.workflow_state import get_workflow_state_block
 from bot.memory.extraction import EXTRACTION_SYSTEM_PROMPT, ExtractionResult
 from bot.memory.namespace_memory import InteractionRow

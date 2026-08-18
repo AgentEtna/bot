@@ -12,7 +12,6 @@ phi as a string and never logged.
 """
 
 import logging
-from datetime import UTC
 from unittest.mock import AsyncMock, patch
 
 import httpx
