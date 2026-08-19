@@ -59,8 +59,10 @@ what moved and what it cost to find out.
   fabricated flow name and three same-day self-assessment failures: a
   machine-state tally survived the 08-01 retro, a charter-clean rewrite narrated
   its own scope, and hours after agreeing to cut that line a scheduled run
-  proposed reinstating it. The statute lives in `policy.py`, not in the retro
-  prompt — a prompt is not a constraint.
+  proposed reinstating it. `check_self_record` is the same actor/judge split as
+  `post`: an independent judge holds the statute, reviews the proposed text line
+  by line after the owner gate, and fails closed — a wrong record is injected
+  into every run, so it outlives a missed rewrite window.
 
 ## 2026-08-07
 
