@@ -384,4 +384,3 @@ def register(agent):
                 logger.warning(f"failed to store interaction for @{author_handle}: {e}")
 
         return f"replied to {target} at {in_reply_to}" + warn_note
-

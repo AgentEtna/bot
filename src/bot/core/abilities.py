@@ -173,10 +173,11 @@ RISK: dict[str, Risk] = {
 }
 
 
-# Reaction verbs are not tools — they're governed create_record writes
-# (bot/core/mcp_guard.py), keyed by collection. The judge still needs their
-# risk text, so they declare here, outside the tool bijection.
-REACTION_RISK: dict[str, Risk] = {
+# Some public actions are not tools — they're raw pdsx record writes governed
+# at the seam (bot/core/mcp_guard.py), keyed by collection or verb. The judge
+# still needs their risk text, so they declare here, outside the bijection
+# that `tests/test_abilities.py` holds over RISK.
+GOVERNED_WRITE_RISK: dict[str, Risk] = {
     "like": {
         "magnitude": "moderate",
         "reason": "notifies one person that phi read them, which is a social act she cannot un-send even after unliking.",
@@ -184,6 +185,10 @@ REACTION_RISK: dict[str, Risk] = {
     "repost": {
         "magnitude": "high",
         "reason": "amplifies someone else's post to phi's followers under her name, which endorses whatever it turns out to say.",
+    },
+    "delete_record": {
+        "magnitude": "high",
+        "reason": "permanently destroys one of her own records; the text is unrecoverable and everyone who already read it keeps what they read, so a retraction corrects the record, never the fact of having said it.",
     },
 }
 
@@ -200,7 +205,7 @@ def describe(tool_name: str) -> str:
     adds what the tool itself can cost, so a borderline call is weighed
     against a real consequence rather than the judge's guess at one.
     """
-    risk = RISK.get(tool_name) or REACTION_RISK.get(tool_name)
+    risk = RISK.get(tool_name) or GOVERNED_WRITE_RISK.get(tool_name)
     if not risk:
         return ""
     return f"{tool_name} is {risk['magnitude']}-risk: {risk['reason']}"

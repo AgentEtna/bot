@@ -119,6 +119,13 @@ def _structural_refusal(
         # create is governed by _govern_reaction; delete is un-reacting,
         # which is her own record and benign
         return None
+    if name == "delete_record":
+        # retraction is governed by _govern_delete, not refused. b3461a6
+        # added delete_record to the mutation set to close an ungoverned
+        # delete and left phi with no way to take anything back at all —
+        # she could post and never unsay. a guard routes a capability
+        # through the check; it does not remove it.
+        return None
     logger.warning(
         f"pdsx guard refused {name} into {collection} "
         f"(rkey={tool_args.get('rkey', '')!r})"
@@ -129,7 +136,9 @@ def _structural_refusal(
         "composed posts flow through the trusted tool: post. "
         "likes and reposts are ordinary create_record calls into "
         "app.bsky.feed.like / app.bsky.feed.repost — pass "
-        "record.subject.uri and the guard verifies and completes the rest."
+        "record.subject.uri and the guard verifies and completes the rest. "
+        "to take something back, delete_record works on your own records: "
+        "the guard checks it is yours and puts it past the judge."
     )
 
 
@@ -224,6 +233,16 @@ def make_mcp_guard(server: str, run_label: str = ""):
             if verb:
                 result = await _govern_reaction(
                     ctx, call_tool, verb, name, tool_args, run_label
+                )
+                return await _with_coverage(ctx, result)
+
+        if server == "pdsx" and name == "delete_record":
+            collection = str(tool_args.get("collection", ""))
+            if collection.startswith(_BLOCKED_PREFIX) and (
+                collection not in _REACTION_COLLECTIONS
+            ):
+                result = await _govern_delete(
+                    ctx, call_tool, name, tool_args, run_label
                 )
                 return await _with_coverage(ctx, result)
 
@@ -325,6 +344,85 @@ async def _govern_reaction(
     bot_status.record_response()
     target = f"@{author_handle}" if author_handle else uri
     logger.info(f"{verb}d {target}")
+    if warn_note and isinstance(result, str):
+        return result + warn_note
+    return result
+
+
+async def _govern_delete(
+    ctx: Any,
+    call_tool: Any,
+    name: str,
+    tool_args: dict[str, Any],
+    run_label: str,
+) -> Any:
+    """Verify, judge, and then perform a retraction of phi's own record.
+
+    The counterpart to ``post``: she can unsay what she said. The guard
+    confirms the record is hers, fetches it so the judge rules on the actual
+    content rather than a URI, and applies the same provenance fail-open /
+    fail-closed split every other public action gets.
+
+    Deleting is not undoing. The text is unrecoverable and anyone who already
+    read it keeps what they read, which is exactly why it runs past the judge
+    instead of being either free or forbidden.
+    """
+    from atproto_client.models.utils import get_model_as_dict
+
+    from bot.core.atproto_client import bot_client
+    from bot.tools.posting import _policy_gate
+
+    collection = str(tool_args.get("collection", ""))
+    rkey = str(tool_args.get("rkey", ""))
+    repo = str(tool_args.get("repo", "") or "")
+    if not rkey:
+        return f"refused: delete_record into {collection} needs an rkey"
+
+    own_did = getattr(getattr(bot_client.client, "me", None), "did", "")
+    if not own_did:
+        return "refused: could not confirm your own identity"
+    if repo and repo != own_did:
+        return (
+            f"refused: {repo} is not your repo. you can only retract your own records."
+        )
+
+    # rule on the content, not the pointer — a bare rkey tells the judge
+    # nothing about what is being destroyed
+    try:
+        record = bot_client.client.com.atproto.repo.get_record(
+            params={"repo": own_did, "collection": collection, "rkey": rkey}
+        )
+        value = record.value
+        # `.value` is a DotDict or a typed model, never a plain dict, and both
+        # serialise wrong under dict() — get_model_as_dict returns wire format.
+        raw = value if isinstance(value, dict) else get_model_as_dict(value)
+        text = str(raw.get("text", ""))
+    except Exception:
+        return (
+            f"refused: could not fetch {collection}/{rkey} — it may already "
+            "be gone, or the rkey is wrong. check get_own_posts."
+        )
+
+    deps = getattr(ctx, "deps", None)
+    notifs = getattr(deps, "notifications_context", None) or {}
+    unprompted = not notifs and not getattr(deps, "author_handle", "")
+
+    action = f"delete phi's own {collection} record {rkey}"
+    if text:
+        action += f': "{text[:200]}"'
+    refusal, warn_note = await _policy_gate(
+        action,
+        "retracting her own record. the text is destroyed and cannot be "
+        "recovered; anyone who already read it keeps what they read. "
+        "a bad post is a legitimate reason; hiding having been wrong is not.",
+        unprompted=unprompted,
+        tool="delete_record",
+    )
+    if refusal:
+        return refusal
+
+    result = await _invoke(call_tool, "pdsx", name, tool_args, run_label)
+    logger.info(f"retracted {collection}/{rkey}: {text[:80]!r}")
     if warn_note and isinstance(result, str):
         return result + warn_note
     return result

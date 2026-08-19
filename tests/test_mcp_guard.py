@@ -4,7 +4,10 @@
 
 - `delete_record` was absent from pdsx's mutation set, so a delete into
   any collection — including `app.bsky.feed.post` — passed untouched. The
-  one destructive verb was the unchecked one.
+  one destructive verb was the unchecked one. That fix over-corrected into
+  a flat refusal, which left phi able to post and unable to unsay; since
+  2026-08-19 a delete of her own record is *governed* instead — see the
+  retraction tests below.
 - semble writes were logged but never override-gated, so safe mode
   stopped phi posting to bluesky while leaving her free to publish cosmik
   cards.
@@ -47,17 +50,93 @@ def override(active: bool, message: str = "paused while i debug"):
 # --- the destructive verb that was never checked ---------------------------
 
 
-async def test_delete_into_a_feed_collection_is_refused(monkeypatch, calls):
+MY_DID = "did:plc:65sucjiel52gefhcdcypynsr"
+
+
+def _own_record(text: str = "a post i regret"):
+    """Patch bot_client so the repo looks like phi's and the record fetches."""
+    client = type("C", (), {})()
+    client.me = type("M", (), {"did": MY_DID, "handle": "phi.zzstoatzz.io"})()
+
+    class Repo:
+        @staticmethod
+        def get_record(params):
+            return type("R", (), {"value": {"text": text}})()
+
+    client.com = type("Com", (), {"atproto": type("A", (), {"repo": Repo})})()
+    return type("B", (), {"client": client})()
+
+
+async def test_retracting_her_own_post_is_governed_not_refused(monkeypatch, calls):
+    """The capability b3461a6 removed. A guard routes a capability through
+    the check; it does not delete the capability."""
     monkeypatch.setattr(mcp_guard, "get_override", override(False))
+    monkeypatch.setattr("bot.core.atproto_client.bot_client", _own_record())
+    guard = mcp_guard.make_mcp_guard("pdsx", "test")
+    with patch(
+        "bot.tools.posting._policy_gate", AsyncMock(return_value=(None, ""))
+    ) as gate:
+        result = await guard(
+            None,
+            call_tool_stub(calls),
+            "delete_record",
+            {"repo": MY_DID, "collection": "app.bsky.feed.post", "rkey": "abc"},
+        )
+    assert "refused" not in str(result)
+    assert calls, "the judged delete never reached pdsx"
+    # the judge must rule on the content, not just the pointer
+    assert "a post i regret" in gate.await_args.args[0]
+
+
+async def test_the_judge_can_still_block_a_retraction(monkeypatch, calls):
+    monkeypatch.setattr(mcp_guard, "get_override", override(False))
+    monkeypatch.setattr("bot.core.atproto_client.bot_client", _own_record())
+    guard = mcp_guard.make_mcp_guard("pdsx", "test")
+    with patch(
+        "bot.tools.posting._policy_gate",
+        AsyncMock(return_value=("refused: policy says keep it", "")),
+    ):
+        result = await guard(
+            None,
+            call_tool_stub(calls),
+            "delete_record",
+            {"repo": MY_DID, "collection": "app.bsky.feed.post", "rkey": "abc"},
+        )
+    assert "refused" in result
+    assert calls == [], "a blocked delete reached pdsx"
+
+
+async def test_retracting_someone_elses_record_is_refused(monkeypatch, calls):
+    monkeypatch.setattr(mcp_guard, "get_override", override(False))
+    monkeypatch.setattr("bot.core.atproto_client.bot_client", _own_record())
     guard = mcp_guard.make_mcp_guard("pdsx", "test")
     result = await guard(
         None,
         call_tool_stub(calls),
         "delete_record",
-        {"collection": "app.bsky.feed.post", "rkey": "abc"},
+        {
+            "repo": "did:plc:someoneelse",
+            "collection": "app.bsky.feed.post",
+            "rkey": "a",
+        },
     )
     assert "refused" in result
-    assert calls == [], "the delete reached pdsx"
+    assert calls == [], "a delete into another repo reached pdsx"
+
+
+async def test_retraction_still_refused_under_an_operator_override(monkeypatch, calls):
+    """Safe mode stops phi acting. Retraction is an action."""
+    monkeypatch.setattr(mcp_guard, "get_override", override(True))
+    monkeypatch.setattr("bot.core.atproto_client.bot_client", _own_record())
+    guard = mcp_guard.make_mcp_guard("pdsx", "test")
+    result = await guard(
+        None,
+        call_tool_stub(calls),
+        "delete_record",
+        {"repo": MY_DID, "collection": "app.bsky.feed.post", "rkey": "abc"},
+    )
+    assert "paused while i debug" in result
+    assert calls == []
 
 
 async def test_create_and_update_into_a_feed_collection_still_refused(
@@ -304,7 +383,9 @@ async def test_guard_appends_coverage_to_sizeable_read(monkeypatch):
         return big
 
     ctx = SimpleNamespace(deps=SimpleNamespace(memory=object()))
-    result = await guard(ctx, call_tool, "list_records", {"collection": "fm.plyr.track"})
+    result = await guard(
+        ctx, call_tool, "list_records", {"collection": "fm.plyr.track"}
+    )
     assert result == f"{big}\n\n[PRIOR COVERAGE] note"
 
 
