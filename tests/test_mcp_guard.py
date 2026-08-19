@@ -88,6 +88,24 @@ async def test_retracting_her_own_post_is_governed_not_refused(monkeypatch, call
     assert "a post i regret" in gate.await_args.args[0]
 
 
+async def test_a_successful_retraction_warns_against_a_dangling_reference(
+    monkeypatch, calls
+):
+    """2026-08-19: the first real retraction was replaced by a post opening
+    "deleted the report" — a reference to something no reader could see."""
+    monkeypatch.setattr(mcp_guard, "get_override", override(False))
+    monkeypatch.setattr("bot.core.atproto_client.bot_client", _own_record())
+    guard = mcp_guard.make_mcp_guard("pdsx", "test")
+    with patch("bot.tools.posting._policy_gate", AsyncMock(return_value=(None, ""))):
+        result = await guard(
+            None,
+            call_tool_stub(calls),
+            "delete_record",
+            {"repo": MY_DID, "collection": "app.bsky.feed.post", "rkey": "abc"},
+        )
+    assert "stands on its own" in result
+
+
 async def test_the_judge_can_still_block_a_retraction(monkeypatch, calls):
     monkeypatch.setattr(mcp_guard, "get_override", override(False))
     monkeypatch.setattr("bot.core.atproto_client.bot_client", _own_record())

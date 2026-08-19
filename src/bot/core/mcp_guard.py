@@ -423,8 +423,16 @@ async def _govern_delete(
 
     result = await _invoke(call_tool, "pdsx", name, tool_args, run_label)
     logger.info(f"retracted {collection}/{rkey}: {text[:80]!r}")
-    if warn_note and isinstance(result, str):
-        return result + warn_note
+    # A replacement that refers to what it replaced is broken on arrival:
+    # readers see the reference and not the referent. Said here because the
+    # rewrite happens in the next tool call, while this result is in context.
+    note = (
+        "\nretracted. if you are replacing it, write the new one so it stands "
+        "on its own — nobody else can see what you deleted, so a line like "
+        '"deleted the report" or "as i said above" points at nothing.'
+    )
+    if isinstance(result, str):
+        return result + note + warn_note
     return result
 
 
