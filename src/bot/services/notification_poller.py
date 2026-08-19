@@ -9,8 +9,9 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import logfire
 
 from bot.config import settings
-from bot.core.alert_watch import fetch_alert_states, gate_firings
+from bot.core.alert_watch import fetch_alert_states, gate_scoped
 from bot.core.atproto_client import BotClient
+from bot.core.relay_watch import fetch_relay_states, is_relay_key, wake_material
 from bot.services.message_handler import MessageHandler
 from bot.status import bot_status
 
@@ -53,6 +54,7 @@ class NotificationPoller:
         self._semaphore = asyncio.Semaphore(MAX_CONCURRENT)
         self._background_tasks: set[asyncio.Task] = set()
         self._next_alert_watch_poll = 0.0
+        self._next_relay_watch_poll = 0.0
 
     async def start(self) -> asyncio.Task:
         """Start polling for notifications."""
@@ -177,6 +179,17 @@ class NotificationPoller:
                 logger.error(f"alert watch poll error: {e}", exc_info=True)
 
             try:
+                if settings.relay_watch_interval > 0 and (
+                    time.monotonic() >= self._next_relay_watch_poll
+                ):
+                    self._next_relay_watch_poll = (
+                        time.monotonic() + settings.relay_watch_interval
+                    )
+                    await self._check_relay_watch()
+            except Exception as e:
+                logger.error(f"relay watch poll error: {e}", exc_info=True)
+
+            try:
                 await asyncio.sleep(settings.notification_poll_interval)
             except asyncio.CancelledError:
                 logger.info("notification poller shutting down")
@@ -243,9 +256,7 @@ class NotificationPoller:
             self._processed_uris.add(n.uri)
 
         # Dispatch the entire batch as one task — one cognitive event per poll
-        task = asyncio.create_task(
-            self._handle_batch_with_semaphore(batch, check_time)
-        )
+        task = asyncio.create_task(self._handle_batch_with_semaphore(batch, check_time))
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
         logger.info(f"dispatched batch of {len(batch)} notifications")
@@ -263,11 +274,12 @@ class NotificationPoller:
         states = await fetch_alert_states()
         if states is None:
             return
-        incidents, cursor = gate_firings(
+        incidents, cursor = gate_scoped(
             states,
             bot_status.alert_incidents,
             bot_status.alert_watch_cursor,
             time.time(),
+            scope=lambda k: not is_relay_key(k),
         )
         opened = set(incidents) - set(bot_status.alert_incidents)
         closed = [
@@ -284,6 +296,42 @@ class NotificationPoller:
         bot_status.alert_incidents = incidents
         bot_status.alert_watch_cursor = cursor
         bot_status._save()
+
+    async def _check_relay_watch(self):
+        """Fold relay-eval's behind-the-network verdict into the incident
+        record, and wake phi when a watched host newly goes behind.
+
+        Unlike the logfire reconcile this path dispatches: alerts arrive by
+        webhook push, but nothing pushes relay regressions — this poll *is*
+        the detection. The wake carries the event's content so the run
+        starts with recall keyed on the host and its numbers, the way a
+        notification run starts with recall keyed on the batch.
+        """
+        states = await fetch_relay_states()
+        if states is None:
+            return
+        before = bot_status.alert_incidents
+        incidents, cursor = gate_scoped(
+            states,
+            before,
+            bot_status.alert_watch_cursor,
+            time.time(),
+            scope=is_relay_key,
+        )
+        opened = [
+            k
+            for k, v in incidents.items()
+            if is_relay_key(k)
+            and not v.get("closed_ts")
+            and (k not in before or before[k].get("closed_ts"))
+        ]
+        bot_status.alert_incidents = incidents
+        bot_status.alert_watch_cursor = cursor
+        bot_status._save()
+        if opened:
+            logger.info(f"relay watch opened {sorted(opened)}")
+        if opened and not bot_status.paused:
+            await self.handler.alerts(wake_material(incidents, opened))
 
     async def _handle_batch_with_semaphore(self, batch: list, check_time: str):
         """Handle a notification batch with concurrency limiting.

@@ -252,6 +252,29 @@ def gate_firings(
     return out, new_cursor
 
 
+def gate_scoped(
+    states: list[dict[str, Any]],
+    incidents: dict[str, dict[str, Any]],
+    cursor: dict[str, str],
+    now_ts: float,
+    scope,
+) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
+    """``gate_firings`` over one namespace of the shared incident record.
+
+    The record holds incidents from more than one watcher (logfire alerts,
+    the relay watch), but ``gate_firings`` treats any key absent from its
+    ``states`` as gone-quiet and prunes its cursor. Each watcher therefore
+    folds only its own slice — ``scope`` is a key predicate — and the other
+    namespaces pass through untouched.
+    """
+    inside = {k: v for k, v in incidents.items() if scope(k)}
+    outside = {k: v for k, v in incidents.items() if not scope(k)}
+    c_inside = {k: v for k, v in cursor.items() if scope(k)}
+    c_outside = {k: v for k, v in cursor.items() if not scope(k)}
+    folded, folded_cursor = gate_firings(states, inside, c_inside, now_ts)
+    return {**outside, **folded}, {**c_outside, **folded_cursor}
+
+
 def mark_mentioned(
     incidents: dict[str, dict[str, Any]], keys: list[str], now_ts: float
 ) -> dict[str, dict[str, Any]]:

@@ -555,7 +555,13 @@ class PhiAgent:
             material = " ".join(
                 e.get("post_text", "") for e in notifs.values() if e.get("post_text")
             )
-            return await coverage_note(ctx.deps.memory, material)
+            # an event wake has material too — a relay regression's host and
+            # numbers pull up her own past posts about that host. The task
+            # prose of a plain clock slot deliberately does not: querying
+            # coverage with instructions would surface noise.
+            return await coverage_note(
+                ctx.deps.memory, material or ctx.deps.event_material
+            )
 
         @_run_scoped
         async def inject_episodic(ctx: RunContext[PhiDeps]) -> str:
@@ -563,7 +569,8 @@ class PhiAgent:
                 return ""
             # Recall is keyed to what started the run and nothing else — the
             # task cues the memory. Batches seed from the posts phi is
-            # reacting to; scheduled runs seed from their own prompt. The
+            # reacting to; event wakes seed from the event's content; only a
+            # bare clock slot falls back to its own task prose. The
             # residue-seeded variant (2026-08-12, briefly) retrieved more of
             # whatever was already lingering — months-old prefect logs, the
             # same catalog itch every slot — memory as amplifier, not cue.
@@ -576,7 +583,7 @@ class PhiAgent:
                 ]
                 query = " ".join(texts)
             else:
-                query = ctx.deps.run_prompt
+                query = ctx.deps.event_material or ctx.deps.run_prompt
             if not query.strip():
                 return ""
             # Pass phi's goals so the synthesis can rank by relevance to intent.
@@ -1081,18 +1088,27 @@ class PhiAgent:
             context_blocks=context_blocks,
         )
 
-    async def process_alerts(self) -> str:
-        """Wake phi because a logfire alert opened an incident.
+    async def process_alerts(self, material: str = "") -> str:
+        """Wake phi because an incident opened — a logfire alert fired, or
+        a watched relay went behind the network.
 
         The facts ride in [ALERT WATCH] like every other signal; the prompt
-        only says something fired. Most firings need nothing — the block's
-        own doctrine carries the escalation rules.
+        only says something fired. ``material`` is the event's content
+        (alert name + first matched row, or host + coverage numbers): it
+        goes into deps so recall keys on what actually happened, exactly as
+        a notification run's recall keys on the posts in the batch. Most
+        firings need nothing — the block's own doctrine carries the
+        escalation rules.
         """
         return await self._run_agent(
             label="alert fired",
-            prompt="a logfire alert just fired — check [ALERT WATCH]. "
+            prompt="an incident just opened — check [ALERT WATCH]. "
             "most firings need nothing from you.",
-            deps=PhiDeps(author_handle="", memory=self.memory),
+            deps=PhiDeps(
+                author_handle="",
+                memory=self.memory,
+                event_material=material,
+            ),
         )
 
     async def process_people(self) -> str:

@@ -221,6 +221,24 @@ class Settings(BaseSettings):
         default="https://relay-eval.waow.tech/api/relays",
         description="Base URL for relay-eval's relay API (snapshot endpoint)",
     )
+    relay_watch_interval: int = Field(
+        default=900,
+        description="Seconds between relay-eval behind-the-network checks; "
+        "0 disables. relay-eval evaluates the fleet roughly every 30 "
+        "minutes, so 15 minutes bounds detection latency at about one "
+        "eval run",
+    )
+    relay_watch_hosts: list[str] = Field(
+        default=[
+            "zlay.waow.tech",
+            "relay.waow.tech",
+            "stream.waow.tech",
+            "jetstream.waow.tech",
+        ],
+        description="Relay hosts whose behind-the-network regressions open "
+        "incidents — the operator's own relays, not the whole fleet "
+        "(chronically-behind third-party relays would be permanent noise)",
+    )
 
     # Prefect flow monitoring — phi polls the prefect-server via the prefect
     # MCP to notice failed/crashed flows (ingest, brief, compact, etc.) and

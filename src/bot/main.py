@@ -283,7 +283,10 @@ async def alert_webhook(request: Request, background_tasks: BackgroundTasks):
     bot_status._save()
     poller: NotificationPoller | None = getattr(app.state, "poller", None)
     if opened and poller and not bot_status.paused:
-        background_tasks.add_task(poller.handler.alerts)
+        material = f"{state['project']}/{state['name']}"
+        if state.get("detail"):
+            material += f": {state['detail']}"
+        background_tasks.add_task(poller.handler.alerts, material)
         logger.info(f"alert webhook opened incident {state['key']}, waking phi")
     return {"ok": True, "opened": opened}
 

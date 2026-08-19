@@ -349,9 +349,15 @@ class MessageHandler:
         """A scheduled pass pointed at people rather than systems."""
         await self._run_scheduled("people", lambda: self.agent.process_people())
 
-    async def alerts(self):
-        """Wake phi because a logfire alert just fired — see agent.process_alerts."""
-        await self._run_scheduled("alert fired", self.agent.process_alerts)
+    async def alerts(self, material: str = ""):
+        """Wake phi because an incident opened — see agent.process_alerts.
+
+        ``material`` is the event's content; it rides into deps so the run's
+        recall keys on what happened, not on the wake-up prose.
+        """
+        await self._run_scheduled(
+            "alert fired", lambda: self.agent.process_alerts(material)
+        )
 
     async def chicken_precheck(self):
         """Pre-lock market check — see :meth:`PhiAgent.process_chicken_precheck`."""
