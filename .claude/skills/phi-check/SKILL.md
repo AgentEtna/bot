@@ -49,7 +49,8 @@ This is the richest single signal. Phi writes a one-line summary at the end of e
 SELECT start_timestamp, message
 FROM records
 WHERE start_timestamp > now() - INTERVAL '24 hours'
-  AND (span_name LIKE '%musing finished%'
+  AND (span_name LIKE '%cycle finished%'
+       OR span_name LIKE '%musing finished%'
        OR span_name LIKE '%reflection finished%'
        OR span_name LIKE '%batch run finished%'
        OR span_name LIKE '%original thought%'
