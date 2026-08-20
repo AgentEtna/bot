@@ -35,6 +35,7 @@ from bot.core.atproto_client import bot_client
 from bot.core.mentionable import get_mentionable_handles
 from bot.core.override import get_override, refusal_text
 from bot.core.policy import check_action
+from bot.core.prior_coverage import coverage_note
 from bot.status import bot_status
 from bot.tools._helpers import PhiDeps
 
@@ -135,7 +136,12 @@ def _reply_provenance(uri: str, ctx_notifs: dict) -> str:
 
 
 async def _policy_gate(
-    action: str, provenance: str, *, unprompted: bool, tool: str = "post"
+    action: str,
+    provenance: str,
+    *,
+    unprompted: bool,
+    tool: str = "post",
+    prior_coverage: str = "",
 ) -> tuple[str | None, str]:
     """Run the pre-action policy judge. Returns (refusal, warn_note).
 
@@ -149,6 +155,7 @@ async def _policy_gate(
             provenance=provenance,
             recent_posts=_recent_own_posts(),
             tool=tool,
+            prior_coverage=prior_coverage,
         )
     except Exception as e:
         logger.warning(f"policy check unavailable: {e}")
@@ -296,6 +303,11 @@ def register(agent):
         unprompted = not notifs and not ctx.deps.author_handle
 
         if not in_reply_to:
+            # the draft is the sharpest query there is for "have i said
+            # this": perception-keyed recall over a feed blob surfaced five
+            # chicken-market posts and missed the one that mattered
+            # (gerakines, 2026-08-18). a failed lookup degrades to "" and
+            # the judge simply has no self-repeat evidence.
             refusal, warn_note = await _policy_gate(
                 f"top-level post on phi's own feed: {text}",
                 "top-level post, triggered during "
@@ -306,6 +318,7 @@ def register(agent):
                 )
                 + _operator_authorization_note(notifs),
                 unprompted=unprompted,
+                prior_coverage=await coverage_note(ctx.deps.memory, text),
             )
             if refusal:
                 return refusal

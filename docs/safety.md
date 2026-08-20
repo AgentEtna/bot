@@ -25,7 +25,8 @@ phi's own write-up: ["The Instruction I Wrote For Myself"](https://greengale.app
 `bot/core/policy.py`
 
 - **policies are data**: a `dict[PolicySlug, str]` of natural-language
-  policies (`uninvited-reply`, `bliss-attractor`, `pile-on`). adding one
+  policies (`uninvited-reply`, `bliss-attractor`, `pile-on`, `handle-hygiene`,
+  `self-repeat`). adding one
   is a two-line change (extend the `PolicySlug` literal, add the entry);
   the type checker keeps them in sync, and the literal becomes an enum
   in the judge's output schema.

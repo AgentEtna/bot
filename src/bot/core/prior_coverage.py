@@ -8,7 +8,12 @@ same gracekind post, same link, because nothing in the system could answer
 own published posts, queried by content the moment it enters her context
 (feed reads, searches, notification batches), so recall fires the way a
 person's does — the sight of the material reminds her she already covered
-it. No posting-time gate; the memory is just present before deliberation.
+it. The same lookup runs once more at posting time with the draft itself
+as the query (bot/tools/posting.py → policy judge, `self-repeat`): on
+2026-08-18 the perception-keyed pass fired on a whole feed blob and
+surfaced five chicken-market posts while missing the two-day-old gerakines
+post phi was about to restate. The draft is the one query that is exactly
+the thing being checked.
 
 Index lives in turbopuffer (phi-own-posts). Freshness has two halves:
 - backfill (startup task): pages her PDS post collection, indexes anything
@@ -61,7 +66,9 @@ def extract_links(value: dict[str, Any]) -> list[str]:
     no trailing slash) so facet URIs and display strings compare equal."""
     found: list[str] = []
     for facet in value.get("facets") or []:
-        for feature in (facet.get("features") if isinstance(facet, dict) else None) or []:
+        for feature in (
+            facet.get("features") if isinstance(facet, dict) else None
+        ) or []:
             uri = feature.get("uri") if isinstance(feature, dict) else None
             if uri:
                 found.append(str(uri))
@@ -224,7 +231,9 @@ def render_coverage(hits: list[dict], candidate_links: list[str]) -> str:
         when = relative_when(ts) if ts else ""
         kind = "reply" if hit.get("is_reply") else "top-level post"
         stamp = (
-            f"{ts[:16]} ({when}, {kind})" if ts and when else f"{ts or 'undated'} ({kind})"
+            f"{ts[:16]} ({when}, {kind})"
+            if ts and when
+            else f"{ts or 'undated'} ({kind})"
         )
         text = " ".join((hit.get("text") or "").split())
         if len(text) > PREVIEW:
@@ -238,8 +247,7 @@ def render_coverage(hits: list[dict], candidate_links: list[str]) -> str:
     return (
         "[PRIOR COVERAGE — your own posts nearest this material. if what "
         "you were about to say is already here, it has been said; repeat "
-        "it only on purpose, and by referencing the earlier post.]\n"
-        + "\n".join(lines)
+        "it only on purpose, and by referencing the earlier post.]\n" + "\n".join(lines)
     )
 
 

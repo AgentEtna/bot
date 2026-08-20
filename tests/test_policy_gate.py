@@ -146,3 +146,129 @@ class TestOperatorAuthorizationNote:
             )
             == ""
         )
+
+
+class TestSelfRepeat:
+    """regression (2026-08-18, 2026-08-20): phi restated her own 08-16
+    gerakines post two days later and her own 18:03 apenwarr post an hour
+    later. The prior-coverage index existed both times but was only ever
+    queried by incoming material — on 08-18 it surfaced five chicken-market
+    posts off a feed blob and missed the one that mattered. The draft itself
+    is now the query, and the judge gets the result as self-repeat evidence."""
+
+    COVERAGE = (
+        "[PRIOR COVERAGE — ...]\n"
+        '- 2026-08-16T14:02 (1.5d ago, top-level post): "nick gerakines on '
+        "atproto's permissioned-data spaces: removing a member doesn't "
+        'revoke anything"'
+    )
+
+    async def test_top_level_post_queries_coverage_with_the_draft(self):
+        from bot.tools._helpers import PhiDeps
+
+        captured = {}
+
+        class FakeAgent:
+            def tool(self, fn):
+                captured[fn.__name__] = fn
+                return fn
+
+        posting.register(FakeAgent())
+        memory = object()
+        ctx = type("Ctx", (), {"deps": PhiDeps(author_handle=None, memory=memory)})()
+        draft = (
+            "nick gerakines's point yesterday: removing someone doesn't revoke anything"
+        )
+
+        with (
+            patch.object(
+                posting, "get_override", AsyncMock(return_value={"active": False})
+            ),
+            patch.object(
+                posting, "coverage_note", AsyncMock(return_value=self.COVERAGE)
+            ) as recall,
+            patch.object(
+                posting,
+                "check_action",
+                AsyncMock(
+                    return_value=_verdict(
+                        "block", "self-repeat", "you said this on the 16th."
+                    )
+                ),
+            ) as judge,
+            patch.object(posting, "_recent_own_posts", lambda: ""),
+            patch.object(posting.bot_client, "create_post", AsyncMock()) as create,
+        ):
+            result = await captured["post"](ctx, draft)
+
+        recall.assert_awaited_once_with(memory, draft)
+        assert judge.await_args.kwargs["prior_coverage"] == self.COVERAGE
+        assert "self-repeat" in result
+        assert "you said this on the 16th." in result
+        create.assert_not_called()
+
+    async def test_reply_does_not_query_coverage(self):
+        from bot.tools._helpers import PhiDeps
+
+        captured = {}
+
+        class FakeAgent:
+            def tool(self, fn):
+                captured[fn.__name__] = fn
+                return fn
+
+        posting.register(FakeAgent())
+        ctx = type("Ctx", (), {"deps": PhiDeps(author_handle="someone")})()
+
+        with (
+            patch.object(
+                posting, "get_override", AsyncMock(return_value={"active": False})
+            ),
+            patch.object(posting, "coverage_note", AsyncMock()) as recall,
+            patch.object(
+                posting,
+                "_resolve_post_ref",
+                AsyncMock(
+                    return_value=(
+                        "bafyp",
+                        "at://did:plc:x/app.bsky.feed.post/r",
+                        "bafyr",
+                        "someone",
+                        "hi",
+                    )
+                ),
+            ),
+            patch.object(
+                posting,
+                "check_action",
+                AsyncMock(return_value=_verdict("block", "pile-on", "no.")),
+            ) as judge,
+            patch.object(posting, "_recent_own_posts", lambda: ""),
+        ):
+            await captured["post"](
+                ctx, "a reply", in_reply_to="at://did:plc:x/app.bsky.feed.post/r"
+            )
+
+        recall.assert_not_called()
+        assert judge.await_args.kwargs["prior_coverage"] == ""
+
+    async def test_judge_prompt_carries_coverage_as_evidence(self):
+        from bot.core import policy
+
+        seen = {}
+
+        class FakeJudge:
+            async def run(self, prompt):
+                seen["prompt"] = prompt
+                return type("R", (), {"output": _verdict("allow")})()
+
+        with patch.object(policy, "_get_judge", lambda: FakeJudge()):
+            await policy.check_action(
+                "top-level post: ...", "scheduled", prior_coverage=self.COVERAGE
+            )
+        assert "self-repeat" in seen["prompt"]
+        assert self.COVERAGE in seen["prompt"]
+
+        with patch.object(policy, "_get_judge", lambda: FakeJudge()):
+            await policy.check_action("top-level post: ...", "scheduled")
+        assert "evidence for self-repeat" not in seen["prompt"]

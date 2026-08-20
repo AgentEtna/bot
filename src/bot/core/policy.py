@@ -37,7 +37,9 @@ logger = logging.getLogger("bot.policy")
 # entry. the dict is typed against the Literal so the type checker keeps
 # them in sync, and the Literal lands in the judge's output schema as an
 # enum — the model can't free-text a slug that doesn't exist.
-PolicySlug = Literal["uninvited-reply", "bliss-attractor", "pile-on", "handle-hygiene"]
+PolicySlug = Literal[
+    "uninvited-reply", "bliss-attractor", "pile-on", "handle-hygiene", "self-repeat"
+]
 
 POLICIES: dict[PolicySlug, str] = {
     "uninvited-reply": (
@@ -72,6 +74,17 @@ POLICIES: dict[PolicySlug, str] = {
         "as 'another account'. block any post whose text contains such a "
         "handle."
     ),
+    "self-repeat": (
+        "this policy applies to top-level posts only. when prior coverage "
+        "is supplied, it lists phi's own earlier posts nearest the proposed "
+        "text. block when an earlier post already makes the same "
+        "observation about the same referent — same link, same person and "
+        "claim, same incident — and the proposed post neither adds a "
+        "development nor references the earlier one. warn when it returns "
+        "to the same subject with a genuinely new development (a number "
+        "that moved, an outcome that settled, a correction). allow when "
+        "nothing close is listed. rephrasing counts as repeating."
+    ),
 }
 
 # One-line versions for phi's own context. The full statute above is the
@@ -91,6 +104,10 @@ POLICY_SUMMARIES: dict[PolicySlug, str] = {
     "handle-hygiene": (
         "never write out a slur/shock handle, even quoting accurately — "
         "use DID, clean display name, or 'another account'"
+    ),
+    "self-repeat": (
+        "a top-level post that restates one of your earlier posts is that "
+        "post again; return to a subject only with a development"
     ),
 }
 
@@ -156,6 +173,10 @@ def _get_judge() -> Agent[None, PolicyVerdict]:
             "this specific action (a like on phi's authorization "
             "request), the etiquette policies (uninvited-reply, pile-on) "
             "do not apply. tendency policies still apply.\n"
+            "- self-repeat is judged only from the prior-coverage section, "
+            "when one is supplied. a listed earlier post is phi's own "
+            "words, already published; the question is whether the "
+            "proposed post says anything it did not.\n"
             "- when you block, write one sentence to phi. name what to "
             "do instead."
         ),
@@ -164,7 +185,11 @@ def _get_judge() -> Agent[None, PolicyVerdict]:
 
 
 async def check_action(
-    action: str, provenance: str, recent_posts: str = "", tool: str = ""
+    action: str,
+    provenance: str,
+    recent_posts: str = "",
+    tool: str = "",
+    prior_coverage: str = "",
 ) -> PolicyVerdict:
     """Ask the judge whether a proposed action is within policy.
 
@@ -176,6 +201,11 @@ async def check_action(
     call then gets weighed against the concrete consequence — "a reply lands
     in someone's notifications and cannot be un-notified" — instead of the
     judge inferring the stakes from the action text.
+
+    `prior_coverage` is the rendered [PRIOR COVERAGE] note for the proposed
+    text itself — phi's own posts nearest the draft, from the semantic index
+    in bot/core/prior_coverage.py. It is the evidence for `self-repeat`;
+    the judge never sees the index directly.
     """
     parts = [
         "policies:",
@@ -191,6 +221,12 @@ async def check_action(
         parts += [
             "",
             f"phi's recent top-level posts (context for tendency policies):\n{recent_posts}",
+        ]
+    if prior_coverage:
+        parts += [
+            "",
+            "phi's own earlier posts nearest the proposed text (evidence for "
+            f"self-repeat):\n{prior_coverage}",
         ]
     result = await _get_judge().run("\n".join(parts))
     verdict = result.output

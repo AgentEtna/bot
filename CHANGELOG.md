@@ -5,6 +5,26 @@ record *why* a change happened — the part that isn't reconstructable from the
 diff. Durable design principles live in `docs/`; this file is the record of
 what moved and what it cost to find out.
 
+## 2026-08-20
+
+- **feat**: `self-repeat` policy — a top-level post is now checked against
+  phi's own prior posts at posting time, with the draft as the query. The
+  semantic index (`core/prior_coverage.py`, 2026-08-06) was only ever queried
+  by incoming material, by design ("no posting-time gate"). This week showed
+  the gap twice: on 08-18 02:02 phi restated her 08-16 gerakines post — the
+  `[PRIOR COVERAGE]` note fired in that run, but queried by a whole feed
+  blob it surfaced five chicken-market posts and not the one that mattered;
+  on 08-20 19:01 the daily reflection restated the 18:03 apenwarr post almost
+  verbatim after calling `get_own_posts` and seeing it. Seeing was never a
+  gate. `post()` now runs `coverage_note(memory, text)` for top-level posts
+  and hands the result to the policy judge as evidence for `self-repeat`
+  (block on same referent + same observation with no development or
+  reference; warn on a real development). Replies are not gated — a point
+  restated to a new person is a conversation. A failed lookup degrades to no
+  evidence rather than blocking the post. Fourth attempt at this problem
+  (`9f350be`, `c130ddc`, `014278f`, `cee8881`); each prior fix put the
+  record somewhere phi could see it and trusted her to look.
+
 ## 2026-08-18
 
 - **feat**: `get_trending` leads with coral's curated stories instead of raw
