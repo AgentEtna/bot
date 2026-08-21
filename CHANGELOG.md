@@ -7,6 +7,12 @@ what moved and what it cost to find out.
 
 ## 2026-08-21
 
+- **fix**: a revision starts from the pull's own content. Round 2 on PR #5
+  edited the pre-pull file from `main` — the only read the prompt named —
+  and silently discarded round 1. `tangled_get_pull_file` (new) returns a
+  file as the latest round leaves it; the wake prompt and `own-source` name
+  it and say why `read_file` is the wrong base.
+
 - **fix**: a review comment is answered on the same pull request. The first
   wake prompt said "open a revised pull request and close the old one"
   because tangled-mcp had no way to add a round; phi did exactly that to the

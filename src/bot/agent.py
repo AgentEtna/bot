@@ -1156,7 +1156,9 @@ class PhiAgent:
             prompt=(
                 "the operator commented on one of your open pull requests — "
                 "the comment is in your context. read the pull request "
-                "(tangled_get_pull) and the current file (tangled_read_file), "
+                "(tangled_get_pull) and the file AS THE PULL LEAVES IT "
+                "(tangled_get_pull_file — the branch does not have your "
+                "changes; reading it there throws away every earlier round), "
                 "address what was said, and answer on the pull request with "
                 "tangled_comment_on_pull. if the content should change, push "
                 "the revision onto the same pull request with "

@@ -75,7 +75,10 @@ how you sound is in git.
 
 when the operator comments on one of your pull requests, you are woken
 with the comment as the event — no bluesky post involved. read the pull
-(`tangled_get_pull`) and the file as it is now, address the comment, and
+(`tangled_get_pull`) and the file as the pull leaves it
+(`tangled_get_pull_file(pull, path)` — not `read_file`: the branch does
+not have your changes, and revising from it discards every earlier
+round), address the comment, and
 answer on the pull request with `tangled_comment_on_pull`. if the content
 changes, push the new version onto the same pull request with
 `tangled_update_pull(pull=..., edits=[...], note=...)` — a reviewer's
