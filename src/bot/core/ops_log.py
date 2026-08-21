@@ -185,6 +185,8 @@ def event_to_row(event: dict[str, Any]) -> OpRow | None:
 
 
 PULL_COMMENT_NSID = "sh.tangled.repo.pull.comment"
+FEED_COMMENT_NSID = "sh.tangled.feed.comment"
+COMMENT_NSIDS = frozenset({PULL_COMMENT_NSID, FEED_COMMENT_NSID})
 
 
 WATCHED_CURSOR_FILE = Path("/data/watched_cursor.json")
@@ -205,11 +207,29 @@ def _set_watched_cursor(time_us: int) -> None:
         logger.warning(f"failed to persist watched cursor: {e}")
 
 
+def comment_target(record: dict[str, Any]) -> str:
+    """The at-uri a tangled comment is about: `sh.tangled.feed.comment`
+    (current — subject.uri, body as a markup object) or the legacy
+    `sh.tangled.repo.pull.comment` (pull, body as a string)."""
+    subject = record.get("subject")
+    if isinstance(subject, dict) and subject.get("uri"):
+        return str(subject["uri"])
+    return str(record.get("pull") or "")
+
+
+def comment_text(record: dict[str, Any]) -> str:
+    body = record.get("body")
+    if isinstance(body, dict):
+        body = body.get("text") or body.get("original") or ""
+    return str(body or "").strip()
+
+
 def pull_comment_material(record: dict[str, Any], commenter: str) -> str:
     """The event content a pull-request comment wakes phi with."""
-    pull = str(record.get("pull") or "")
-    body = str(record.get("body") or "").strip()
-    return f"@{commenter} commented on your pull request {pull}:\n\n{body}"
+    return (
+        f"@{commenter} commented on your pull request {comment_target(record)}:"
+        f"\n\n{comment_text(record)}"
+    )
 
 
 class OpsLogConsumer:
@@ -316,12 +336,12 @@ class OpsLogConsumer:
             return
         commit = event.get("commit") or {}
         if (
-            commit.get("collection") != PULL_COMMENT_NSID
+            commit.get("collection") not in COMMENT_NSIDS
             or commit.get("operation") != "create"
         ):
             return
         record = commit.get("record") or {}
-        if not self.is_own_pull(str(record.get("pull") or "")):
+        if not self.is_own_pull(comment_target(record)):
             return
         # jetstream resumes from phi's own last op, which can be hours old
         # when she has been quiet; without this, every reconnect would

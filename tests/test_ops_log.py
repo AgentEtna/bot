@@ -458,3 +458,43 @@ class TestPullCommentWake:
         newer["time_us"] = 2
         await c._handle(json.dumps(newer))
         assert len(calls) == 2
+
+    async def test_current_lexicon_feed_comment_on_phis_pull_wakes(
+        self, monkeypatch, tmp_path
+    ):
+        """2026-08-21 08:24 UTC: the operator's review on PR #4 landed as a
+        sh.tangled.feed.comment (subject.uri + markdown body object), not the
+        legacy pull.comment the first version watched. Nothing fired."""
+        calls, appended = [], []
+        monkeypatch.setattr(ops_log, "append_op", lambda row: appended.append(row))
+        monkeypatch.setattr(ops_log, "WATCHED_CURSOR_FILE", tmp_path / "w.json")
+        c = self._consumer(calls, appended)
+        record = {
+            "subject": {
+                "uri": f"at://{self.PHI}/sh.tangled.repo.pull/3mtlca37pf2qr",
+                "cid": "bafy",
+            },
+            "body": {
+                "$type": "sh.tangled.markup.markdown",
+                "text": "this is slop-coded",
+                "original": "this is slop-coded",
+            },
+            "pullRoundIdx": 0,
+        }
+        await c._handle(self._event(self.OWNER, ops_log.FEED_COMMENT_NSID, record))
+        assert len(calls) == 1
+        assert ops_log.pull_comment_material(record, "zzstoatzz.io").endswith(
+            "3mtlca37pf2qr:\n\nthis is slop-coded"
+        )
+
+    async def test_feed_comment_on_an_issue_is_ignored(self, monkeypatch, tmp_path):
+        calls, appended = [], []
+        monkeypatch.setattr(ops_log, "append_op", lambda row: appended.append(row))
+        monkeypatch.setattr(ops_log, "WATCHED_CURSOR_FILE", tmp_path / "w.json")
+        c = self._consumer(calls, appended)
+        record = {
+            "subject": {"uri": f"at://{self.OWNER}/sh.tangled.repo.issue/3x"},
+            "body": {"text": "hi"},
+        }
+        await c._handle(self._event(self.OWNER, ops_log.FEED_COMMENT_NSID, record))
+        assert calls == []
