@@ -69,14 +69,21 @@ async def resolve_pds(did: str, http: httpx.AsyncClient) -> str | None:
 
 def _fresh_enough(created_at: str) -> bool:
     """Ignore comments older than the lookback at first sight — a fresh
-    deploy must not wake phi for last week's reviews."""
+    deploy must not wake phi for last week's reviews — and anything the
+    jetstream path already handled before this module existed: its watched
+    cursor is the newest comment it woke her for (2026-08-21 18:45, the
+    first poll re-woke her for a comment answered at 17:42)."""
     from datetime import datetime
+
+    from bot.core.ops_log import _watched_cursor
 
     try:
         ts = datetime.fromisoformat(created_at.replace("Z", "+00:00")).timestamp()
     except Exception:
         return True
-    return ts >= _started_at - _LOOKBACK_SECONDS
+    if ts < _started_at - _LOOKBACK_SECONDS:
+        return False
+    return ts * 1_000_000 > _watched_cursor()
 
 
 async def new_review_comments(
