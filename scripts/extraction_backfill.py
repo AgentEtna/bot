@@ -23,6 +23,7 @@ import argparse
 import asyncio
 import logging
 import os
+import time
 from pathlib import Path
 
 from pydantic_ai import Agent
@@ -33,6 +34,10 @@ from bot.memory.namespace_memory import NamespaceMemory
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logging.getLogger("httpx").setLevel(logging.WARNING)
+# rows are stamped with datetime.now(); the bot runs in UTC, a laptop does not.
+os.environ["TZ"] = "UTC"
+time.tzset()
+
 log = logging.getLogger("backfill")
 log.addHandler(logging.StreamHandler())
 log.setLevel(logging.INFO)
