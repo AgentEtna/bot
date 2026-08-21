@@ -5,6 +5,19 @@ record *why* a change happened — the part that isn't reconstructable from the
 diff. Durable design principles live in `docs/`; this file is the record of
 what moved and what it cost to find out.
 
+## 2026-08-21
+
+- **fix**: observation extraction is bounded by its high-water mark, not by a
+  count. `get_unprocessed_interactions` read the 5 newest interactions per
+  namespace and `process_extraction` took 20 overall; the observations it
+  wrote then moved the mark (latest active observation) past everything it
+  had not read. phi named it the more interesting of the two bugs fixed
+  today: the first-page namespace listing, one level down — "bounding 'have
+  I seen this' by a count instead of a cursor/timestamp always eventually
+  mistakes silence for closure." Every interaction above the mark is now
+  walked, oldest first, in chunks of `EXTRACTION_CHUNK`; the per-namespace
+  read is a 1000-row page that logs when reached rather than a budget.
+
 ## 2026-08-20
 
 - **fix**: `[RECENT CONVERSATIONS]` was a view of the first 100 user

@@ -1111,13 +1111,22 @@ class NamespaceMemory:
         results.sort(key=lambda r: r.get("created_at", ""), reverse=True)
         return results[:top_k]
 
-    async def get_unprocessed_interactions(
-        self, top_k: int = 20
-    ) -> list[InteractionRow]:
-        """Get recent interactions that haven't been reviewed for observation extraction.
+    UNPROCESSED_PAGE = 1000
+    """Per-namespace read size for unprocessed interactions. A page, not a
+    budget: hitting it is logged so a cap never passes for completion."""
 
-        Uses a timestamp heuristic: interactions newer than the most recent
-        observation in each user namespace are considered unprocessed.
+    async def get_unprocessed_interactions(self) -> list[InteractionRow]:
+        """Every interaction not yet reviewed for observation extraction, oldest first.
+
+        "Unprocessed" means newer than the namespace's latest active
+        observation — extraction writes observations, so the newest one is
+        the high-water mark. Until 2026-08-21 this read the 5 newest
+        interactions per namespace and the caller took 20 overall; one pass
+        then moved the high-water mark past everything it had not read.
+        Bounding "have I seen this" by a count instead of the mark is the
+        same bug as the first-page namespace listing, one level down (phi's
+        words). The mark is the only bound now; the page size is a read
+        size and is logged when reached.
         """
         user_prefix = f"{self.NAMESPACES['users']}-"
         results: list[InteractionRow] = []
@@ -1152,11 +1161,17 @@ class NamespaceMemory:
                 try:
                     int_response = user_ns.query(
                         rank_by=("created_at", "desc"),
-                        top_k=5,
+                        top_k=self.UNPROCESSED_PAGE,
                         filters={"kind": ["Eq", "interaction"]},
                         include_attributes=True,
                     )
                     if int_response.rows:
+                        if len(int_response.rows) >= self.UNPROCESSED_PAGE:
+                            logger.warning(
+                                f"unprocessed interactions for @{handle} hit the "
+                                f"{self.UNPROCESSED_PAGE}-row page; older rows wait "
+                                "for the next pass"
+                            )
                         for row in int_response.rows:
                             created = getattr(row, "created_at", "") or ""
                             if created > latest_obs_time:
@@ -1175,8 +1190,8 @@ class NamespaceMemory:
         except Exception as e:
             logger.warning(f"failed to get unprocessed interactions: {e}")
 
-        results.sort(key=lambda r: r.get("created_at", ""), reverse=True)
-        return results[:top_k]
+        results.sort(key=lambda r: r.get("created_at", ""))
+        return results
 
     async def get_knowledge_count(self, handle: str) -> int:
         """Count observations phi has stored about a handle.

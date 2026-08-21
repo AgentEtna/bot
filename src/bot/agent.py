@@ -226,6 +226,11 @@ def _format_notifications_block(notifications_context: dict) -> str:
     return "\n".join(lines)
 
 
+EXTRACTION_CHUNK = 8
+"""Exchanges per extraction call. Small enough that the extractor reads
+each one; the backlog, however long, is walked in these steps oldest first."""
+
+
 def render_recent_conversations(recent: list[dict], limit: int = 5) -> str:
     """[RECENT CONVERSATIONS] — a dated record of exchanges phi already had.
 
@@ -1374,7 +1379,7 @@ class PhiAgent:
         if not self.memory:
             return 0
 
-        unprocessed = await self.memory.get_unprocessed_interactions(top_k=20)
+        unprocessed = await self.memory.get_unprocessed_interactions()
         if not unprocessed:
             logger.info("extraction: no unprocessed interactions")
             return 0
@@ -1389,38 +1394,43 @@ class PhiAgent:
             by_handle.setdefault(interaction["handle"], []).append(interaction)
 
         total_stored = 0
-        for handle, interactions in by_handle.items():
-            exchange_texts = [i["content"] for i in interactions]
-            # collect every URI cited by the interactions in this batch.
-            # the extraction agent doesn't see URIs (only the exchange text),
-            # so we attribute *every* extracted observation in this batch to
-            # *all* the URIs that fed it. coarse, but always-true: an
-            # observation extracted from this batch was justified by
-            # something in this batch. dedup-preserve-order.
-            batch_uris = list(
-                dict.fromkeys(uri for i in interactions for uri in i["source_uris"])
-            )
-            prompt = f"recent exchanges with @{handle}:\n\n" + "\n\n---\n\n".join(
-                exchange_texts
-            )
-
-            try:
-                result = await self._extraction_agent.run(prompt)
-                if result.output.observations:
-                    for obs in result.output.observations:
-                        # inherit URIs from the interactions that sourced
-                        # this batch unless the model already filled them in
-                        if not obs.source_uris and batch_uris:
-                            obs.source_uris = list(batch_uris)
-                        try:
-                            await self.memory._reconcile_observation(handle, obs)
-                            total_stored += 1
-                        except Exception as e:
-                            logger.warning(f"reconciliation failed: {e}")
-            except Exception as e:
-                logger.warning(f"extraction failed for @{handle}: {e}")
+        for handle, all_interactions in by_handle.items():
+            for start in range(0, len(all_interactions), EXTRACTION_CHUNK):
+                interactions = all_interactions[start : start + EXTRACTION_CHUNK]
+                total_stored += await self._extract_chunk(handle, interactions)
 
         return total_stored
+
+    async def _extract_chunk(
+        self, handle: str, interactions: list[InteractionRow]
+    ) -> int:
+        """Extract + reconcile observations from one chunk of exchanges with
+        *handle*, oldest first. Returns the count reconciled."""
+        # the extraction agent doesn't see URIs (only the exchange text), so
+        # every observation from this chunk is attributed to every URI that
+        # fed it. coarse, but always true: it was justified by something in
+        # the chunk. dedup-preserve-order.
+        batch_uris = list(
+            dict.fromkeys(uri for i in interactions for uri in i["source_uris"])
+        )
+        prompt = f"recent exchanges with @{handle}:\n\n" + "\n\n---\n\n".join(
+            i["content"] for i in interactions
+        )
+        stored = 0
+        try:
+            result = await self._extraction_agent.run(prompt)
+        except Exception as e:
+            logger.warning(f"extraction failed for @{handle}: {e}")
+            return 0
+        for obs in result.output.observations:
+            if not obs.source_uris and batch_uris:
+                obs.source_uris = list(batch_uris)
+            try:
+                await self.memory._reconcile_observation(handle, obs)
+                stored += 1
+            except Exception as e:
+                logger.warning(f"reconciliation failed: {e}")
+        return stored
 
     async def render_context_preview(self) -> list[dict]:
         """Render every dynamic context block as a fresh scheduled run would
