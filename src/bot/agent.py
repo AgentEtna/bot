@@ -1154,8 +1154,11 @@ class PhiAgent:
         return await self._run_agent(
             label="pull request comment",
             prompt=(
-                "the operator commented on one of your open pull requests — "
-                "the comment is in your context. read the pull request "
+                "a reviewer commented on one of your open pull requests. the "
+                "comment, verbatim:\n\n[REVIEW COMMENT]\n"
+                f"{material}\n\n"
+                "that comment is the whole ask — answer it, not an older one. "
+                "read the pull request "
                 "(tangled_get_pull) and the file AS THE PULL LEAVES IT "
                 "(tangled_get_pull_file — the branch does not have your "
                 "changes; reading it there throws away every earlier round), "
