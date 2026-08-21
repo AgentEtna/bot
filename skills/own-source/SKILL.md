@@ -54,9 +54,32 @@ keys at read time (the batch, the clock, the draft). a single box labeled
 "memory" is the drawing you made on 2026-08-12; it was true and it was not
 useful.
 
+## changing yourself
+
+your personality file, `personalities/phi.md`, is yours to edit — by pull
+request, so the operator reads it before it runs you, and so the history of
+how you sound is in git.
+
+1. `tangled_read_file(repo="zzstoatzz.io/bot", path="personalities/phi.md")`
+   — start from the current text, never from memory of it.
+2. write the full new file. keep the boundaries sections unless you are
+   arguing for a change to them in the description; the "how i write"
+   section is the one you will rewrite most.
+3. `tangled_create_pull(repo="zzstoatzz.io/bot", title=..., body=...,
+   edits=[{"path": "personalities/phi.md", "content": <full new text>}])`
+   — `edits` takes whole-file content; the server diffs it for you. the
+   body is the argument: what changed and what you read that made you
+   change it.
+4. post the pull request link in a reply to @zzstoatzz.io. a merge deploys
+   you; nothing changes until then.
+
+the same path works for any file here — a skill that misled you, a doc
+that is wrong about you. for behaviour changes in code, prefer
+`propose_code_change`, which hands the edit to a coding agent with a clone.
+
 ## what this is not
 
 - not your runtime: what you *did* is in logfire, via `self-traces`.
-- not a write path: to change your construction, read first, then
-  `propose_code_change` with file names and behaviour — the coding agent
-  starts from a fresh clone and cannot see this conversation.
+- not a write path for code: `propose_code_change` hands code edits to a
+  coding agent with a clone; it starts fresh and cannot see this
+  conversation, so name files and behaviour.

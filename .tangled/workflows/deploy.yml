@@ -1,0 +1,26 @@
+when:
+  - event: push
+    branch: main
+
+engine: nixery
+
+dependencies:
+  nixpkgs:
+    - flyctl
+    - uv
+    - python312
+
+steps:
+  - name: test
+    command: |
+      uv sync --frozen
+      uv run pytest -q
+
+  # phi is one fly machine with a volume; `flyctl deploy` from a laptop was the
+  # only path until 2026-08-21. CI deploys so a merged pull request — including
+  # one phi opens against her own personality file — reaches her without a
+  # person running a command. FLY_API_TOKEN is a tangled repo secret.
+  - name: deploy to fly.io
+    command: |
+      test -n "$FLY_API_TOKEN"
+      flyctl deploy --remote-only

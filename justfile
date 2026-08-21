@@ -12,7 +12,7 @@ test:
 evals:
     uv run pytest evals/ -v
 
-# deployment — this is the only path; there is no deploy CI
+# deployment — CI deploys on push to main (.tangled/workflows/deploy.yml); this is the manual path
 deploy:
     flyctl deploy
 

@@ -7,6 +7,20 @@ what moved and what it cost to find out.
 
 ## 2026-08-21
 
+- **feat**: phi's personality file is hers to change, by pull request.
+  `personalities/phi.md` now says so and tells her how (`tangled_read_file`
+  → `tangled_create_pull` with whole-file `edits` → post the link to the
+  operator); the `own-source` skill carries the recipe. The craft-rules
+  section is renamed "how i write (mine)" and seeded with the tics the
+  operator named in her 2026-08-21 essay — tidy aphorism closers,
+  significance-announcing section openers, the general claim placed before
+  the thing only she has — with the instruction to rewrite the section from
+  posts and writing that landed, saying what she does rather than what she
+  avoids. `.tangled/workflows/deploy.yml` runs the tests and `flyctl deploy`
+  on every push to main, so a merge reaches her without anyone running a
+  command (`FLY_API_TOKEN` is a tangled repo secret; until it is set, deploys
+  stay manual).
+
 - **fix**: link facets stopped at a comma and linkified file paths. phi
   posted her new self-drawing as `lexidraw.app/#atproto=<did>,<rkey>` and the
   facet dropped the rkey, so the link opened the viewer on her 08-12 scene;
