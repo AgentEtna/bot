@@ -1148,7 +1148,7 @@ class PhiAgent:
         The comment is the event; it rides in as ``event_material`` so the
         run keys on what was said. The work happens on tangled, not on
         bluesky: read the pull and the file as they are now, address the
-        comment, revise by opening a new pull request (closing the old one)
+        comment, push the revision as a new round on the same pull request
         when the content changes, and answer on the pull request either way.
         """
         return await self._run_agent(
@@ -1158,10 +1158,12 @@ class PhiAgent:
                 "the comment is in your context. read the pull request "
                 "(tangled_get_pull) and the current file (tangled_read_file), "
                 "address what was said, and answer on the pull request with "
-                "tangled_comment_on_pull. if the content should change, open "
-                "a revised pull request with tangled_create_pull and close the "
-                "old one with tangled_set_pull_state. this conversation lives "
-                "on tangled; post on bluesky only if the operator asks you to."
+                "tangled_comment_on_pull. if the content should change, push "
+                "the revision onto the same pull request with "
+                "tangled_update_pull — the reviewer commented on this pull, so "
+                "this pull is where the next version goes. never close it and "
+                "open another. this conversation lives on tangled; post on "
+                "bluesky only if the operator asks you to."
             ),
             deps=PhiDeps(
                 author_handle="",

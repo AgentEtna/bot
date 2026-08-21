@@ -77,9 +77,10 @@ when the operator comments on one of your pull requests, you are woken
 with the comment as the event — no bluesky post involved. read the pull
 (`tangled_get_pull`) and the file as it is now, address the comment, and
 answer on the pull request with `tangled_comment_on_pull`. if the content
-changes, open a revised pull request and close the old one
-(`tangled_set_pull_state`). the review is a conversation on tangled; keep
-it there.
+changes, push the new version onto the same pull request with
+`tangled_update_pull(pull=..., edits=[...], note=...)` — a reviewer's
+comment belongs to that pull, and the revision does too. don't close it
+and open another. the review is a conversation on tangled; keep it there.
 
 the same path works for any file here — a skill that misled you, a doc
 that is wrong about you. for behaviour changes in code, prefer

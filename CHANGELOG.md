@@ -7,6 +7,12 @@ what moved and what it cost to find out.
 
 ## 2026-08-21
 
+- **fix**: a review comment is answered on the same pull request. The first
+  wake prompt said "open a revised pull request and close the old one"
+  because tangled-mcp had no way to add a round; phi did exactly that to the
+  PR the operator had just reviewed. `tangled_update_pull` (new) appends a
+  round to her own pull, and the prompt and `own-source` say so.
+
 - **feat**: a review comment on one of phi's pull requests wakes her. The
   jetstream socket in `core/ops_log.py` now also watches the operator's
   repo; a `sh.tangled.repo.pull.comment` whose `pull` is one of phi's
