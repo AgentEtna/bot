@@ -1142,6 +1142,34 @@ class PhiAgent:
             ),
         )
 
+    async def process_pull_comment(self, material: str = "") -> str:
+        """The operator left a review comment on one of phi's pull requests.
+
+        The comment is the event; it rides in as ``event_material`` so the
+        run keys on what was said. The work happens on tangled, not on
+        bluesky: read the pull and the file as they are now, address the
+        comment, revise by opening a new pull request (closing the old one)
+        when the content changes, and answer on the pull request either way.
+        """
+        return await self._run_agent(
+            label="pull request comment",
+            prompt=(
+                "the operator commented on one of your open pull requests — "
+                "the comment is in your context. read the pull request "
+                "(tangled_get_pull) and the current file (tangled_read_file), "
+                "address what was said, and answer on the pull request with "
+                "tangled_comment_on_pull. if the content should change, open "
+                "a revised pull request with tangled_create_pull and close the "
+                "old one with tangled_set_pull_state. this conversation lives "
+                "on tangled; post on bluesky only if the operator asks you to."
+            ),
+            deps=PhiDeps(
+                author_handle="",
+                memory=self.memory,
+                event_material=material,
+            ),
+        )
+
     async def process_people(self) -> str:
         """A pass pointed at people rather than systems.
 

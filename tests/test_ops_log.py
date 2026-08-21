@@ -60,8 +60,12 @@ def test_event_to_row_ignores_non_commit():
 
 def test_append_read_window_and_cursor():
     old = ops_log.event_to_row(
-        _event("create", rkey="3old", record={"text": "old"},
-               time_us=int((time.time() - 72 * 3600) * 1_000_000))
+        _event(
+            "create",
+            rkey="3old",
+            record={"text": "old"},
+            time_us=int((time.time() - 72 * 3600) * 1_000_000),
+        )
     )
     new = ops_log.event_to_row(_event("create", rkey="3new", record={"text": "new"}))
     assert old and new
@@ -83,8 +87,12 @@ def test_read_ops_tolerates_torn_tail_write():
 
 def test_prune_drops_expired_rows():
     ancient = ops_log.event_to_row(
-        _event("create", rkey="3anc", record={"text": "x"},
-               time_us=int((time.time() - 30 * 86400) * 1_000_000))
+        _event(
+            "create",
+            rkey="3anc",
+            record={"text": "x"},
+            time_us=int((time.time() - 30 * 86400) * 1_000_000),
+        )
     )
     fresh = ops_log.event_to_row(_event("create", rkey="3fresh", record={"text": "y"}))
     assert ancient and fresh
@@ -153,10 +161,22 @@ def test_merge_prefers_event_rows_and_backfills_snapshot():
         [_op("create", "3a", nsid="app.bsky.feed.post", record={"text": "live"})]
     )
     snapshot = [
-        dict(rkey="3a", nsid="app.bsky.feed.post", created_at="2026-08-06T00:00:00",
-             summary="stale", op="create", local=False),
-        dict(rkey="3b", nsid="app.bsky.feed.post", created_at="2026-08-06T00:00:01",
-             summary="gap-fill", op="create", local=False),
+        dict(
+            rkey="3a",
+            nsid="app.bsky.feed.post",
+            created_at="2026-08-06T00:00:00",
+            summary="stale",
+            op="create",
+            local=False,
+        ),
+        dict(
+            rkey="3b",
+            nsid="app.bsky.feed.post",
+            created_at="2026-08-06T00:00:01",
+            summary="gap-fill",
+            op="create",
+            local=False,
+        ),
     ]
     merged = _merge(event_rows, snapshot)  # type: ignore[arg-type]
     summaries = [r["summary"] for r in merged]
@@ -167,8 +187,13 @@ def test_merge_prefers_event_rows_and_backfills_snapshot():
 def test_window_announces_truncation():
     rows = _rows_from_ops(
         [
-            _op("create", f"3r{i}", nsid="app.bsky.feed.post", record={"text": str(i)},
-                offset_s=i)
+            _op(
+                "create",
+                f"3r{i}",
+                nsid="app.bsky.feed.post",
+                record={"text": str(i)},
+                offset_s=i,
+            )
             for i in range(5)
         ]
     )
@@ -199,16 +224,40 @@ def test_compact_collapses_reply_runs_and_card_pairs():
     semble save billed two rows (URL card + NOTE card written together)."""
     rows = _rows_from_ops(
         [
-            _op("create", "3r1", nsid="app.bsky.feed.post",
-                record={"text": "a" * 50, "reply": {"parent": {}}}),
-            _op("create", "3r2", nsid="app.bsky.feed.post",
-                record={"text": "b" * 30, "reply": {"parent": {}}}, offset_s=10),
-            _op("create", "3r3", nsid="app.bsky.feed.post",
-                record={"text": "c" * 20, "reply": {"parent": {}}}, offset_s=20),
-            _op("create", "3c1", nsid="network.cosmik.card",
-                record={"type": "URL", "content": {"title": "some page"}}, offset_s=30),
-            _op("create", "3c2", nsid="network.cosmik.card",
-                record={"type": "NOTE"}, offset_s=31),
+            _op(
+                "create",
+                "3r1",
+                nsid="app.bsky.feed.post",
+                record={"text": "a" * 50, "reply": {"parent": {}}},
+            ),
+            _op(
+                "create",
+                "3r2",
+                nsid="app.bsky.feed.post",
+                record={"text": "b" * 30, "reply": {"parent": {}}},
+                offset_s=10,
+            ),
+            _op(
+                "create",
+                "3r3",
+                nsid="app.bsky.feed.post",
+                record={"text": "c" * 20, "reply": {"parent": {}}},
+                offset_s=20,
+            ),
+            _op(
+                "create",
+                "3c1",
+                nsid="network.cosmik.card",
+                record={"type": "URL", "content": {"title": "some page"}},
+                offset_s=30,
+            ),
+            _op(
+                "create",
+                "3c2",
+                nsid="network.cosmik.card",
+                record={"type": "NOTE"},
+                offset_s=31,
+            ),
         ]
     )
     block = _render(rows)
@@ -222,8 +271,13 @@ def test_compact_leaves_top_level_posts_alone():
     rows = _rows_from_ops(
         [
             _op("create", "3p1", nsid="app.bsky.feed.post", record={"text": "one"}),
-            _op("create", "3p2", nsid="app.bsky.feed.post", record={"text": "two"},
-                offset_s=5),
+            _op(
+                "create",
+                "3p2",
+                nsid="app.bsky.feed.post",
+                record={"text": "two"},
+                offset_s=5,
+            ),
         ]
     )
     block = _render(rows)
@@ -236,15 +290,38 @@ def test_routine_writes_tally_instead_of_row_per_write():
     tallies to one line; content rows stay individual."""
     rows = _rows_from_ops(
         [
-            _op("create", "3p", nsid="app.bsky.feed.post", record={"text": "kept whole"}),
-            _op("update", "3g1", nsid="io.zzstoatzz.phi.goal",
-                record={"title": "make 3 friends", "created_at": "a", "updated_at": "b"},
-                offset_s=10),
-            _op("update", "3g1", nsid="io.zzstoatzz.phi.goal",
-                record={"title": "make 3 friends", "created_at": "a", "updated_at": "c"},
-                offset_s=20),
-            _op("create", "3l", nsid="app.bsky.feed.like",
-                record={"subject": {"uri": "at://x"}}, offset_s=30),
+            _op(
+                "create", "3p", nsid="app.bsky.feed.post", record={"text": "kept whole"}
+            ),
+            _op(
+                "update",
+                "3g1",
+                nsid="io.zzstoatzz.phi.goal",
+                record={
+                    "title": "make 3 friends",
+                    "created_at": "a",
+                    "updated_at": "b",
+                },
+                offset_s=10,
+            ),
+            _op(
+                "update",
+                "3g1",
+                nsid="io.zzstoatzz.phi.goal",
+                record={
+                    "title": "make 3 friends",
+                    "created_at": "a",
+                    "updated_at": "c",
+                },
+                offset_s=20,
+            ),
+            _op(
+                "create",
+                "3l",
+                nsid="app.bsky.feed.like",
+                record={"subject": {"uri": "at://x"}},
+                offset_s=30,
+            ),
         ]
     )
     for r in rows:
@@ -261,15 +338,107 @@ def test_anomalies_never_tally():
     """Deletes and external edits stay row-level — the tamper channel."""
     rows = _rows_from_ops(
         [
-            _op("create", "3l", nsid="app.bsky.feed.like",
-                record={"subject": {"uri": "at://x"}}),
+            _op(
+                "create",
+                "3l",
+                nsid="app.bsky.feed.like",
+                record={"subject": {"uri": "at://x"}},
+            ),
             _op("delete", "3l", nsid="app.bsky.feed.like", offset_s=5),
-            _op("update", "3g", nsid="io.zzstoatzz.phi.goal",
+            _op(
+                "update",
+                "3g",
+                nsid="io.zzstoatzz.phi.goal",
                 record={"title": "t", "created_at": "a", "updated_at": "b"},
-                offset_s=10),
+                offset_s=10,
+            ),
         ]
     )
     block = _render(rows)  # local=False: external edit must not tally
     assert "DELETED (not via this process)" in block
     assert "EDITED (not via this process)" in block
     assert "likes ×1" in block
+
+
+class TestPullCommentWake:
+    """2026-08-21: the operator reviews phi's pull requests on tangled, and
+    the only way a review comment reached her was someone posting about it
+    on bluesky. The jetstream socket now also watches the operator's repo
+    for sh.tangled.repo.pull.comment records on her pulls and wakes her."""
+
+    PHI = "did:plc:phi"
+    OWNER = "did:plc:owner"
+
+    def _consumer(self, calls, appended):
+        async def on_pull_comment(did, record):
+            calls.append((did, record))
+
+        c = ops_log.OpsLogConsumer(
+            self.PHI, watch_dids=(self.OWNER,), on_pull_comment=on_pull_comment
+        )
+        return c
+
+    def _event(self, did, collection, record, op="create"):
+        import json
+
+        return json.dumps(
+            {
+                "did": did,
+                "kind": "commit",
+                "time_us": 1,
+                "commit": {
+                    "operation": op,
+                    "collection": collection,
+                    "rkey": "r",
+                    "record": record,
+                },
+            }
+        )
+
+    def test_url_watches_both_repos(self):
+        c = self._consumer([], [])
+        url = c._url()
+        assert f"wantedDids={self.PHI}" in url and f"wantedDids={self.OWNER}" in url
+
+    async def test_owner_comment_on_phis_pull_wakes(self, monkeypatch):
+        calls, appended = [], []
+        monkeypatch.setattr(ops_log, "append_op", lambda row: appended.append(row))
+        c = self._consumer(calls, appended)
+        record = {
+            "pull": f"at://{self.PHI}/sh.tangled.repo.pull/3abc",
+            "body": "2/10. more feynman.",
+        }
+        await c._handle(self._event(self.OWNER, ops_log.PULL_COMMENT_NSID, record))
+        assert calls == [(self.OWNER, record)]
+        assert appended == []
+
+    async def test_owner_comment_on_someone_elses_pull_is_ignored(self, monkeypatch):
+        calls, appended = [], []
+        monkeypatch.setattr(ops_log, "append_op", lambda row: appended.append(row))
+        c = self._consumer(calls, appended)
+        record = {
+            "pull": "at://did:plc:stranger/sh.tangled.repo.pull/3abc",
+            "body": "nice",
+        }
+        await c._handle(self._event(self.OWNER, ops_log.PULL_COMMENT_NSID, record))
+        assert calls == [] and appended == []
+
+    async def test_owner_other_writes_never_enter_the_ops_log(self, monkeypatch):
+        calls, appended = [], []
+        monkeypatch.setattr(ops_log, "append_op", lambda row: appended.append(row))
+        c = self._consumer(calls, appended)
+        await c._handle(self._event(self.OWNER, "app.bsky.feed.post", {"text": "hi"}))
+        assert calls == [] and appended == []
+
+    def test_material_names_the_commenter_and_the_pull(self):
+        m = ops_log.pull_comment_material(
+            {
+                "pull": "at://did:plc:phi/sh.tangled.repo.pull/3abc",
+                "body": "  tighter.  ",
+            },
+            "zzstoatzz.io",
+        )
+        assert (
+            m
+            == "@zzstoatzz.io commented on your pull request at://did:plc:phi/sh.tangled.repo.pull/3abc:\n\ntighter."
+        )

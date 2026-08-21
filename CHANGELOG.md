@@ -7,6 +7,15 @@ what moved and what it cost to find out.
 
 ## 2026-08-21
 
+- **feat**: a review comment on one of phi's pull requests wakes her. The
+  jetstream socket in `core/ops_log.py` now also watches the operator's
+  repo; a `sh.tangled.repo.pull.comment` whose `pull` is one of phi's
+  becomes an event wake (`process_pull_comment`, the same shape as an alert:
+  the comment is the `event_material`). She reads the pull and the current
+  file, answers on the pull request (`tangled_comment_on_pull`, new in
+  tangled-mcp), and revises with a new pull request when the content
+  changes. Until now the operator's review had to be relayed on bluesky.
+
 - **fix**: one notification run at a time. Three devlog posts in one thread
   arrived ~25s apart, each became a one-item batch, and the three runs
   overlapped — three drafts of the same rewrite, seven replies in a minute.

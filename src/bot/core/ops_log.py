@@ -184,17 +184,39 @@ def event_to_row(event: dict[str, Any]) -> OpRow | None:
     )
 
 
+PULL_COMMENT_NSID = "sh.tangled.repo.pull.comment"
+
+
+def pull_comment_material(record: dict[str, Any], commenter: str) -> str:
+    """The event content a pull-request comment wakes phi with."""
+    pull = str(record.get("pull") or "")
+    body = str(record.get("body") or "").strip()
+    return f"@{commenter} commented on your pull request {pull}:\n\n{body}"
+
+
 class OpsLogConsumer:
     """Long-lived jetstream tail of phi's own repo, symmetric with the
-    notification poller: constructed in the lifespan, start()/stop()."""
+    notification poller: constructed in the lifespan, start()/stop().
+
+    The same socket can watch other repos for events *about* phi. The first
+    such event: a `sh.tangled.repo.pull.comment` in a watched repo (the
+    operator's) whose `pull` is one of phi's pull requests. Those are not
+    ops on her repo and never enter the ops log; they go to
+    ``on_pull_comment`` and wake her, so a review comment reaches her the
+    way a mention does — without anyone posting on bluesky about it.
+    """
 
     def __init__(
         self,
         did: str,
         on_post: Callable[[OpRow], Awaitable[None]] | None = None,
+        watch_dids: tuple[str, ...] = (),
+        on_pull_comment: Callable[[str, dict[str, Any]], Awaitable[None]] | None = None,
     ):
         self.did = did
         self.on_post = on_post
+        self.watch_dids = tuple(d for d in watch_dids if d and d != did)
+        self.on_pull_comment = on_pull_comment
         self._task: asyncio.Task | None = None
 
     async def start(self) -> None:
@@ -212,6 +234,8 @@ class OpsLogConsumer:
 
     def _url(self) -> str:
         url = f"{settings.jetstream_url}?wantedDids={self.did}"
+        for did in self.watch_dids:
+            url += f"&wantedDids={did}"
         cursor = last_cursor_us()
         if cursor:
             # rewind 5s so a crash between receive and append can't skip ops;
@@ -235,7 +259,9 @@ class OpsLogConsumer:
             except asyncio.CancelledError:
                 raise
             except Exception as e:
-                logger.warning(f"jetstream connection lost: {e}; retry in {backoff:.0f}s")
+                logger.warning(
+                    f"jetstream connection lost: {e}; retry in {backoff:.0f}s"
+                )
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, _RECONNECT_MAX_SECONDS)
 
@@ -243,6 +269,9 @@ class OpsLogConsumer:
         try:
             event = json.loads(message)
         except json.JSONDecodeError:
+            return
+        if event.get("did") not in (None, self.did):
+            await self._handle_watched(event)
             return
         row = event_to_row(event)
         if row is None:
@@ -258,3 +287,25 @@ class OpsLogConsumer:
                 await self.on_post(row)
             except Exception as e:
                 logger.warning(f"own-post index hook failed for {row['rkey']}: {e}")
+
+    def is_own_pull(self, uri: str) -> bool:
+        return uri.startswith(f"at://{self.did}/sh.tangled.repo.pull/")
+
+    async def _handle_watched(self, event: dict[str, Any]) -> None:
+        """An event from a watched repo. Only pull-request comments on phi's
+        own pulls matter; everything else from those repos is ignored."""
+        if self.on_pull_comment is None or event.get("kind") != "commit":
+            return
+        commit = event.get("commit") or {}
+        if (
+            commit.get("collection") != PULL_COMMENT_NSID
+            or commit.get("operation") != "create"
+        ):
+            return
+        record = commit.get("record") or {}
+        if not self.is_own_pull(str(record.get("pull") or "")):
+            return
+        try:
+            await self.on_pull_comment(str(event.get("did")), record)
+        except Exception as e:
+            logger.warning(f"pull-comment wake failed: {e}")

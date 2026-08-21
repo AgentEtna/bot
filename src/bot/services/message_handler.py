@@ -359,6 +359,13 @@ class MessageHandler:
             "alert fired", lambda: self.agent.process_alerts(material)
         )
 
+    async def pull_comment(self, material: str):
+        """The operator commented on one of phi's pull requests — see
+        :meth:`PhiAgent.process_pull_comment`."""
+        await self._run_scheduled(
+            "pull request comment", lambda: self.agent.process_pull_comment(material)
+        )
+
     async def chicken_precheck(self):
         """Pre-lock market check — see :meth:`PhiAgent.process_chicken_precheck`."""
         await self._run_scheduled(
