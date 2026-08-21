@@ -37,7 +37,7 @@ observations carry a `status` field (`active` | `superseded`) and a `supersedes`
 
 ### the extraction pipeline
 
-after every reply, `after_interaction` stores the verbatim exchange. periodically, the extraction agent reads the recent exchanges and proposes new observations. for each proposal:
+after every in-batch reply, `after_interaction` stores the verbatim exchange. during the daily reflection, `process_extraction` reads every exchange newer than the namespace's latest active observation — that observation is the high-water mark, and it is the only bound (2026-08-21: a 5-per-namespace count used to sit in front of it, and one pass then moved the mark past whatever it had not read) — oldest first, in chunks of `EXTRACTION_CHUNK`, and proposes new observations. for each proposal:
 
 1. find the 3 most similar non-superseded observations (vector search)
 2. send the new + best-match to the `observation-reconciler` sub-agent
