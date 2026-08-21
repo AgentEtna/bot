@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 430" role="img" aria-label="one reply becomes an observation: interaction row, high-water mark, extraction, reconciliation, recall" font-family="IBM Plex Sans, system-ui, sans-serif" style="color:#1B2630;background:#F4F6F9">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+<rect x="24" y="40" width="176" height="80" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/>
+<text x="36" y="58" font-size="10" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace" opacity="0.6">14:02</text>
+<text x="36" y="77" font-size="12.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="600">phi replies to @h</text>
+<text x="36" y="94" font-size="10" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.7">in a notifications batch</text>
+<text x="36" y="108" font-size="10" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.7">after_interaction fires</text>
+<line x1="206" y1="80" x2="242" y2="80" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)"/>
+<rect x="248" y="40" width="176" height="80" rx="3" fill="none" stroke="#0F8F7E" stroke-width="1.5"/>
+<text x="260" y="58" font-size="10" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace" opacity="0.6">14:02</text>
+<text x="260" y="77" font-size="12.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="600">interaction row</text>
+<text x="260" y="94" font-size="10" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.7">user: … / bot: …</text>
+<text x="260" y="108" font-size="10" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.7">created_at = now</text>
+<line x1="430" y1="80" x2="466" y2="80" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)"/>
+<rect x="472" y="40" width="176" height="80" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/>
+<text x="484" y="58" font-size="10" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace" opacity="0.6">19:00</text>
+<text x="484" y="77" font-size="12.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="600">process_extraction</text>
+<text x="484" y="94" font-size="10" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.7">rows above the mark,</text>
+<text x="484" y="108" font-size="10" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.7">oldest first, chunks of 8</text>
+<line x1="654" y1="80" x2="690" y2="80" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)"/>
+<rect x="696" y="40" width="176" height="80" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/>
+<text x="708" y="58" font-size="10" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace" opacity="0.6">19:00</text>
+<text x="708" y="77" font-size="12.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="600">extractor → reconciler</text>
+<text x="708" y="94" font-size="10" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.7">vs 3 nearest active:</text>
+<text x="708" y="108" font-size="10" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.7">add · update · noop · delete</text>
+<line x1="878" y1="80" x2="914" y2="80" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)"/>
+<rect x="920" y="40" width="176" height="80" rx="3" fill="none" stroke="#0F8F7E" stroke-width="1.5"/>
+<text x="932" y="58" font-size="10" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace" opacity="0.6">19:01</text>
+<text x="932" y="77" font-size="12.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="600">observation row</text>
+<text x="932" y="94" font-size="10" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.7">status = active</text>
+<text x="932" y="108" font-size="10" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.7">supersedes → old id</text>
+<path d="M1008,124 C1008,160 700,160 124,160 L124,168" fill="none" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)" opacity="0.85"/>
+<rect x="24" y="170" width="640" height="40" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/>
+<text x="36" y="188" font-size="12" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="600">next batch with @h</text>
+<text x="36" y="203" font-size="10" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace" opacity="0.8">[OBSERVATIONS ABOUT @h] (10 nearest the batch text) · [PAST EXCHANGES WITH @h]</text>
+<text x="24" y="230" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.65">and within the hour the compact flow rewrites [PHI&#x27;S SYNTHESIZED IMPRESSION OF @h] from the new active set.</text>
+<text x="24" y="252" font-size="11" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="600" opacity="0.7">THE HIGH-WATER MARK</text>
+<text x="24" y="268" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.7">“unprocessed” = created after the namespace&#x27;s latest active observation. the mark is the only bound; it moves when extraction writes.</text>
+<line x1="24" y1="300" x2="1096" y2="300" stroke="currentColor" stroke-width="1.2" opacity="0.5"/>
+<text x="24" y="330" font-size="10" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.6">interactions with @h, by time →</text>
+<line x1="60" y1="286" x2="60" y2="314" stroke="currentColor" stroke-width="2.2" opacity="0.45"/>
+<line x1="120" y1="286" x2="120" y2="314" stroke="currentColor" stroke-width="2.2" opacity="0.45"/>
+<line x1="180" y1="286" x2="180" y2="314" stroke="currentColor" stroke-width="2.2" opacity="0.45"/>
+<line x1="260" y1="286" x2="260" y2="314" stroke="currentColor" stroke-width="2.2" opacity="0.45"/>
+<line x1="300" y1="286" x2="300" y2="314" stroke="currentColor" stroke-width="2.2" opacity="0.45"/>
+<line x1="340" y1="286" x2="340" y2="314" stroke="currentColor" stroke-width="2.2" opacity="0.45"/>
+<line x1="420" y1="286" x2="420" y2="314" stroke="currentColor" stroke-width="2.2" opacity="0.45"/>
+<line x1="520" y1="286" x2="520" y2="314" stroke="#0F8F7E" stroke-width="2.2" opacity="1"/>
+<line x1="600" y1="286" x2="600" y2="314" stroke="#0F8F7E" stroke-width="2.2" opacity="1"/>
+<line x1="680" y1="286" x2="680" y2="314" stroke="#0F8F7E" stroke-width="2.2" opacity="1"/>
+<line x1="760" y1="286" x2="760" y2="314" stroke="#0F8F7E" stroke-width="2.2" opacity="1"/>
+<line x1="800" y1="286" x2="800" y2="314" stroke="#0F8F7E" stroke-width="2.2" opacity="1"/>
+<line x1="860" y1="286" x2="860" y2="314" stroke="#0F8F7E" stroke-width="2.2" opacity="1"/>
+<line x1="940" y1="286" x2="940" y2="314" stroke="#0F8F7E" stroke-width="2.2" opacity="1"/>
+<line x1="1020" y1="286" x2="1020" y2="314" stroke="#0F8F7E" stroke-width="2.2" opacity="1"/>
+<line x1="470" y1="266" x2="470" y2="334" stroke="#C27A0C" stroke-width="2.5"/>
+<text x="478" y="278" font-size="10.5" text-anchor="start" fill="#C27A0C" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="600">latest active observation</text>
+<text x="200" y="350" font-size="10.5" text-anchor="middle" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.6">already extracted</text>
+<text x="760" y="350" font-size="10.5" text-anchor="middle" fill="#0F8F7E" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="600">read on the next pass — all of them, oldest first</text>
+<text x="24" y="392" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.6">until 2026-08-21 a “5 newest per namespace” read sat in front of the mark; the pass then moved the mark past what it had not read. 178 interactions were lost that way.</text>
+<text x="24" y="408" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.6">one namespace per person; the mark is per namespace.</text>
+</svg>

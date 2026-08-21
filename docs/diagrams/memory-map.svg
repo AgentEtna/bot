@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 744" role="img" aria-label="phi&#x27;s memory: every store, who writes it, and which prompt block reads it" font-family="IBM Plex Sans, system-ui, sans-serif" style="color:#1B2630;background:#F4F6F9">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+<text x="24" y="30" font-size="11" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="600" opacity="0.7">WRITTEN BY</text>
+<text x="392" y="30" font-size="11" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="600" opacity="0.7">STORE</text>
+<text x="770" y="30" font-size="11" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="600" opacity="0.7">READ AS</text>
+<text x="392" y="46" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.6">one row per band · teal = private turbopuffer · violet = public PDS · grey = local file</text>
+<text x="24" y="92" font-size="12.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="600">phi replies inside a batch</text>
+<text x="24" y="108" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.65">after_interaction — verbatim user/bot pair</text>
+<line x1="332" y1="94" x2="382" y2="94" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)" opacity="0.8"/>
+<rect x="392" y="74" width="300" height="44" rx="3" fill="none" stroke="#0F8F7E" stroke-width="1.5"/>
+<text x="402" y="92" font-size="12" text-anchor="start" fill="#0F8F7E" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace" font-weight="600">phi-users-{handle}</text>
+<text x="402" y="108" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.7">kind = interaction</text>
+<line x1="702" y1="94" x2="760" y2="94" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)" opacity="0.8"/>
+<text x="770" y="92" font-size="12" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace" font-weight="600">[PAST EXCHANGES WITH @h]</text>
+<text x="770" y="108" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.65">per author in the batch · trust high</text>
+<text x="24" y="152" font-size="12.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="600">daily extraction, 19:00 UTC</text>
+<text x="24" y="168" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.65">interactions above the mark → phi-extractor → reconciler</text>
+<line x1="332" y1="154" x2="382" y2="154" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)" opacity="0.8"/>
+<rect x="392" y="134" width="300" height="44" rx="3" fill="none" stroke="#0F8F7E" stroke-width="1.5"/>
+<text x="402" y="152" font-size="12" text-anchor="start" fill="#0F8F7E" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace" font-weight="600">phi-users-{handle}</text>
+<text x="402" y="168" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.7">kind = observation · status active|superseded</text>
+<line x1="702" y1="154" x2="760" y2="154" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)" opacity="0.8"/>
+<text x="770" y="152" font-size="12" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace" font-weight="600">[OBSERVATIONS ABOUT @h]</text>
+<text x="770" y="168" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.65">10 nearest the batch text · trust medium</text>
+<text x="24" y="212" font-size="12.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="600">prefect · phi-memory-synthesis, hourly</text>
+<text x="24" y="228" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.65">compact.py reads observations + interactions</text>
+<line x1="332" y1="214" x2="382" y2="214" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)" opacity="0.8"/>
+<rect x="392" y="194" width="300" height="44" rx="3" fill="none" stroke="#0F8F7E" stroke-width="1.5"/>
+<text x="402" y="212" font-size="12" text-anchor="start" fill="#0F8F7E" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace" font-weight="600">phi-users-{handle}</text>
+<text x="402" y="228" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.7">kind = summary</text>
+<line x1="702" y1="214" x2="760" y2="214" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)" opacity="0.8"/>
+<text x="770" y="212" font-size="12" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace" font-weight="600">[PHI&#x27;S SYNTHESIZED IMPRESSION OF @h]</text>
+<text x="770" y="228" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.65">trust low — labeled may hallucinate</text>
+<text x="24" y="272" font-size="12.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="600">save_memory · publish_blog</text>
+<text x="24" y="288" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.65">phi&#x27;s deliberate notes about the world</text>
+<line x1="332" y1="274" x2="382" y2="274" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)" opacity="0.8"/>
+<rect x="392" y="254" width="300" height="44" rx="3" fill="none" stroke="#0F8F7E" stroke-width="1.5"/>
+<text x="402" y="272" font-size="12" text-anchor="start" fill="#0F8F7E" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace" font-weight="600">phi-episodic</text>
+<text x="402" y="288" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.7">tags + source_uris · reconciled on write</text>
+<line x1="702" y1="274" x2="760" y2="274" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)" opacity="0.8"/>
+<text x="770" y="272" font-size="12" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace" font-weight="600">[RELEVANT MEMORIES — synthesized]</text>
+<text x="770" y="288" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.65">top-10 nearest the batch → phi-episodic-synth</text>
+<text x="24" y="332" font-size="12.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="600">every scheduled run, unconditionally</text>
+<text x="24" y="348" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.65">cycle, reflection, scout, editorial, retro …</text>
+<line x1="332" y1="334" x2="382" y2="334" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)" opacity="0.8"/>
+<rect x="392" y="314" width="300" height="44" rx="3" fill="none" stroke="#0F8F7E" stroke-width="1.5"/>
+<text x="402" y="332" font-size="12" text-anchor="start" fill="#0F8F7E" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace" font-weight="600">phi-episodic</text>
+<text x="402" y="348" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.7">tags = [run-summary, &lt;label&gt;]</text>
+<line x1="702" y1="334" x2="760" y2="334" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)" opacity="0.8"/>
+<text x="770" y="332" font-size="12" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace" font-weight="600">search_memory</text>
+<text x="770" y="348" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.65">“have I done this” · same synth block</text>
+<text x="24" y="392" font-size="12.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="600">jetstream tail of phi&#x27;s own repo</text>
+<text x="24" y="408" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.65">ops_log consumer · backfilled from PDS at start</text>
+<line x1="332" y1="394" x2="382" y2="394" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)" opacity="0.8"/>
+<rect x="392" y="374" width="300" height="44" rx="3" fill="none" stroke="#0F8F7E" stroke-width="1.5"/>
+<text x="402" y="392" font-size="12" text-anchor="start" fill="#0F8F7E" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace" font-weight="600">phi-own-posts</text>
+<text x="402" y="408" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.7">one row per post, id = rkey, links</text>
+<line x1="702" y1="394" x2="760" y2="394" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)" opacity="0.8"/>
+<text x="770" y="392" font-size="12" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace" font-weight="600">[PRIOR COVERAGE] · self-repeat judge</text>
+<text x="770" y="408" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.65">keyed by batch/feed material, and by the draft</text>
+<text x="24" y="452" font-size="12.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="600">same jetstream tail</text>
+<text x="24" y="468" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.65">every commit to her repo, 48h</text>
+<line x1="332" y1="454" x2="382" y2="454" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)" opacity="0.8"/>
+<rect x="392" y="434" width="300" height="44" rx="3" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.6"/>
+<text x="402" y="452" font-size="12" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace" font-weight="600">ops_log.jsonl</text>
+<text x="402" y="468" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.7">/data on the fly volume</text>
+<line x1="702" y1="454" x2="760" y2="454" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)" opacity="0.8"/>
+<text x="770" y="452" font-size="12" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace" font-weight="600">[RECENT OPERATIONS]</text>
+<text x="770" y="468" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.65">every 5 min · edits and deletes visible</text>
+<text x="24" y="512" font-size="12.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="600">phi&#x27;s gated tools</text>
+<text x="24" y="528" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.65">propose_goal_change (like-as-approval) · self record judge</text>
+<line x1="332" y1="514" x2="382" y2="514" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)" opacity="0.8"/>
+<rect x="392" y="494" width="300" height="44" rx="3" fill="none" stroke="#6F58C9" stroke-width="1.5"/>
+<text x="402" y="512" font-size="12" text-anchor="start" fill="#6F58C9" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace" font-weight="600">io.zzstoatzz.phi.{self,goal,persona}</text>
+<text x="402" y="528" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.7">constitution + operational fields</text>
+<line x1="702" y1="514" x2="760" y2="514" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)" opacity="0.8"/>
+<text x="770" y="512" font-size="12" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace" font-weight="600">[SELF] · [GOALS] · [PERSONA EXPERIMENT]</text>
+<text x="770" y="528" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.65">every 5 min, or on her own write</text>
+<text x="24" y="572" font-size="12.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="600">prefect · phi-atlas, daily</text>
+<text x="24" y="588" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.65">reads every turbopuffer namespace</text>
+<line x1="332" y1="574" x2="382" y2="574" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)" opacity="0.8"/>
+<rect x="392" y="554" width="300" height="44" rx="3" fill="none" stroke="#6F58C9" stroke-width="1.5"/>
+<text x="402" y="572" font-size="12" text-anchor="start" fill="#6F58C9" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace" font-weight="600">io.zzstoatzz.phi.atlas · .docket</text>
+<text x="402" y="588" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.7">blobs: mind-map + promotion candidates</text>
+<line x1="702" y1="574" x2="760" y2="574" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)" opacity="0.8"/>
+<text x="770" y="572" font-size="12" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace" font-weight="600">[ATLAS] · [DOCKET]</text>
+<text x="770" y="588" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.65">when the CID changes</text>
+<text x="24" y="632" font-size="12.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="600">semble tools, live-first</text>
+<text x="24" y="648" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.65">cards made in the moment · curate flow only deletes</text>
+<line x1="332" y1="634" x2="382" y2="634" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)" opacity="0.8"/>
+<rect x="392" y="614" width="300" height="44" rx="3" fill="none" stroke="#6F58C9" stroke-width="1.5"/>
+<text x="402" y="632" font-size="12" text-anchor="start" fill="#6F58C9" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace" font-weight="600">network.cosmik.*</text>
+<text x="402" y="648" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.7">card · collection · connection — indexed by semble</text>
+<line x1="702" y1="634" x2="760" y2="634" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)" opacity="0.8"/>
+<text x="770" y="632" font-size="12" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace" font-weight="600">[SEMBLE]</text>
+<text x="770" y="648" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.65">every 5 min · names, counts, recent cards</text>
+<path d="M396,112 C352,124 352,140 378,150" fill="none" stroke="#C27A0C" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#arrow)"/>
+<line x1="386" y1="68" x2="386" y2="420" stroke="#0F8F7E" stroke-width="2" opacity="0.35"/>
+<text x="380" y="80" font-size="9.5" text-anchor="end" fill="#0F8F7E" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace">turbopuffer</text>
+<line x1="386" y1="488" x2="386" y2="660" stroke="#6F58C9" stroke-width="2" opacity="0.35"/>
+<text x="380" y="500" font-size="9.5" text-anchor="end" fill="#6F58C9" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace">phi&#x27;s PDS</text>
+<text x="24" y="728" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.6">not drawn: thread context (fetched live from the network per batch, never stored) and the policy judge, which reads phi-own-posts and recent posts but writes nothing.</text>
+</svg>

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 400" role="img" aria-label="three keys unlock phi&#x27;s memory at read time: the batch material, the clock, and the draft she is about to post" font-family="IBM Plex Sans, system-ui, sans-serif" style="color:#1B2630;background:#F4F6F9">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+<rect x="24" y="30" width="300" height="74" rx="3" fill="none" stroke="#0F8F7E" stroke-width="1.6"/>
+<text x="36" y="50" font-size="12.5" text-anchor="start" fill="#0F8F7E" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="700">THE BATCH</text>
+<text x="36" y="68" font-size="11" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.8">what people just said to her</text>
+<text x="36" y="86" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace" opacity="0.7">the text of the batch is the query</text>
+<line x1="328" y1="62" x2="360" y2="62" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)" opacity="0.8"/>
+<text x="372" y="48" font-size="11" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace">[OBSERVATIONS ABOUT @h] · [PAST EXCHANGES] · [IMPRESSION]</text>
+<text x="372" y="65" font-size="11" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace">[RELEVANT MEMORIES] — episodic top-10, synthesized</text>
+<text x="372" y="82" font-size="11" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace">[PRIOR COVERAGE] — her own posts nearest the material</text>
+<text x="372" y="99" font-size="11" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace">[DISCOVERY POOL] shaped by who invited her</text>
+<rect x="24" y="160" width="300" height="74" rx="3" fill="none" stroke="#6F58C9" stroke-width="1.6"/>
+<text x="36" y="180" font-size="12.5" text-anchor="start" fill="#6F58C9" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="700">THE CLOCK</text>
+<text x="36" y="198" font-size="11" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.8">every run, or every 5 minutes</text>
+<text x="36" y="216" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace" opacity="0.7">no query — the block is state</text>
+<line x1="328" y1="192" x2="360" y2="192" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)" opacity="0.8"/>
+<text x="372" y="178" font-size="11" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace">[SELF] · [GOALS] · [PERSONA EXPERIMENT]</text>
+<text x="372" y="195" font-size="11" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace">[RECENT OPERATIONS] — 48h of her repo</text>
+<text x="372" y="212" font-size="11" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace">[SEMBLE] · [ATLAS] · [DOCKET] · [KNOWN RELAYS]</text>
+<text x="372" y="229" font-size="11" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace">path blocks: [RECENT CONVERSATIONS] on cycle + reflection</text>
+<rect x="24" y="290" width="300" height="74" rx="3" fill="none" stroke="#C27A0C" stroke-width="1.6"/>
+<text x="36" y="310" font-size="12.5" text-anchor="start" fill="#C27A0C" font-family="IBM Plex Sans, system-ui, sans-serif" font-weight="700">THE DRAFT</text>
+<text x="36" y="328" font-size="11" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.8">the post she is about to publish</text>
+<text x="36" y="346" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace" opacity="0.7">the draft text is the query</text>
+<line x1="328" y1="322" x2="360" y2="322" stroke="currentColor" stroke-width="1.2" marker-end="url(#arrow)" opacity="0.8"/>
+<text x="372" y="308" font-size="11" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace">phi-own-posts nearest the draft → policy judge → self-repeat</text>
+<text x="372" y="325" font-size="11" text-anchor="start" fill="currentColor" font-family="IBM Plex Mono, ui-monospace, Menlo, monospace">block: same referent, same observation, no development</text>
+<text x="24" y="386" font-size="10.5" text-anchor="start" fill="currentColor" font-family="IBM Plex Sans, system-ui, sans-serif" opacity="0.6">scheduled runs have no batch, so the batch-keyed blocks render empty there — which is why [PRIOR COVERAGE] also rides on search_posts and read_feed results, and why the draft key exists.</text>
+</svg>

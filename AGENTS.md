@@ -59,7 +59,7 @@ sandbox/                   # experiments (graduate to scripts/ once proven)
 
 two distinct namespaces — don't confuse them:
 
-- `skills/` — **phi's runtime skills.** loaded by the agent during `agent.run()`. these are things *phi* does: `publish-blog`, `cosmik-records`, `pdsx-fundamentals`, `phi-prompt-inspect`.
+- `skills/` — **phi's runtime skills.** loaded by the agent during `agent.run()`. these are things *phi* does: `publish-blog`, `cosmik-records`, `pdsx-fundamentals`, `self-traces` (what she did, from logfire), `own-source` (what she is, from this repo via the tangled tools).
 - `.claude/skills/` — **operator-facing skills.** for the human + claude code working *on* phi, not phi itself. these are things *you* do to inspect or talk to phi:
   - `phi-check` — inspect phi's health/activity via logfire, bsky, fly, PDS.
   - `devlog-to-phi` — post a message to phi from the operator's devlog account (the pdsx MCP is already authed as devlog; it's a thin record-create recipe, no script).

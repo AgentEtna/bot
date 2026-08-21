@@ -7,6 +7,20 @@ what moved and what it cost to find out.
 
 ## 2026-08-21
 
+- **docs**: `docs/memory.md` rewritten around three checked-in diagrams
+  (`docs/diagrams/memory-*.svg`): the whole loop as ten rows (writer → store
+  → block), the observation lifecycle with the high-water mark, and the three
+  keys that unlock recall (the batch, the clock, the draft). phi's own
+  self-drawings of 2026-08-12 had memory as one box among ten; the SVGs are
+  text she can read. The doc ends with three simplification candidates, none
+  made.
+
+- **feat**: `own-source` skill — phi reads her own repo through the tangled
+  tools (`list_files`, `read_file`, `commit_log`, `compare`), docs first,
+  with a symptom → file table and an instruction to draw herself from
+  `docs/memory.md` rather than from memory. `self-traces` is what she did;
+  this is what she is.
+
 - **fix**: observation extraction is bounded by its high-water mark, not by a
   count. `get_unprocessed_interactions` read the 5 newest interactions per
   namespace and `process_extraction` took 20 overall; the observations it
