@@ -39,6 +39,7 @@ logger = logging.getLogger("bot.ops_log")
 
 RETENTION_DAYS = 14
 _RECONNECT_MAX_SECONDS = 60
+_SILENCE_RECONNECT_SECONDS = 600
 # collections whose record body we keep (for summaries); everything else
 # logs op/nsid/rkey only, so likes on huge embeds don't bloat the file.
 RECORD_KEPT_NSIDS: frozenset[str] = frozenset(
@@ -293,6 +294,7 @@ class OpsLogConsumer:
         self.watch_dids = tuple(d for d in watch_dids if d and d != did)
         self.on_pull_comment = on_pull_comment
         self._task: asyncio.Task | None = None
+        self._attempt = 0
 
     async def start(self) -> None:
         prune_log()
@@ -307,8 +309,12 @@ class OpsLogConsumer:
                 pass
             self._task = None
 
+    def _endpoint(self) -> str:
+        urls = settings.jetstream_urls
+        return urls[self._attempt % len(urls)]
+
     def _url(self) -> str:
-        url = f"{settings.jetstream_url}?wantedDids={self.did}"
+        url = f"{self._endpoint()}?wantedDids={self.did}"
         for did in self.watch_dids:
             url += f"&wantedDids={did}"
         cursor = resume_cursor_us()
@@ -327,9 +333,26 @@ class OpsLogConsumer:
         while True:
             try:
                 async with websockets.connect(self._url(), max_size=2**22) as ws:
-                    logger.info(f"jetstream connected for {self.did}")
+                    logger.info(
+                        f"jetstream connected for {self.did} via {self._endpoint()}"
+                    )
                     backoff = 1.0
-                    async for message in ws:
+                    while True:
+                        # silence is not proof the stream is healthy: an
+                        # instance can stay connected and deliver nothing.
+                        # after ten quiet minutes, reconnect on the next
+                        # instance from the persisted cursor — cheap when
+                        # the quiet was real, decisive when it was not.
+                        try:
+                            message = await asyncio.wait_for(
+                                ws.recv(), timeout=_SILENCE_RECONNECT_SECONDS
+                            )
+                        except TimeoutError:
+                            logger.info(
+                                f"jetstream silent for {_SILENCE_RECONNECT_SECONDS}s "
+                                f"on {self._endpoint()}; rotating"
+                            )
+                            break
                         await self._handle(message)
             except asyncio.CancelledError:
                 raise
@@ -339,6 +362,7 @@ class OpsLogConsumer:
                 )
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, _RECONNECT_MAX_SECONDS)
+            self._attempt += 1
 
     async def _handle(self, message: str | bytes) -> None:
         try:

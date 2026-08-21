@@ -135,9 +135,19 @@ class Settings(BaseSettings):
     )
 
     # Repo ops awareness — jetstream tail of phi's own PDS commits
-    jetstream_url: str = Field(
-        default="wss://jetstream2.us-east.bsky.network/subscribe",
-        description="Jetstream endpoint for tailing phi's own repo commits",
+    jetstream_urls: tuple[str, ...] = Field(
+        default=(
+            "wss://jetstream1.us-west.bsky.network/subscribe",
+            "wss://jetstream2.us-west.bsky.network/subscribe",
+            "wss://jetstream1.us-east.bsky.network/subscribe",
+            "wss://jetstream2.us-east.bsky.network/subscribe",
+        ),
+        description=(
+            "Jetstream endpoints for tailing repo commits, rotated on every "
+            "reconnect. One instance alone is a single point of silence: on "
+            "2026-08-21 jetstream2.us-east delivered nothing for two watched "
+            "DIDs for 40 minutes while its siblings carried the events."
+        ),
     )
     ops_log_path: str = Field(
         default="/data/ops_log.jsonl",

@@ -537,3 +537,17 @@ class TestResumeCursor:
             )
         )
         assert ops_log._stream_cursor() == 5_000_000
+
+
+def test_endpoint_rotates_on_each_attempt(monkeypatch):
+    from bot.config import settings
+
+    monkeypatch.setattr(
+        settings, "jetstream_urls", ("wss://a/subscribe", "wss://b/subscribe")
+    )
+    c = ops_log.OpsLogConsumer("did:plc:phi")
+    assert c._url().startswith("wss://a/subscribe?")
+    c._attempt += 1
+    assert c._url().startswith("wss://b/subscribe?")
+    c._attempt += 1
+    assert c._url().startswith("wss://a/subscribe?")
