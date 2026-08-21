@@ -212,6 +212,18 @@ class Settings(BaseSettings):
         default="zzstoatzz.io",
         description="Handle or DID of the bot's owner (permission-gated tools)",
     )
+    reviewer_dids: tuple[Did, ...] = Field(
+        default=(
+            "did:plc:xbtmt2zjwlrfegqvch7fboei",  # zzstoatzz.io
+            "did:plc:mkqt76xvfgxuemlwlx6ruc3w",  # zat.dev
+            "did:plc:o53crari67ge7bvbv273lxln",  # zzstoatzzdevlog.bsky.social
+        ),
+        description=(
+            "DIDs whose pull-request comments on phi's repo wake her. The "
+            "operator has more than one identity and reviews from whichever "
+            "is logged in (2026-08-21: a review left as zat.dev went nowhere)."
+        ),
+    )
 
     # Relay fleet monitoring — phi polls relay-eval on a schedule and
     # reports status transitions. The service is the source of truth;

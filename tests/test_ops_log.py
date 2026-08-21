@@ -400,9 +400,10 @@ class TestPullCommentWake:
         url = c._url()
         assert f"wantedDids={self.PHI}" in url and f"wantedDids={self.OWNER}" in url
 
-    async def test_owner_comment_on_phis_pull_wakes(self, monkeypatch):
+    async def test_owner_comment_on_phis_pull_wakes(self, monkeypatch, tmp_path):
         calls, appended = [], []
         monkeypatch.setattr(ops_log, "append_op", lambda row: appended.append(row))
+        monkeypatch.setattr(ops_log, "WATCHED_CURSOR_FILE", tmp_path / "w.json")
         c = self._consumer(calls, appended)
         record = {
             "pull": f"at://{self.PHI}/sh.tangled.repo.pull/3abc",
@@ -442,3 +443,18 @@ class TestPullCommentWake:
             m
             == "@zzstoatzz.io commented on your pull request at://did:plc:phi/sh.tangled.repo.pull/3abc:\n\ntighter."
         )
+
+    async def test_replayed_comment_does_not_wake_twice(self, monkeypatch, tmp_path):
+        calls, appended = [], []
+        monkeypatch.setattr(ops_log, "append_op", lambda row: appended.append(row))
+        monkeypatch.setattr(ops_log, "WATCHED_CURSOR_FILE", tmp_path / "w.json")
+        c = self._consumer(calls, appended)
+        record = {"pull": f"at://{self.PHI}/sh.tangled.repo.pull/3abc", "body": "again"}
+        ev = self._event(self.OWNER, ops_log.PULL_COMMENT_NSID, record)
+        await c._handle(ev)
+        await c._handle(ev)
+        assert len(calls) == 1
+        newer = json.loads(ev)
+        newer["time_us"] = 2
+        await c._handle(json.dumps(newer))
+        assert len(calls) == 2

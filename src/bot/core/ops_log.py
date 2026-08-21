@@ -187,6 +187,24 @@ def event_to_row(event: dict[str, Any]) -> OpRow | None:
 PULL_COMMENT_NSID = "sh.tangled.repo.pull.comment"
 
 
+WATCHED_CURSOR_FILE = Path("/data/watched_cursor.json")
+
+
+def _watched_cursor() -> int:
+    try:
+        return int(json.loads(WATCHED_CURSOR_FILE.read_text())["time_us"])
+    except Exception:
+        return 0
+
+
+def _set_watched_cursor(time_us: int) -> None:
+    try:
+        WATCHED_CURSOR_FILE.parent.mkdir(parents=True, exist_ok=True)
+        WATCHED_CURSOR_FILE.write_text(json.dumps({"time_us": time_us}))
+    except Exception as e:
+        logger.warning(f"failed to persist watched cursor: {e}")
+
+
 def pull_comment_material(record: dict[str, Any], commenter: str) -> str:
     """The event content a pull-request comment wakes phi with."""
     pull = str(record.get("pull") or "")
@@ -305,6 +323,14 @@ class OpsLogConsumer:
         record = commit.get("record") or {}
         if not self.is_own_pull(str(record.get("pull") or "")):
             return
+        # jetstream resumes from phi's own last op, which can be hours old
+        # when she has been quiet; without this, every reconnect would
+        # replay the same review comment and wake her again.
+        time_us = int(event.get("time_us") or 0)
+        if time_us and time_us <= _watched_cursor():
+            return
+        if time_us:
+            _set_watched_cursor(time_us)
         try:
             await self.on_pull_comment(str(event.get("did")), record)
         except Exception as e:

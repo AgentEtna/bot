@@ -99,7 +99,15 @@ async def lifespan(app: FastAPI):
                 )
 
         async def _pull_comment(commenter_did: str, record: dict) -> None:
-            material = ops_log.pull_comment_material(record, settings.owner_handle)
+            handle = commenter_did
+            try:
+                profile = bot_client.client.app.bsky.actor.get_profile(
+                    {"actor": commenter_did}
+                )
+                handle = profile.handle or commenter_did
+            except Exception as e:
+                logger.debug(f"commenter handle lookup failed: {e}")
+            material = ops_log.pull_comment_material(record, handle)
             await poller.handler.pull_comment(material)
 
         ops_consumer = ops_log.OpsLogConsumer(
