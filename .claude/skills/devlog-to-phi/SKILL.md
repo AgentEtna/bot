@@ -76,6 +76,13 @@ Not for: changing phi's behavior (edit code/personality), inspecting phi
    HER latest post (or add a fresh mention facet). And fetch her post's
    real `cid` first (`getPosts`/`get_record`) — never construct or guess a
    cid for a reply ref.
+   TIMING RULE (learned 2026-08-21): phi answers a mention within about a
+   minute, so a root that carries the mention gets read before the rest of
+   the thread exists — a nine-post critique was answered as a one-post
+   notice. For any thread longer than one post, post the root and every
+   follow-up WITHOUT a mention facet first, then put the `@phi.zzstoatzz.io`
+   mention (with its facet) in the LAST post. She is notified once, sees the
+   whole thread via thread context, and replies to all of it.
 5. Report the thread URL back:
    `https://bsky.app/profile/zzstoatzzdevlog.bsky.social/post/<root_rkey>`
    (rkey is the last path segment of the root uri). Phi picks up the mention
