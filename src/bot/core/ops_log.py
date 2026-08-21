@@ -190,6 +190,43 @@ COMMENT_NSIDS = frozenset({PULL_COMMENT_NSID, FEED_COMMENT_NSID})
 
 
 WATCHED_CURSOR_FILE = Path("/data/watched_cursor.json")
+STREAM_CURSOR_FILE = Path("/data/jetstream_cursor.json")
+_FIRST_RUN_REWIND_US = 60 * 60 * 1_000_000
+_CURSOR_WRITE_INTERVAL_US = 2_000_000
+
+
+def _stream_cursor() -> int:
+    try:
+        return int(json.loads(STREAM_CURSOR_FILE.read_text())["time_us"])
+    except Exception:
+        return 0
+
+
+def _set_stream_cursor(time_us: int) -> None:
+    try:
+        STREAM_CURSOR_FILE.parent.mkdir(parents=True, exist_ok=True)
+        STREAM_CURSOR_FILE.write_text(json.dumps({"time_us": time_us}))
+    except Exception as e:
+        logger.warning(f"failed to persist jetstream cursor: {e}")
+
+
+def resume_cursor_us() -> int | None:
+    """Where to resume the socket: the last event *read*, not phi's last op.
+
+    Resuming from her newest logged op skipped the operator's 08:24 review
+    on 2026-08-21 — her profile was touched at 08:34, so the replay began
+    after the comment. The stream cursor is the read position across every
+    watched repo; phi's own op cursor is the floor when no read position
+    exists yet, rewound an hour so a first deploy of this code still sees
+    recent events about her.
+    """
+    stream = _stream_cursor()
+    own = last_cursor_us()
+    if stream:
+        return min(stream, own) if own else stream
+    if own:
+        return own - _FIRST_RUN_REWIND_US
+    return None
 
 
 def _watched_cursor() -> int:
@@ -274,7 +311,7 @@ class OpsLogConsumer:
         url = f"{settings.jetstream_url}?wantedDids={self.did}"
         for did in self.watch_dids:
             url += f"&wantedDids={did}"
-        cursor = last_cursor_us()
+        cursor = resume_cursor_us()
         if cursor:
             # rewind 5s so a crash between receive and append can't skip ops;
             # append is keyed by time_us so replays are visible but harmless
@@ -308,6 +345,7 @@ class OpsLogConsumer:
             event = json.loads(message)
         except json.JSONDecodeError:
             return
+        self._advance_cursor(int(event.get("time_us") or 0))
         if event.get("did") not in (None, self.did):
             await self._handle_watched(event)
             return
@@ -325,6 +363,17 @@ class OpsLogConsumer:
                 await self.on_post(row)
             except Exception as e:
                 logger.warning(f"own-post index hook failed for {row['rkey']}: {e}")
+
+    _last_cursor_write_us: int = 0
+
+    def _advance_cursor(self, time_us: int) -> None:
+        """Persist the read position, throttled — the operator's repo alone
+        can emit several events a second."""
+        if not time_us:
+            return
+        if time_us - self._last_cursor_write_us >= _CURSOR_WRITE_INTERVAL_US:
+            _set_stream_cursor(time_us)
+            self._last_cursor_write_us = time_us
 
     def is_own_pull(self, uri: str) -> bool:
         return uri.startswith(f"at://{self.did}/sh.tangled.repo.pull/")

@@ -498,3 +498,42 @@ class TestPullCommentWake:
         }
         await c._handle(self._event(self.OWNER, ops_log.FEED_COMMENT_NSID, record))
         assert calls == []
+
+
+class TestResumeCursor:
+    """2026-08-21: the socket resumed from phi's newest logged op (her
+    profile, 08:34) and skipped the operator's 08:24 review comment. Resume
+    from the last event read across every watched repo instead."""
+
+    def test_read_position_wins_when_older_than_her_last_op(
+        self, monkeypatch, tmp_path
+    ):
+        monkeypatch.setattr(ops_log, "STREAM_CURSOR_FILE", tmp_path / "s.json")
+        monkeypatch.setattr(ops_log, "last_cursor_us", lambda: 8_34_00)
+        ops_log._set_stream_cursor(8_20_00)
+        assert ops_log.resume_cursor_us() == 8_20_00
+
+    def test_first_run_rewinds_an_hour_from_her_last_op(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(ops_log, "STREAM_CURSOR_FILE", tmp_path / "missing.json")
+        monkeypatch.setattr(ops_log, "last_cursor_us", lambda: 10 * 60 * 60 * 1_000_000)
+        assert ops_log.resume_cursor_us() == 9 * 60 * 60 * 1_000_000
+
+    async def test_handle_advances_the_read_position(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(ops_log, "STREAM_CURSOR_FILE", tmp_path / "s.json")
+        monkeypatch.setattr(ops_log, "append_op", lambda row: None)
+        c = ops_log.OpsLogConsumer("did:plc:phi")
+        await c._handle(
+            json.dumps(
+                {
+                    "did": "did:plc:phi",
+                    "kind": "commit",
+                    "time_us": 5_000_000,
+                    "commit": {
+                        "operation": "create",
+                        "collection": "app.bsky.feed.like",
+                        "rkey": "r",
+                    },
+                }
+            )
+        )
+        assert ops_log._stream_cursor() == 5_000_000
