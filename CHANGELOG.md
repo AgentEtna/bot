@@ -7,6 +7,13 @@ what moved and what it cost to find out.
 
 ## 2026-08-21
 
+- **fix**: one notification run at a time. Three devlog posts in one thread
+  arrived ~25s apart, each became a one-item batch, and the three runs
+  overlapped — three drafts of the same rewrite, seven replies in a minute.
+  While a run is in flight, new notifications stay unclaimed and the poll
+  after it finishes batches them together; `MAX_CONCURRENT` no longer
+  means three parallel cognitive events.
+
 - **feat**: phi's personality file is hers to change, by pull request.
   `personalities/phi.md` now says so and tells her how (`tangled_read_file`
   → `tangled_create_pull` with whole-file `edits` → post the link to the

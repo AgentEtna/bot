@@ -52,6 +52,7 @@ class NotificationPoller:
         self._last_thought_hours: set[int] = set()
         self._last_thought_date: date | None = None
         self._semaphore = asyncio.Semaphore(MAX_CONCURRENT)
+        self._batch_task: asyncio.Task | None = None
         self._background_tasks: set[asyncio.Task] = set()
         self._next_alert_watch_poll = 0.0
         self._next_relay_watch_poll = 0.0
@@ -251,15 +252,32 @@ class NotificationPoller:
         batch = [n for n in unread if n.uri not in self._processed_uris]
         if not batch:
             return
+        self._dispatch_batch(batch, check_time)
 
+    def _dispatch_batch(self, batch: list, check_time: str) -> bool:
+        """Start one handler run for *batch*, unless one is already running.
+
+        One cognitive event at a time. On 2026-08-21 three posts in one
+        thread arrived ~25s apart, each became a one-item batch, and the
+        three runs overlapped — three drafts of the same rewrite, seven
+        replies in a minute. While a run is in flight, new notifications
+        are left unclaimed (not added to _processed_uris) so the poll after
+        it finishes batches them together with whatever else arrived: the
+        follow-ups join one run instead of each starting their own.
+        """
+        if self._batch_task is not None and not self._batch_task.done():
+            logger.info(
+                f"batch in flight; {len(batch)} notifications wait for the next poll"
+            )
+            return False
         for n in batch:
             self._processed_uris.add(n.uri)
-
-        # Dispatch the entire batch as one task — one cognitive event per poll
         task = asyncio.create_task(self._handle_batch_with_semaphore(batch, check_time))
+        self._batch_task = task
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
         logger.info(f"dispatched batch of {len(batch)} notifications")
+        return True
 
         if len(self._processed_uris) > 1000:
             self._processed_uris = set(list(self._processed_uris)[-500:])
