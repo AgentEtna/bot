@@ -285,7 +285,7 @@ def register(agent):
 
         aspect='services': health checks for the operator's apps.
         aspect='changelog': your own recent deploys (github mirror of the bot
-        repo; origin is tangled.sh/zzstoatzz.io/bot) — what changed and when.
+        repo; origin is tangled.org/zzstoatzz.io/bot) — what changed and when.
         aspect='relays': the relay fleet via relay-eval, in three modes:
         - snapshot (default, no relay params): current status of every relay,
           plus the network-absolute behind-lately verdict (a relay is "behind"
