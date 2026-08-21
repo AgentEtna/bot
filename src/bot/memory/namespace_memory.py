@@ -752,7 +752,11 @@ class NamespaceMemory:
                 )
             else:
                 await self._write_episodic(
-                    content, tags, source, source_uris, embedding,
+                    content,
+                    tags,
+                    source,
+                    source_uris,
+                    embedding,
                     supersedes=best["id"],
                 )
                 logger.info(
@@ -994,6 +998,19 @@ class NamespaceMemory:
             nid: (float(proj[i, 0]), float(proj[i, 1])) for i, nid in enumerate(ids)
         }
 
+    def _user_namespace_ids(self) -> list[str]:
+        """Every user namespace id, across all listing pages.
+
+        turbopuffer lists 100 namespaces per page. Reading ``page.namespaces``
+        off the first page silently capped the view at the first 100 ids in
+        sort order — with 167 user namespaces that cut off at "museical",
+        so the operator, the devlog, and every n–z handle were invisible to
+        recent-conversation recall and observation extraction. The page
+        object iterates with automatic pagination; this uses that.
+        """
+        user_prefix = f"{self.NAMESPACES['users']}-"
+        return [ns.id for ns in self.client.namespaces(prefix=user_prefix)]
+
     def get_graph_data(self) -> dict:
         """Build graph nodes and edges from memory namespaces with semantic coordinates."""
         nodes = [{"id": "phi", "label": "phi", "type": "phi"}]
@@ -1003,16 +1020,15 @@ class NamespaceMemory:
         # discover user namespaces
         user_prefix = f"{self.NAMESPACES['users']}-"
         try:
-            page = self.client.namespaces(prefix=user_prefix)
-            for ns_summary in page.namespaces:
-                handle = ns_summary.id.removeprefix(user_prefix).replace("_", ".")
+            for ns_id in self._user_namespace_ids():
+                handle = ns_id.removeprefix(user_prefix).replace("_", ".")
                 nodes.append(
                     {"id": f"user:{handle}", "label": f"@{handle}", "type": "user"}
                 )
                 edges.append({"source": "phi", "target": f"user:{handle}"})
 
                 # get observation vectors for semantic positioning
-                user_ns = self.client.namespace(ns_summary.id)
+                user_ns = self.client.namespace(ns_id)
                 try:
                     response = user_ns.query(
                         rank_by=("vector", "ANN", [0.5] * 1536),
@@ -1067,10 +1083,9 @@ class NamespaceMemory:
         user_prefix = f"{self.NAMESPACES['users']}-"
         results: list[dict] = []
         try:
-            page = self.client.namespaces(prefix=user_prefix)
-            for ns_summary in page.namespaces:
-                handle = ns_summary.id.removeprefix(user_prefix).replace("_", ".")
-                user_ns = self.client.namespace(ns_summary.id)
+            for ns_id in self._user_namespace_ids():
+                handle = ns_id.removeprefix(user_prefix).replace("_", ".")
+                user_ns = self.client.namespace(ns_id)
                 try:
                     response = user_ns.query(
                         rank_by=("created_at", "desc"),
@@ -1107,10 +1122,9 @@ class NamespaceMemory:
         user_prefix = f"{self.NAMESPACES['users']}-"
         results: list[InteractionRow] = []
         try:
-            page = self.client.namespaces(prefix=user_prefix)
-            for ns_summary in page.namespaces:
-                handle = ns_summary.id.removeprefix(user_prefix).replace("_", ".")
-                user_ns = self.client.namespace(ns_summary.id)
+            for ns_id in self._user_namespace_ids():
+                handle = ns_id.removeprefix(user_prefix).replace("_", ".")
+                user_ns = self.client.namespace(ns_id)
 
                 # find the latest observation timestamp
                 latest_obs_time = ""

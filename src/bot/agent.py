@@ -226,6 +226,42 @@ def _format_notifications_block(notifications_context: dict) -> str:
     return "\n".join(lines)
 
 
+def render_recent_conversations(recent: list[dict], limit: int = 5) -> str:
+    """[RECENT CONVERSATIONS] — a dated record of exchanges phi already had.
+
+    Each row is "user: …\nbot: …". The old render cut the row at 150 chars,
+    which usually fell inside the user's half, and carried no date — so a
+    month-old, fully answered thread read as an undated open question. phi
+    re-investigated the same two botnana threads five times (07-22 → 08-20)
+    before reporting the surface as stale. Both halves now render, dated.
+    """
+    if not recent:
+        return "[RECENT CONVERSATIONS]: no recent interactions"
+    unique_handles = {i["handle"] for i in recent}
+    lines = [
+        "[RECENT CONVERSATIONS — exchanges you already had and already "
+        f"replied to, newest first. a record, not open threads. "
+        f"{len(recent)} across {len(unique_handles)} people]"
+    ]
+    for i in recent[:limit]:
+        content = i.get("content") or ""
+        user_part, _, bot_part = content.partition("\nbot: ")
+        user_part = user_part.removeprefix("user: ")
+        when = (i.get("created_at") or "")[:10] or "undated"
+        line = f'- {when} @{i["handle"]}: they said "{_clip(user_part, 110)}"'
+        if bot_part:
+            line += f' — you replied "{_clip(bot_part, 110)}"'
+        else:
+            line += " — no reply recorded"
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def _clip(text: str, n: int) -> str:
+    text = " ".join(text.split())
+    return text if len(text) <= n else text[: n - 1] + "…"
+
+
 class PhiAgent:
     """phi - bluesky bot with structured memory and MCP tools."""
 
@@ -973,17 +1009,7 @@ class PhiAgent:
         except Exception as e:
             logger.warning(f"failed to get recent interactions: {e}")
             return ""
-        if not recent:
-            return "[RECENT CONVERSATIONS]: no recent interactions"
-
-        unique_handles = {i["handle"] for i in recent}
-        lines = [
-            f"[RECENT CONVERSATIONS]: {len(recent)} interactions with "
-            f"{len(unique_handles)} people recently"
-        ]
-        for i in recent[:5]:
-            lines.append(f"- with @{i['handle']}: {i['content'][:150]}")
-        return "\n".join(lines)
+        return render_recent_conversations(recent)
 
     async def _run_scheduled(
         self,

@@ -59,6 +59,8 @@ assembled by the entry point and appended to the *task prompt*, not the system p
 | **cycle** | `[WORKFLOW STATE]`, `[RECENT FLOW MENTIONS]`, `[RECENT CONVERSATIONS]` | `core/workflow_state.py`, `core/recent_flow_mentions.py`, `_recent_conversations_block` |
 | **daily reflection** | `[RECENT CONVERSATIONS]`, `[SERVICE HEALTH]` | `_recent_conversations_block`, `_check_services_impl` |
 
+`[RECENT CONVERSATIONS]` is a dated record of exchanges phi already replied to (`render_recent_conversations`), newest first, both halves shown. Until 2026-08-20 it rendered undated `content[:150]` rows — usually just the user's half — and read only the first of turbopuffer's 100-per-page namespace listings, so with 167 user namespaces the operator, the devlog and every n–z handle were invisible; the same first-page read gated observation extraction (`get_unprocessed_interactions`). phi re-verified the same two 07-22 botnana threads five times before reporting the surface as stale.
+
 because `inject_notifications` / `inject_user_memory` / `inject_episodic` return `""` without a notifications context, the **cycle** and **reflection** paths run with the every-run system blocks above plus their own appended blocks — but no notifications / per-author / episodic blocks.
 
 ## design rules

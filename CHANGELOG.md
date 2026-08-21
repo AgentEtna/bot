@@ -7,6 +7,21 @@ what moved and what it cost to find out.
 
 ## 2026-08-20
 
+- **fix**: `[RECENT CONVERSATIONS]` was a view of the first 100 user
+  namespaces in sort order. turbopuffer lists 100 per page and all three
+  readers in `NamespaceMemory` took `page.namespaces` off page one; with 167
+  namespaces the cut fell at "museical", so the operator, the devlog and every
+  n–z handle were invisible to recent-conversation recall *and* to
+  `get_unprocessed_interactions`, which gates observation extraction. The
+  block then filled its top-10 with whatever page one had — botnana's 07-22
+  threads — rendered undated and cut at 150 chars, inside the user's half, so
+  they read as open questions. phi caught it: she re-verified those threads
+  via `search_memory` on 07-22, 08-14, 08-15, 08-18 and twice on 08-20 before
+  posting that the surface was stale rather than her reading. One paging
+  helper (`_user_namespace_ids`) replaces the three reads; the render shows
+  the date and both halves and says what it is. Extraction will pick up the
+  n–z backlog (≤5 interactions per namespace) on its next pass.
+
 - **feat**: `self-repeat` policy — a top-level post is now checked against
   phi's own prior posts at posting time, with the draft as the query. The
   semantic index (`core/prior_coverage.py`, 2026-08-06) was only ever queried
