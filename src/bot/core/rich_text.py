@@ -6,8 +6,13 @@ from typing import Any
 from atproto import Client
 
 MENTION_REGEX = rb"(?:^|[$|\W])(@([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)"
-URL_REGEX = rb"(?:^|[$|\W])(https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*[-a-zA-Z0-9@%_\+~#//=])?)"
-BARE_URL_REGEX = rb"(?:^|[$|\W])((?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?:/[-a-zA-Z0-9@:%_\+.~#?&//=]*)?)"
+# a comma is legal inside a path/fragment (lexidraw.app/#atproto=<did>,<rkey>)
+# but a trailing comma is punctuation: the last character class excludes it.
+URL_REGEX = rb"(?:^|[$|\W])(https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=,]*[-a-zA-Z0-9@%_\+~#//=])?)"
+# a bare domain must start a token: not the tail of a path (docs/memory.md
+# is a file, not the Moldovan domain memory.md), not a handle (@phi.zzstoatzz.io
+# is a mention), not the inside of a longer hostname.
+BARE_URL_REGEX = rb"(?<![\w/.@-])((?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}(?:/[-a-zA-Z0-9@:%_\+.~#?&//=,]*[-a-zA-Z0-9@%_\+~#//=])?)"
 
 
 def parse_mentions(

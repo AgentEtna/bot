@@ -7,6 +7,20 @@ what moved and what it cost to find out.
 
 ## 2026-08-21
 
+- **fix**: link facets stopped at a comma and linkified file paths. phi
+  posted her new self-drawing as `lexidraw.app/#atproto=<did>,<rkey>` and the
+  facet dropped the rkey, so the link opened the viewer on her 08-12 scene;
+  the same post linkified `docs/memory.md` as the domain memory.md. Commas
+  are legal inside a path or fragment (a trailing one is still punctuation),
+  and a bare domain must start a token — not the tail of a path, a handle,
+  or a longer hostname. `tests/test_rich_text.py::TestLinkBoundaries`.
+
+- **docs**: `docs/internal/memory-simplification.md` — the plan for the
+  three cuts in `docs/memory.md` plus one addition that comes first: the
+  policy judge's exhaust (a ledger of every verdict with its reason, a
+  seven-day tally in `[SELF]`, a `/judge` cockpit view pairing blocks with
+  the redrafts that passed).
+
 - **docs**: `docs/memory.md` rewritten around three checked-in diagrams
   (`docs/diagrams/memory-*.svg`): the whole loop as ten rows (writer → store
   → block), the observation lifecycle with the high-water mark, and the three
