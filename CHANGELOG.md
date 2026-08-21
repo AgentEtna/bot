@@ -19,8 +19,15 @@ what moved and what it cost to find out.
   via `search_memory` on 07-22, 08-14, 08-15, 08-18 and twice on 08-20 before
   posting that the surface was stale rather than her reading. One paging
   helper (`_user_namespace_ids`) replaces the three reads; the render shows
-  the date and both halves and says what it is. Extraction will pick up the
-  n–z backlog (≤5 interactions per namespace) on its next pass.
+  the date and both halves and says what it is. The daily pass would not
+  have recovered the backlog: it takes the five newest interactions per
+  namespace and "unprocessed" means newer than the latest observation, so
+  one pass would have marked the rest as done. The devlog had 147 unextracted
+  interactions since 05-23 and the operator 29 since 06-09 — phi's record of
+  the two people she talks to most stopped updating when the namespace count
+  crossed 100. `scripts/extraction_backfill.py` ran her extractor and
+  reconciler over all 178, oldest first: 102 observations reconciled (99
+  rows, 11 superseding earlier ones).
 
 - **feat**: `self-repeat` policy — a top-level post is now checked against
   phi's own prior posts at posting time, with the draft as the query. The
