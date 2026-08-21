@@ -7,6 +7,7 @@ handled set keeps the two paths from waking her twice for one comment.
 """
 
 import json
+from datetime import UTC
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -75,14 +76,16 @@ async def test_old_comments_are_not_replayed_on_a_fresh_start(handled_file):
     assert found == []
 
 
-async def test_comments_the_jetstream_path_already_handled_are_not_rewoken(handled_file, tmp_path):
+async def test_comments_the_jetstream_path_already_handled_are_not_rewoken(
+    handled_file, tmp_path
+):
     """18:45: the first poll woke phi for the 17:13 comment jetstream had
     handled at 17:42 — recorded in the watched cursor, not the handled set."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from bot.core import ops_log
 
-    t = datetime(2099, 1, 1, tzinfo=timezone.utc)
+    t = datetime(2099, 1, 1, tzinfo=UTC)
     ops_log._set_watched_cursor(int(t.timestamp() * 1_000_000))
     older = _record("r1", PULL, created=t.isoformat().replace("+00:00", "Z"))
     newer = _record("r2", PULL, created="2099-01-02T00:00:00Z")
