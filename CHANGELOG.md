@@ -7,6 +7,15 @@ what moved and what it cost to find out.
 
 ## 2026-08-21
 
+- **fix**: review comments reach phi even when jetstream does not deliver
+  them. Three jetstream failures in one afternoon each cost a comment: the
+  pinned instance went quiet while connected, a sibling instance never
+  carried the event, a resumed cursor landed past it. `core/review_poll.py`
+  reads the reviewers' PDSes every minute (`review_poll_interval`) — the
+  authority for their own records — and both paths share one handled set so
+  a comment wakes her exactly once. Jetstream also rotates across four
+  instances and reconnects after ten quiet minutes.
+
 - **fix**: a revision starts from the pull's own content. Round 2 on PR #5
   edited the pre-pull file from `main` — the only read the prompt named —
   and silently discarded round 1. `tangled_get_pull_file` (new) returns a

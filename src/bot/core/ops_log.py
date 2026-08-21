@@ -416,6 +416,12 @@ class OpsLogConsumer:
         record = commit.get("record") or {}
         if not self.is_own_pull(comment_target(record)):
             return
+        from bot.core import review_poll
+
+        uri = f"at://{event.get('did')}/{commit.get('collection')}/{commit.get('rkey')}"
+        if review_poll.was_handled(uri):
+            return
+        review_poll.mark_handled(uri)
         # jetstream resumes from phi's own last op, which can be hours old
         # when she has been quiet; without this, every reconnect would
         # replay the same review comment and wake her again.

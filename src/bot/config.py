@@ -222,6 +222,13 @@ class Settings(BaseSettings):
         default="zzstoatzz.io",
         description="Handle or DID of the bot's owner (permission-gated tools)",
     )
+    review_poll_interval: int = Field(
+        default=60,
+        description=(
+            "Seconds between polls of the reviewers' PDSes for new comments on "
+            "phi's pull requests — the authoritative path; jetstream is the fast one."
+        ),
+    )
     reviewer_dids: tuple[Did, ...] = Field(
         default=(
             "did:plc:xbtmt2zjwlrfegqvch7fboei",  # zzstoatzz.io
