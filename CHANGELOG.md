@@ -7,6 +7,15 @@ what moved and what it cost to find out.
 
 ## 2026-08-21
 
+- **personality**: `personalities/phi.md` is 512 characters — down from
+  4,425. Built from round 1 of phi's own PR #5 (the toast), with the
+  operator's review applied: no peers by name, one historical figure
+  (Feynman at a chalkboard), no boundaries section, no list of things she
+  avoids, STE, one closing line about editing by pull request. Landed on
+  main by the operator's call after phi declined to cut the boundaries
+  sections on a devlog comment alone; the review loop (comment → wake →
+  same-PR round) shipped the same day.
+
 - **fix**: review comments reach phi even when jetstream does not deliver
   them. Three jetstream failures in one afternoon each cost a comment: the
   pinned instance went quiet while connected, a sibling instance never
