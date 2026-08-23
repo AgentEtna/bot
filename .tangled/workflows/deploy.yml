@@ -11,7 +11,13 @@ dependencies:
     - python312
 
 steps:
+  # Settings() validates at import and requires the bot's credentials; the
+  # suite never authenticates, so placeholders satisfy it. Real secrets stay
+  # on fly.
   - name: test
+    environment:
+      BLUESKY_HANDLE: ci.invalid
+      BLUESKY_PASSWORD: ci
     command: |
       uv sync --frozen
       uv run pytest -q
