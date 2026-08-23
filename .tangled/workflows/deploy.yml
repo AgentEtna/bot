@@ -9,6 +9,10 @@ dependencies:
     - flyctl
     - uv
     - python312
+    # manylinux wheels (numpy, pillow) dlopen libstdc++.so.6, which a nix
+    # image has nowhere on the default loader path; libgcc ships it and the
+    # test step points LD_LIBRARY_PATH at it.
+    - libgcc
 
 steps:
   # Settings() validates at import and requires the bot's credentials; the
@@ -19,6 +23,7 @@ steps:
       BLUESKY_HANDLE: ci.invalid
       BLUESKY_PASSWORD: ci
     command: |
+      export LD_LIBRARY_PATH="$(dirname "$(ls /nix/store/*-gcc-*-lib/lib/libstdc++.so.6 | head -1)")"
       uv sync --frozen
       uv run pytest -q
 

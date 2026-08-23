@@ -369,6 +369,17 @@ class TestPullCommentWake:
     PHI = "did:plc:phi"
     OWNER = "did:plc:owner"
 
+    @pytest.fixture(autouse=True)
+    def _isolated_state(self, monkeypatch, tmp_path):
+        """the handled set and both cursors default to /data, which a CI
+        container can write — one test's mark_handled leaked into the next
+        on the first spindle run (2026-08-23)."""
+        from bot.core import review_poll
+
+        monkeypatch.setattr(review_poll, "HANDLED_FILE", tmp_path / "handled.json")
+        monkeypatch.setattr(ops_log, "WATCHED_CURSOR_FILE", tmp_path / "watched.json")
+        monkeypatch.setattr(ops_log, "STREAM_CURSOR_FILE", tmp_path / "stream.json")
+
     def _consumer(self, calls, appended):
         async def on_pull_comment(did, record):
             calls.append((did, record))
@@ -454,9 +465,16 @@ class TestPullCommentWake:
         await c._handle(ev)
         await c._handle(ev)
         assert len(calls) == 1
+        # the same comment re-delivered with a newer time_us is still the same
+        # comment (the handled set is keyed by its at-uri); a new comment wakes
         newer = json.loads(ev)
         newer["time_us"] = 2
         await c._handle(json.dumps(newer))
+        assert len(calls) == 1
+        fresh = json.loads(ev)
+        fresh["time_us"] = 3
+        fresh["commit"]["rkey"] = "r2"
+        await c._handle(json.dumps(fresh))
         assert len(calls) == 2
 
     async def test_current_lexicon_feed_comment_on_phis_pull_wakes(
