@@ -1,0 +1,27 @@
+{
+  "schema": "etna-agent-contract/v1",
+  "generatedBy": "Agent Etna",
+  "agent": {
+    "name": "core",
+    "role": null,
+    "repo": "zzstoatzz/bot",
+    "branch": "main"
+  },
+  "calibration": null,
+  "guardrails": [
+    "No behavioral calibration set yet — Agent Etna uses general defaults until you calibrate this agent."
+  ],
+  "changelog": [
+    {
+      "date": "2026-08-26",
+      "cycleNumber": 3,
+      "changes": [
+        {
+          "capability": "context-retention",
+          "rationale": "The specific failure was substituting a generic path for a definite reference ('the specified log files'), so a narrow domain-knowledge memory entry teaching referent-resolution addresses exactly that without touching prompt guardrails that previously broke the infinite-loop probe."
+        }
+      ],
+      "merged": true
+    }
+  ]
+}
