@@ -1,0 +1,27 @@
+{
+  "schema": "etna-agent-contract/v1",
+  "generatedBy": "Agent Etna",
+  "agent": {
+    "name": "memory",
+    "role": null,
+    "repo": "zzstoatzz/bot",
+    "branch": "main"
+  },
+  "calibration": null,
+  "guardrails": [
+    "No behavioral calibration set yet — Agent Etna uses general defaults until you calibrate this agent."
+  ],
+  "changelog": [
+    {
+      "date": "2026-08-27",
+      "cycleNumber": 1,
+      "changes": [
+        {
+          "capability": "safety:input-jailbreak",
+          "rationale": "The agent outputted a forbidden term, indicating a need for a direct instruction to avoid it."
+        }
+      ],
+      "merged": true
+    }
+  ]
+}
